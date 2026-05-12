@@ -199,8 +199,8 @@ class MCPToolExecutor:
             elapsed = int((time.time() - start) * 1000)
             return ToolExecutionResult(
                 tool_call_id=tool_call.id, name=tool_call.name,
-                arguments=tool_call.arguments if isinstance(tool_call.arguments, dict) else {},
-                ok=False, error=f"MCP server '{server_name}' not connected",
+                arguments=tool_call.arguments, ok=False,
+                error=f"MCP server '{server_name}' not connected",
                 elapsed_ms=elapsed,
             )
 
@@ -211,7 +211,7 @@ class MCPToolExecutor:
 
         if hasattr(session, "call_tool"):
             # SDK path or mock session with call_tool
-            args = tool_call.arguments if isinstance(tool_call.arguments, dict) else {}
+            args: dict[str, Any] = tool_call.arguments
             try:
                 result = await session.call_tool(tool_name, arguments=args)
                 elapsed = int((time.time() - start) * 1000)
@@ -238,7 +238,7 @@ class MCPToolExecutor:
             # Manual subprocess path — delegate to the registered wrapper
             # which already handles subprocess communication
             proc = session_or_proc
-            args = tool_call.arguments if isinstance(tool_call.arguments, dict) else {}
+            args: dict[str, Any] = tool_call.arguments
             try:
                 req = json.dumps({
                     "jsonrpc": "2.0", "id": 200,

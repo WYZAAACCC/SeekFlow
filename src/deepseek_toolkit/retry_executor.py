@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
 from openai import APIStatusError
 
@@ -14,7 +15,7 @@ from deepseek_toolkit.retry import (
     RetryPolicy,
     compute_delay,
 )
-from deepseek_toolkit.types import ChatResponse, StreamChunk
+from deepseek_toolkit.types import ChatResponse, _StreamChunk, ToolChoice
 
 
 class RetryExecutor:
@@ -22,12 +23,12 @@ class RetryExecutor:
 
     def __init__(
         self,
-        client,
+        client: Any,
         *,
         policy: RetryPolicy | None = None,
         circuit_breaker: CircuitBreaker | None = None,
-        on_retry: callable | None = None,
-    ):
+        on_retry: callable[..., Any] | None = None,
+    ) -> None:
         self._client = client
         self._policy = policy or RetryPolicy.default()
         self._cb = circuit_breaker or CircuitBreaker(
@@ -36,7 +37,12 @@ class RetryExecutor:
         )
         self._on_retry = on_retry
 
-    def chat(self, *, model, messages, tools=None, tool_choice=None, stream=False, **kwargs) -> ChatResponse:
+    def chat(
+        self, *, model: str, messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: ToolChoice | None = None,
+        stream: bool = False, **kwargs: Any,
+    ) -> ChatResponse:
         return self._execute_with_retry(
             lambda: self._client.chat(
                 model=model, messages=messages, tools=tools,
@@ -44,7 +50,7 @@ class RetryExecutor:
             )
         )
 
-    def chat_stream(self, *, model, messages, tools=None, **kwargs) -> Iterator[StreamChunk]:
+    def chat_stream(self, *, model, messages, tools=None, **kwargs) -> Iterator[_StreamChunk]:
         return self._execute_stream_with_retry(
             lambda: self._client.chat_stream(
                 model=model, messages=messages, tools=tools, **kwargs

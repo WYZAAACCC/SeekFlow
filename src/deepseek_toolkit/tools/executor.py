@@ -58,7 +58,6 @@ class ToolExecutor:
         repair_notes: list[str] = []
         repaired = False
 
-        # Resolve arguments
         arguments = tool_call.arguments
         # Check cache before execution
         if self._cache is not None:
@@ -70,6 +69,8 @@ class ToolExecutor:
                 if cached is not None:
                     cached.repair_notes = list(cached.repair_notes) + ["cache_hit"]
                     return cached
+        # Defensive: arguments normalized to dict at API boundary (client.py),
+        # but legacy callers may still pass raw strings.
         if isinstance(arguments, str):
             parsed, ok, notes = self._parse_arguments(arguments)
             repair_notes.extend(notes)
@@ -80,13 +81,10 @@ class ToolExecutor:
             else:
                 elapsed = int((time.time() - start) * 1000)
                 return ToolExecutionResult(
-                    tool_call_id=tool_call.id,
-                    name=tool_call.name,
-                    arguments={},
-                    ok=False,
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments={}, ok=False,
                     error=f"Failed to parse arguments: {arguments}",
-                    elapsed_ms=elapsed,
-                    repaired=repaired,
+                    elapsed_ms=elapsed, repaired=repaired,
                     repair_notes=repair_notes,
                 )
 

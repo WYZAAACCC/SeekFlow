@@ -298,8 +298,7 @@ class AsyncToolRuntime:
                         "id": tc.id, "type": "function",
                         "function": {
                             "name": tc.name,
-                            "arguments": tc.arguments if isinstance(tc.arguments, str)
-                            else json.dumps(tc.arguments, ensure_ascii=False),
+                            "arguments": json.dumps(tc.arguments, ensure_ascii=False),
                         },
                     }
                     for tc in tool_calls

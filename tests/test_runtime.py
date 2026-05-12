@@ -32,7 +32,7 @@ class TestToolRuntime:
                 tool_calls=[ToolCall(
                     id="call_1",
                     name="add",
-                    arguments='{"a": 1, "b": 2}',
+                    arguments={"a": 1, "b": 2},
                 )],
                 finish_reason="tool_calls",
                 usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
@@ -105,7 +105,7 @@ class TestToolRuntime:
                 tool_calls=[ToolCall(
                     id="call_x",
                     name="add",
-                    arguments='{"a": 1, "b": 1}',
+                    arguments={"a": 1, "b": 1},
                 )],
                 finish_reason="tool_calls",
                 usage={"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
@@ -240,7 +240,7 @@ class TestToolRuntime:
                 tool_calls=[ToolCall(
                     id="call_1",
                     name="nonexistent",
-                    arguments='{"x": 1}',
+                    arguments={"x": 1},
                 )],
                 finish_reason="tool_calls",
                 usage={"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
@@ -300,7 +300,7 @@ class TestToolRuntime:
                 content=None,
                 reasoning_content="I need to use the add tool.",
                 tool_calls=[ToolCall(
-                    id="call_1", name="add", arguments='{"a": 1, "b": 2}',
+                    id="call_1", name="add", arguments={"a": 1, "b": 2},
                 )],
                 finish_reason="tool_calls",
                 usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
@@ -327,7 +327,7 @@ class TestToolRuntime:
     def test_reasoning_content_preserved_streaming_with_tools(self):
         """Streaming: reasoning_content is included in assistant msg for next turn."""
         from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.types import StreamChunk
+        from deepseek_toolkit.types import _StreamChunk
 
         @tool
         def greet(name: str) -> str:
@@ -338,17 +338,17 @@ class TestToolRuntime:
             mock_client = MagicMock()
 
             stream_1 = iter([
-                StreamChunk(type="reasoning", content="I should greet"),
-                StreamChunk(type="reasoning", content=" the user."),
-                StreamChunk(type="tool_call_start", tool_call_id="c1", tool_name="greet"),
-                StreamChunk(type="tool_call_delta", tool_call_id="c1", arguments_delta='{"name":'),
-                StreamChunk(type="tool_call_delta", tool_call_id="c1", arguments_delta=' "World"}'),
-                StreamChunk(type="tool_call_end", tool_call_id="c1", tool_name="greet", content='{"name": "World"}'),
-                StreamChunk(type="usage", usage={"prompt_tokens": 10, "completion_tokens": 3, "total_tokens": 13}),
+                _StreamChunk(type="reasoning", content="I should greet"),
+                _StreamChunk(type="reasoning", content=" the user."),
+                _StreamChunk(type="tool_call_start", tool_call_id="c1", tool_name="greet"),
+                _StreamChunk(type="tool_call_delta", tool_call_id="c1", arguments_delta='{"name":'),
+                _StreamChunk(type="tool_call_delta", tool_call_id="c1", arguments_delta=' "World"}'),
+                _StreamChunk(type="tool_call_end", tool_call_id="c1", tool_name="greet", content='{"name": "World"}'),
+                _StreamChunk(type="usage", usage={"prompt_tokens": 10, "completion_tokens": 3, "total_tokens": 13}),
             ])
             stream_2 = iter([
-                StreamChunk(type="content", content="Done."),
-                StreamChunk(type="usage", usage={"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}),
+                _StreamChunk(type="content", content="Done."),
+                _StreamChunk(type="usage", usage={"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}),
             ])
             mock_client.chat_stream.side_effect = [stream_1, stream_2]
             mock_client_class.return_value = mock_client
@@ -370,14 +370,14 @@ class TestToolRuntime:
     def test_streaming_done_event_includes_reasoning(self):
         """Streaming done event carries accumulated reasoning_content (no tool calls)."""
         from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.types import StreamChunk
+        from deepseek_toolkit.types import _StreamChunk
 
         with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.chat_stream.return_value = iter([
-                StreamChunk(type="reasoning", content="Let me think..."),
-                StreamChunk(type="content", content="Answer."),
-                StreamChunk(type="usage", usage={"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}),
+                _StreamChunk(type="reasoning", content="Let me think..."),
+                _StreamChunk(type="content", content="Answer."),
+                _StreamChunk(type="usage", usage={"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}),
             ])
             mock_client_class.return_value = mock_client
 
@@ -422,7 +422,7 @@ class TestRuntimeSaverIntegration:
                 content=None,
                 reasoning_content="I'll use the add tool.",
                 tool_calls=[ToolCall(
-                    id="call_1", name="add", arguments='{"a": 1, "b": 2}',
+                    id="call_1", name="add", arguments={"a": 1, "b": 2},
                 )],
                 finish_reason="tool_calls",
                 usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},

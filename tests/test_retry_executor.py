@@ -48,8 +48,8 @@ class FakeDeepSeekClient:
             self._call_count += 1
             raise err
         self._call_count += 1
-        from deepseek_toolkit.types import StreamChunk
-        yield StreamChunk(type="content", content="hello")
+        from deepseek_toolkit.types import _StreamChunk
+        yield _StreamChunk(type="content", content="hello")
 
 
 class TestRetryExecutorBasic:

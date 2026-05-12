@@ -32,9 +32,9 @@ from deepseek_toolkit.types import (
     ToolCall,
     ToolExecutionResult,
     ChatResponse,
-    StreamChunk,
     StreamEvent,
     ToolRuntimeResult,
+    ToolChoice,
 )
 from deepseek_toolkit.errors import (
     DeepSeekToolkitError,
@@ -86,9 +86,9 @@ __all__ = [
     "ToolCall",
     "ToolExecutionResult",
     "ChatResponse",
-    "StreamChunk",
     "StreamEvent",
     "ToolRuntimeResult",
+    "ToolChoice",
     # Errors
     "DeepSeekToolkitError",
     "DeepSeekAPIError",

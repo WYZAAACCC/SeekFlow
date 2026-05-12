@@ -304,8 +304,7 @@ class ToolRuntime:
                         "type": "function",
                         "function": {
                             "name": tc.name,
-                            "arguments": tc.arguments if isinstance(tc.arguments, str)
-                            else json.dumps(tc.arguments, ensure_ascii=False),
+                            "arguments": json.dumps(tc.arguments, ensure_ascii=False),
                         },
                     }
                     for tc in response.tool_calls
@@ -465,10 +464,15 @@ class ToolRuntime:
                         )
 
                         # Execute the tool ONCE, store result for reuse
+                        raw_args = tc["arguments"]
+                        try:
+                            parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                        except json.JSONDecodeError:
+                            parsed_args = {}
                         tool_call = ToolCall(
                             id=tc["id"],
                             name=tc["name"],
-                            arguments=tc["arguments"],
+                            arguments=parsed_args,
                         )
                         exec_result = executor.execute(tool_call)
                         tc["_exec_result"] = exec_result  # cache for post-loop
@@ -521,9 +525,14 @@ class ToolRuntime:
                 exec_result = tc_data.get("_exec_result")
                 if exec_result is None:
                     # Fallback: execute if not cached (shouldn't happen)
+                    raw_args = tc_data["arguments"]
+                    try:
+                        parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    except json.JSONDecodeError:
+                        parsed_args = {}
                     tool_call = ToolCall(
                         id=tc_data["id"], name=tc_data["name"],
-                        arguments=tc_data["arguments"],
+                        arguments=parsed_args,
                     )
                     exec_result = executor.execute(tool_call)
 
@@ -675,10 +684,15 @@ class ToolRuntime:
                 )
                 for tc_data in tool_calls_data:
                     func_info = tc_data.get("function", {})
+                    raw_args = func_info.get("arguments", "{}")
+                    try:
+                        parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    except json.JSONDecodeError:
+                        parsed_args = {}
                     tool_call = ToolCall(
                         id=tc_data.get("id"),
                         name=func_info.get("name", ""),
-                        arguments=func_info.get("arguments", "{}"),
+                        arguments=parsed_args,
                     )
                     exec_result = executor.execute(tool_call)
                     tool_results.append(exec_result)

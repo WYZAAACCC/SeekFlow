@@ -1,7 +1,11 @@
 """Core data types for DeepSeek Toolkit."""
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
+
+# ── Type aliases ─────────────────────────────────────────────────
+ToolChoice = Literal["auto", "none", "required"] | dict[str, Any]
+"""Valid tool_choice values for DeepSeek API."""
 
 
 class ToolDefinition(BaseModel):
@@ -14,9 +18,11 @@ class ToolDefinition(BaseModel):
 
 
 class ToolCall(BaseModel):
+    """A tool call from the model. Arguments are always dict — string
+    arguments from the API are parsed to dict at the client boundary."""
     id: str | None = None
     name: str
-    arguments: str | dict
+    arguments: dict = Field(default_factory=dict)
     raw: dict | None = None
 
 
@@ -41,8 +47,8 @@ class ChatResponse(BaseModel):
     raw: Any | None = None
 
 
-class StreamChunk(BaseModel):
-    """A single chunk from a streaming response."""
+class _StreamChunk(BaseModel):
+    """Internal transport unit from streaming API. Use StreamEvent for public API."""
     type: str  # "content", "reasoning", "tool_call_start", "tool_call_delta", "tool_call_end", "usage"
     content: str | None = None
     tool_call_id: str | None = None

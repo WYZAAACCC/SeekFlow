@@ -64,7 +64,7 @@ class TestToolExecutorTruncationStrategy:
             max_result_chars=500,
             truncation_strategy=TruncationStrategy.JSON_AWARE,
         )
-        result = executor.execute(ToolCall(name="get_data", arguments="{}"))
+        result = executor.execute(ToolCall(name="get_data", arguments={}))
         assert result.ok
         parsed = json.loads(result.result)
         assert "_truncation" in parsed
@@ -83,7 +83,7 @@ class TestToolExecutorTruncationStrategy:
             max_result_chars=60,
             truncation_strategy=TruncationStrategy.SIMPLE,
         )
-        result = executor.execute(ToolCall(name="get_data", arguments="{}"))
+        result = executor.execute(ToolCall(name="get_data", arguments={}))
         assert result.ok
         assert "truncated" in result.result.lower()
         assert len(result.result) <= 60
@@ -97,7 +97,7 @@ class TestToolExecutorTruncationStrategy:
         reg = ToolRegistry()
         reg.register(get_data)
         executor = ToolExecutor(reg, max_result_chars=1000)  # No explicit strategy
-        result = executor.execute(ToolCall(name="get_data", arguments="{}"))
+        result = executor.execute(ToolCall(name="get_data", arguments={}))
         assert result.ok
         parsed = json.loads(result.result)
         assert parsed["key"] == "value"
@@ -114,7 +114,7 @@ class TestToolExecutorTruncationStrategy:
             max_result_chars=10,
             truncation_strategy=TruncationStrategy.JSON_AWARE,
         )
-        result = executor.execute(ToolCall(name="get_number", arguments="{}"))
+        result = executor.execute(ToolCall(name="get_number", arguments={}))
         assert result.ok
         assert result.result == 42
 
@@ -182,7 +182,7 @@ class TestPriorityStrategy:
             max_result_chars=130,
             truncation_strategy=TruncationStrategy.PRIORITY,
         )
-        result = executor.execute(ToolCall(name="weather", arguments='{"city": "Beijing"}'))
+        result = executor.execute(ToolCall(name="weather", arguments={"city": "Beijing"}))
         assert result.ok
         parsed = json.loads(result.result)
         assert "temperature" in parsed

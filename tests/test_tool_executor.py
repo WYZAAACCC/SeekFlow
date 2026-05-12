@@ -38,8 +38,9 @@ class TestToolExecutor:
         assert result.result == 3
         assert result.name == "add"
 
-    def test_execute_with_string_arguments(self, executor):
-        tc = ToolCall(name="add", arguments='{"a": 10, "b": 20}')
+    def test_execute_with_dict_arguments(self, executor):
+        """Arguments are always dict — string parsing happens at API boundary."""
+        tc = ToolCall(name="add", arguments={"a": 10, "b": 20})
         result = executor.execute(tc)
         assert result.ok
         assert result.result == 30
@@ -74,12 +75,19 @@ class TestToolExecutor:
             return a + b
 
         registry.register(add_vals)
-        exc = ToolExecutor(registry, repair=False)
-        tc = ToolCall(name="add_without_repair", arguments="{'a': 1, 'b': 2}")
-        result = exc.execute(tc)
-        # Without repair, single-quote JSON would fail to parse
-        # Arguments won't repair, so the raw string can't be parsed
-        assert not result.ok
+        exc_no_repair = ToolExecutor(registry, repair=False)
+        exc_with_repair = ToolExecutor(registry, repair=True)
+        # With string args: repair coerces them, no-repair leaves them as strings
+        tc = ToolCall(name="add_without_repair", arguments={"a": "1", "b": "2"})
+        r_no = exc_no_repair.execute(tc)
+        r_yes = exc_with_repair.execute(tc)
+        # Without repair: "1"+"2" = "12" (concatenation, result is str, not int)
+        assert r_no.ok
+        assert not isinstance(r_no.result, int)
+        # With repair: "1"→1, "2"→2, 1+2=3 (coerced, result is int)
+        assert r_yes.ok
+        assert r_yes.result == 3
+        assert r_yes.repaired
 
     def test_elapsed_time_recorded(self, executor):
         tc = ToolCall(name="greet", arguments={"name": "World"})

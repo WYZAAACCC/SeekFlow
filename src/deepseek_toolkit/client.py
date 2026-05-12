@@ -1,6 +1,7 @@
 """Lightweight DeepSeek API client wrapping the OpenAI SDK."""
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Iterator
 from typing import Any
@@ -8,7 +9,7 @@ from typing import Any
 from openai import OpenAI, APIStatusError
 
 from deepseek_toolkit.errors import map_http_error
-from deepseek_toolkit.types import ChatResponse, ToolCall, StreamChunk
+from deepseek_toolkit.types import ChatResponse, ToolCall, _StreamChunk
 
 
 def _usage_to_dict(usage: object) -> dict[str, Any]:
@@ -93,10 +94,17 @@ class DeepSeekClient:
         tool_calls = []
         if choice.message.tool_calls:
             for tc in choice.message.tool_calls:
+                # Parse string arguments at the API boundary so downstream
+                # code always sees ToolCall.arguments as dict.
+                raw_args: str = tc.function.arguments
+                try:
+                    parsed_args: dict[str, Any] = json.loads(raw_args)
+                except json.JSONDecodeError:
+                    parsed_args = {}
                 tool_calls.append(ToolCall(
                     id=tc.id,
                     name=tc.function.name,
-                    arguments=tc.function.arguments,
+                    arguments=parsed_args,
                 ))
 
         reasoning = getattr(choice.message, "reasoning_content", None)
@@ -123,10 +131,10 @@ class DeepSeekClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> Iterator[StreamChunk]:
+    ) -> Iterator[_StreamChunk]:
         """Send a streaming chat completion request to DeepSeek.
 
-        Yields StreamChunk objects as the model generates tokens.
+        Yields _StreamChunk objects as the model generates tokens.
         Tool calls are accumulated and yielded as structured events.
         """
         client = self._client
@@ -165,11 +173,11 @@ class DeepSeekClient:
             # Reasoning content chunk (DeepSeek R1)
             rc = getattr(delta, "reasoning_content", None)
             if rc:
-                yield StreamChunk(type="reasoning", content=rc)
+                yield _StreamChunk(type="reasoning", content=rc)
 
             # Content chunk
             if delta.content:
-                yield StreamChunk(type="content", content=delta.content)
+                yield _StreamChunk(type="content", content=delta.content)
 
             # Tool call deltas
             if delta.tool_calls:
@@ -187,14 +195,14 @@ class DeepSeekClient:
                     if tc_delta.function:
                         if tc_delta.function.name:
                             buf["name"] += tc_delta.function.name
-                            yield StreamChunk(
+                            yield _StreamChunk(
                                 type="tool_call_start",
                                 tool_call_id=buf["id"],
                                 tool_name=tc_delta.function.name,
                             )
                         if tc_delta.function.arguments:
                             buf["arguments"] += tc_delta.function.arguments
-                            yield StreamChunk(
+                            yield _StreamChunk(
                                 type="tool_call_delta",
                                 tool_call_id=buf["id"],
                                 arguments_delta=tc_delta.function.arguments,
@@ -203,7 +211,7 @@ class DeepSeekClient:
             # Check finish reason
             if event.choices[0].finish_reason:
                 for buf in tool_call_buf.values():
-                    yield StreamChunk(
+                    yield _StreamChunk(
                         type="tool_call_end",
                         tool_call_id=buf["id"],
                         tool_name=buf["name"],
@@ -213,4 +221,4 @@ class DeepSeekClient:
 
         # Yield usage as a final chunk if captured
         if stream_usage:
-            yield StreamChunk(type="usage", usage=stream_usage)
+            yield _StreamChunk(type="usage", usage=stream_usage)

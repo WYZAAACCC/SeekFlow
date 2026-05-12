@@ -35,9 +35,15 @@ class TestToolCall:
         assert tc.arguments == {"a": 1, "b": 2}
         assert tc.id is None
 
-    def test_arguments_can_be_string(self):
-        tc = ToolCall(name="add", arguments='{"a": 1}')
-        assert tc.arguments == '{"a": 1}'
+    def test_arguments_always_dict(self):
+        """Arguments normalized to dict at API boundary. String parsing
+        happens in client.py before ToolCall construction."""
+        tc = ToolCall(name="add", arguments={"a": 1})
+        assert tc.arguments == {"a": 1}
+
+    def test_arguments_defaults_to_empty_dict(self):
+        tc = ToolCall(name="noop")
+        assert tc.arguments == {}
 
 
 class TestToolExecutionResult:
