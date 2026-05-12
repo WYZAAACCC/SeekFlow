@@ -815,8 +815,6 @@ class DeepSeekAgent:
             execution_timeout: Optional max execution time in seconds.
             output_model: Optional Pydantic BaseModel for output validation.
         """
-        from deepseek_toolkit.compat.telemetry import agent_span
-
         # Event: agent.start (stable mode only)
         if self._mode == "stable":
             from deepseek_toolkit.agent.events import get_event_bus, Event
@@ -833,34 +831,37 @@ class DeepSeekAgent:
                     f"充值地址: https://platform.deepseek.com"
                 )
 
-        # Guardrail: truncate input (PII sanitization in _make_messages)
         task = task.strip()[:50000]
 
-        # Execution timeout via threading
+        # Execution timeout via ThreadPoolExecutor (clean, no recursion)
         if execution_timeout and execution_timeout > 0:
-            import threading
-            result_container = []
-            error_container = []
-
-            def _run():
-                try:
-                    result_container.append(self.run(task, files=files,
-                        checkpoint_store=checkpoint_store, thread_id=thread_id,
-                        max_cost=max_cost, execution_timeout=None))
-                except Exception as e:
-                    error_container.append(e)
-
-            t = threading.Thread(target=_run, daemon=True)
-            t.start()
-            t.join(timeout=execution_timeout)
-            if t.is_alive():
-                return AgentResult(
-                    final_output=f"[EXECUTION TIMEOUT] Task exceeded {execution_timeout}s limit.",
-                    cost=0.0,
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    self._run_impl, task, files,
+                    checkpoint_store=checkpoint_store, thread_id=thread_id,
+                    max_cost=max_cost, output_model=output_model,
                 )
-            if error_container:
-                raise error_container[0]
-            return result_container[0]
+                try:
+                    return future.result(timeout=execution_timeout)
+                except concurrent.futures.TimeoutError:
+                    return AgentResult(
+                        final_output=f"[EXECUTION TIMEOUT] Task exceeded {execution_timeout}s limit.",
+                        cost=0.0,
+                    )
+
+        return self._run_impl(task, files,
+                              checkpoint_store=checkpoint_store,
+                              thread_id=thread_id,
+                              max_cost=max_cost,
+                              output_model=output_model)
+
+    def _run_impl(self, task: str, files: list[str] | None = None,
+                  checkpoint_store: Any = None, thread_id: str = "",
+                  max_cost: float | None = None,
+                  output_model: Any = None) -> AgentResult:
+        """Core execution logic — separated from run() for clean timeout wrapping."""
+        from deepseek_toolkit.compat.telemetry import agent_span
 
         rt = self._make_runtime()
         messages = self._make_messages(task)
@@ -908,6 +909,7 @@ class DeepSeekAgent:
                 last_error = e
         if last_error:
             raise last_error
+
         # Memory: store interaction (stable mode only)
         if self._mode == "stable" and self.memory is not None:
             self.memory.add_interaction("user", task)
@@ -923,6 +925,7 @@ class DeepSeekAgent:
 
         # Event: agent.end (stable mode only)
         if self._mode == "stable":
+            from deepseek_toolkit.agent.events import get_event_bus, Event
             get_event_bus().emit(Event("agent.end", {"role": self.role, "cost": 0.0}))
 
         # Guardrail: cost check
@@ -947,4 +950,5 @@ class DeepSeekAgent:
                 messages=messages + [{"role": "assistant", "content": result.final}],
             )
             checkpoint_store.save(cp)
+
         return self._result_from_runtime(result, None, output_model=output_model)
