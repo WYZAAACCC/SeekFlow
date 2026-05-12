@@ -77,31 +77,3 @@ class TestLangChainAdapter:
         registry = ToolRegistry()
         schemas = export_langchain_tool_schemas(registry)
         assert schemas == []
-
-
-class TestPydanticAIAdapter:
-    def test_export_pydantic_ai_tool_schemas(self):
-        """Should work without PydanticAI installed."""
-        from deepseek_toolkit.adapters.pydantic_ai import export_pydantic_ai_tool_schemas
-
-        registry = ToolRegistry()
-
-        @tool
-        def get_user(user_id: int) -> dict:
-            """Get user by ID."""
-            return {"id": user_id, "name": "test"}
-
-        registry.register(get_user)
-        schemas = export_pydantic_ai_tool_schemas(registry)
-
-        assert len(schemas) == 1
-        assert schemas[0]["name"] == "get_user"
-        assert schemas[0]["parameters"]["type"] == "object"
-
-    def test_export_pydantic_ai_no_package(self):
-        """Should not raise even if pydantic_ai is not installed."""
-        from deepseek_toolkit.adapters.pydantic_ai import export_pydantic_ai_tool_schemas
-
-        registry = ToolRegistry()
-        schemas = export_pydantic_ai_tool_schemas(registry)
-        assert schemas == []

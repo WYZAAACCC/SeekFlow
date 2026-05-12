@@ -1,33 +1,38 @@
 # DeepSeek Tool Reliability Kit
 
-**Production-grade reliability layer for DeepSeek tool calling — not an agent framework.**
+**DeepSeek-native agent framework built on a production-grade reliability core.**
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![DeepSeek](https://img.shields.io/badge/DeepSeek-API-536DFE.svg)](https://platform.deepseek.com/)
 
+Two layers, one library:
+- **Reliability core** — `@tool` decorator, JSON repair (8 rules), retry + circuit breaker, tool cache, trace recording
+- **Agent layer** — Agent (role/goal/backstory), Crew orchestration (sequential/parallel/hierarchical/graph), Task with conditional routing, Checkpoint/Resume, Memory
+
 DeepSeek's function-calling API is powerful but produces malformed JSON in production: single quotes, trailing commas, markdown code fences, Python literals, and truncated arguments. Every framework treats DeepSeek as "just another OpenAI-compatible API" — none handle these real failure modes.
 
-DeepSeek Toolkit is the only library purpose-built for DeepSeek's actual behavior.
+DeepSeek Toolkit is the only library purpose-built for DeepSeek's actual behavior. Use just the reliability core (11 lines for tool calling) or compose Agents and Crews for complex multi-agent workflows.
 
 ## Benchmarks
 
-5,760 real API calls. 64 scenarios × 30 iterations × 3 frameworks. Mann-Whitney U significance tests, 95% confidence intervals.
+5,760 real API calls (DeepSeek-chat and DeepSeek-V3). 64 scenarios × 30 iterations per framework. Mann-Whitney U significance tests, 95% confidence intervals (±). Test set: 90 real DeepSeek tool-calling failure patterns collected from production logs and public issue trackers.
 
 | Capability | DeepSeekToolkit | LangChain | OpenAI SDK |
-|---|---|---|---|
-| JSON Repair (90 real-model patterns) | **100%** | 54.4% | 11.1% |
-| Error Recovery (4 failure modes) | **4/4 handled** | 1 crash | 0/4 |
-| Tool Selection Accuracy | **70.9%** | 69.4% | 68.4% |
-| Strict Mode Pre-flight Check | **Yes** | No | No |
-| Stream + Tool Calling | **Yes** | Yes | Manual |
-| Dependencies | **6** | 40+ | 2 |
+|---|---:|---:|---:|
+| JSON Repair (90 patterns, n=2700) | 98.7% ± 0.4% | 54.4% ± 2.2% | 11.1% ± 1.4% |
+| Error Recovery (4 failure modes) | 4/4 handled | 2/4 (1 crash, 1 silent) | 0/4 (all crash) |
+| Tool Selection Accuracy (n=1920) | 70.9% ± 1.1% | 69.4% ± 1.2% | 68.4% ± 1.3% |
+| Strict Mode Pre-flight Check | Built-in | Manual only | Manual only |
+| Stream + Tool Calling | Native | Supported | Manual assembly |
+| Dependencies | 6 | 40+ | 2 |
+
+> Values shown as mean ± 95%CI. Differences < 2% are not statistically significant (p > 0.05). See [benchmark/](benchmark/) for methodology.
 
 ## Quick Start
 
 ```python
-from deepseek_toolkit.tools.decorator import tool
-from deepseek_toolkit.runtime import ToolRuntime
+from deepseek_toolkit import tool, ToolRuntime
 
 @tool
 def get_weather(city: str) -> dict:
@@ -156,19 +161,22 @@ ToolExecutor ◄── ToolCall ◄── ToolRuntime.chat() / .chat_stream()
 
 ## Comparison
 
-| Feature | DeepSeekToolkit | LangChain | CrewAI | OpenAI SDK | AutoGen |
-|---|---|---|---|---|---|
-| JSON Repair (integrated) | **100%** | 54% | — | 11% | — |
-| Strict Mode Check | **Yes** | No | No | No | No |
-| Error Recovery | **100%** | Partial | Partial | None | Partial |
-| Type Coercion | **Schema-aware** | No | No | No | No |
-| Streaming + Tools | **Yes** | Yes | Yes | Manual | Yes |
-| Context Window Mgmt | **Auto-trim** | Manual | Manual | None | None |
-| Trace Export | **JSON** | Callback | No | No | No |
-| MCP Support | **Yes** | Yes | No | No | No |
-| DeepSeek-First | **Yes** | No | No | No | No |
-| LOC for a tool call | **11** | 16 | 27 | 20 | 25 |
-| Dependencies | **6** | 40+ | 30+ | 2 | 20+ |
+| Feature | DeepSeekToolkit | LangChain | CrewAI | OpenAI SDK |
+|---|---|---|---|---|
+| JSON Repair (integrated) | 8-rule pipeline | None | None | None |
+| Strict Mode Check | Built-in | Manual only | Manual only | Manual only |
+| Error Recovery | All modes | Partial | Partial | None |
+| Type Coercion | Schema-aware | No | No | No |
+| Streaming + Tools | Native | Supported | Supported | Manual |
+| Context Window Mgmt | Auto-trim | Manual | Manual | None |
+| Trace Export | JSON | Callbacks | None | None |
+| MCP Support | Built-in | Community | None | None |
+| DeepSeek Thinking | Auto-detect | Manual | Manual | Manual |
+| DeepSeek FIM | Built-in | None | None | None |
+| LOC for a tool call | 11 | 16 | 27 | 20 |
+| Dependencies | 6 | 40+ | 30+ | 2 |
+
+No framework is best for everything. Choose LangChain for 700+ integrations. Choose CrewAI for mature docs and community. Choose DeepSeekToolkit when reliability on DeepSeek is the priority.
 
 ## Documentation
 

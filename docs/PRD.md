@@ -34,21 +34,19 @@ DeepSeek 已支持 function calling / tool calling 能力，但 Python 开发者
 
 本项目**不是**：
 
-- 不是 DeepSeek 版 LangChain / LlamaIndex
+- 不是 DeepSeek 版 LangChain / LlamaIndex（不做 700+ 集成）
 - 不是 DeepSeek 版 Claude Code
 - 不是终端编程 Agent（那是 Reasonix 的领域）
-- 不是完整 Agent 框架
+- 不是通用多 Provider 框架（专注 DeepSeek）
 - 不是聊天前端 / Web Dashboard
 - 不是 RAG 知识库系统
-- 不是多 Agent 编排平台
-- 不是长期记忆系统
 - 不提供 TypeScript SDK
 
-第一版**不做**：
+本项目**是**：
 
-- MCP SSE / HTTP 传输（仅支持 stdio）
-- 复杂的前端 UI
-- 完整的 LangChain 深度集成（仅提供 schema 导出适配器）
+- DeepSeek 原生 Agent 框架（Agent/Crew/Task/StateGraph）
+- 生产级工具调用可靠性层（JSON修复/重试/熔断/缓存/追踪）
+- 两个层可独立使用：可靠性核心 11 行代码即可调用工具，Agent 层处理复杂多 Agent 工作流
 - 流式 tool calling
 - 多轮对话记忆管理
 - 工具调用的权限控制 / 审批流
