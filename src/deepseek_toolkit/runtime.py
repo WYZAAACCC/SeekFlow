@@ -77,175 +77,22 @@ class ToolRuntime:
         # MCP servers — connect on first use
         self._mcp_servers = mcp_servers or []
         self._mcp_connected = False
+        self._mcp_executor: Any = None  # MCPToolExecutor, set on first use
         self._client = None  # lazily set by chat/chat_stream
-        self._step_callback: Any = None  # callable(step, messages) for checkpointing
+        self._step_callback: Any = None
         self._active_cache: ToolCallCache | None = None
-        # MCP state: maps server_name -> process_or_session for tool execution
-        self._mcp_sessions: dict[str, Any] = {}
 
     def _connect_mcp_servers(self) -> None:
         """Connect to MCP servers and register their tools.
 
-        Two paths:
-        1. mcp SDK available → MCPToolExecutor with persistent sessions
-        2. mcp SDK unavailable → subprocess-based manual JSON-RPC
-
-        Both paths register functional wrappers that route to the correct server.
+        Delegates to MCPToolExecutor for connection, discovery, and
+        wrapper registration. Supports both mcp SDK and manual subprocess paths.
         """
         if self._mcp_connected or not self._mcp_servers:
             return
-
-        import asyncio
-        from deepseek_toolkit.mcp.adapter import mcp_tool_to_deepseek_tool
-        from deepseek_toolkit.types import ToolExecutionResult
-
-        _HAS_MCP_SDK = False
-        try:
-            from mcp.client.stdio import stdio_client, StdioServerParameters
-            from mcp import ClientSession
-            _HAS_MCP_SDK = True
-        except ImportError:
-            pass
-
-        async def _discover_via_sdk(cfg) -> list:
-            params = StdioServerParameters(command=cfg.command, args=cfg.args)
-            read, write = await stdio_client(params).__aenter__()
-            session = ClientSession(read, write)
-            await session.__aenter__()
-            await session.initialize()
-            result = await session.list_tools()
-            # Keep session alive — store for later tool execution
-            self._mcp_sessions[cfg.name] = (read, write, session)
-            return [(t.name, t.description, t.inputSchema) for t in result.tools]
-
-        async def _discover_via_manual(cfg) -> list:
-            import subprocess
-            proc = subprocess.Popen(
-                [cfg.command] + cfg.args,
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            def _rpc(method, params=None, rid=1):
-                req = {"jsonrpc": "2.0", "id": rid, "method": method,
-                       "params": params or {}}
-                proc.stdin.write((json.dumps(req) + "\n").encode())
-                proc.stdin.flush()
-                line = proc.stdout.readline().decode().strip()
-                return json.loads(line) if line else None
-
-            _rpc("initialize", {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "deepseek-toolkit", "version": "3.0.0"},
-            })
-            proc.stdin.write((json.dumps({
-                "jsonrpc": "2.0", "method": "notifications/initialized",
-            }) + "\n").encode())
-            proc.stdin.flush()
-            resp = _rpc("tools/list")
-            # Keep process alive for later tool calls
-            self._mcp_sessions[cfg.name] = proc
-            if resp and "result" in resp:
-                return [(t["name"], t.get("description", ""),
-                         t.get("inputSchema", {}))
-                        for t in resp["result"].get("tools", [])]
-            return []
-
-        async def _discover_all():
-            all_tools = []
-            for cfg in self._mcp_servers:
-                try:
-                    if _HAS_MCP_SDK:
-                        tools = await _discover_via_sdk(cfg)
-                    else:
-                        tools = await _discover_via_manual(cfg)
-                except Exception:
-                    continue
-
-                for name, desc, schema in tools:
-                    tool_full_name = f"{cfg.name}.{name}"
-                    # Build a real wrapper that calls the MCP server at execution time
-                    server_name = cfg.name
-                    tool_name = name
-
-                    def _make_mcp_wrapper(srv, tname):
-                        def _mcp_exec(**kwargs):
-                            session_or_proc = self._mcp_sessions.get(srv)
-                            if session_or_proc is None:
-                                return json.dumps({
-                                    "error": f"MCP server '{srv}' is not connected",
-                                })
-                            if isinstance(session_or_proc, tuple):
-                                # SDK path: (read, write, session) tuple
-                                _, _, session = session_or_proc
-                                import asyncio as _asyncio
-
-                                async def _call():
-                                    result = await session.call_tool(
-                                        tname, arguments=kwargs,
-                                    )
-                                    if result.isError:
-                                        return json.dumps({
-                                            "error": str(result.content),
-                                        })
-                                    return json.dumps({
-                                        "content": [
-                                            c.text if hasattr(c, 'text')
-                                            else c.get("text", str(c))
-                                            for c in (result.content or [])
-                                        ],
-                                    })
-
-                                try:
-                                    loop = _asyncio.get_running_loop()
-                                except RuntimeError:
-                                    loop = None
-                                if loop and loop.is_running():
-                                    import concurrent.futures
-                                    with concurrent.futures.ThreadPoolExecutor() as pool:
-                                        return pool.submit(_asyncio.run, _call()).result()
-                                return _asyncio.run(_call())
-                            else:
-                                # Manual subprocess path
-                                proc = session_or_proc
-                                req = json.dumps({
-                                    "jsonrpc": "2.0", "id": 200,
-                                    "method": "tools/call",
-                                    "params": {
-                                        "name": tname,
-                                        "arguments": kwargs,
-                                    },
-                                }) + "\n"
-                                proc.stdin.write(req.encode())
-                                proc.stdin.flush()
-                                resp_line = proc.stdout.readline().decode().strip()
-                                if resp_line:
-                                    resp = json.loads(resp_line)
-                                    result_data = resp.get("result", {})
-                                    content = result_data.get("content", [{}])
-                                    text = " ".join(
-                                        c.get("text", "") for c in content
-                                        if isinstance(c, dict)
-                                    )
-                                    return text or str(result_data)
-                                return ""
-                        _mcp_exec.__name__ = f"{srv}.{tname}"
-                        return _mcp_exec
-
-                    wrapper = _make_mcp_wrapper(server_name, tool_name)
-                    self._registry.register(wrapper)
-                    all_tools.append(tool_full_name)
-            return all_tools
-
-        try:
-            loop = asyncio.get_running_loop()
-            # Running in an event loop — use a thread to avoid conflicts
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                pool.submit(asyncio.run, _discover_all()).result()
-        except RuntimeError:
-            asyncio.run(_discover_all())
+        from deepseek_toolkit.mcp.executor import MCPToolExecutor
+        self._mcp_executor = MCPToolExecutor(list(self._mcp_servers))
+        self._mcp_executor.connect_and_register(self._registry)
         self._mcp_connected = True
 
     @property
@@ -260,45 +107,9 @@ class ToolRuntime:
 
     def cleanup(self) -> None:
         """Close all MCP server connections and subprocesses."""
-        for name, session_or_proc in self._mcp_sessions.items():
-            try:
-                if isinstance(session_or_proc, tuple):
-                    # SDK path: (read, write, session)
-                    read, write, session = session_or_proc
-                    import asyncio
-
-                    async def _close():
-                        try:
-                            await session.__aexit__(None, None, None)
-                        except Exception:
-                            pass
-                        try:
-                            await write.aclose()
-                        except Exception:
-                            pass
-
-                    try:
-                        asyncio.run(_close())
-                    except Exception:
-                        pass
-                else:
-                    # Subprocess path
-                    proc = session_or_proc
-                    try:
-                        proc.stdin.close()
-                    except Exception:
-                        pass
-                    try:
-                        proc.terminate()
-                        proc.wait(timeout=2)
-                    except Exception:
-                        try:
-                            proc.kill()
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-        self._mcp_sessions.clear()
+        if self._mcp_executor is not None:
+            self._mcp_executor.disconnect()
+            self._mcp_executor = None
 
     def _make_client(self, recorder: TraceRecorder) -> RetryExecutor:
         """Create a RetryExecutor wrapping DeepSeekClient with trace callback."""

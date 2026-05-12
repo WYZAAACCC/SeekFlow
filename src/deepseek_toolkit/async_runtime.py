@@ -87,30 +87,15 @@ class AsyncToolRuntime:
         # MCP
         self._mcp_servers: list = []
         self._mcp_connected = False
-        self._mcp_sessions: dict[str, Any] = {}
-
-    # ── MCP (delegates to synchronous ToolRuntime helpers) ──────────
+        self._mcp_executor: Any = None
 
     def _connect_mcp(self) -> None:
-        """Connect to MCP servers — reuses the synchronous connection logic.
-
-        Since MCP discovery is inherently synchronous (subprocess stdio),
-        we reuse ToolRuntime's implementation via a throwaway instance.
-        """
+        """Connect to MCP servers and register their tools."""
         if self._mcp_connected or not self._mcp_servers:
             return
-        # Share MCP sessions dict so both async and sync paths work
-        # Use the same connection logic as ToolRuntime
-        from deepseek_toolkit.runtime import ToolRuntime as _SyncRT
-        dummy = _SyncRT(
-            tools=[], mcp_servers=self._mcp_servers,
-            api_key=self._api_key, base_url=self._base_url,
-            timeout=self._timeout,
-        )
-        dummy._mcp_sessions = self._mcp_sessions
-        dummy._registry = self._registry
-        dummy._connect_mcp_servers()
-        self._mcp_sessions = dummy._mcp_sessions
+        from deepseek_toolkit.mcp.executor import MCPToolExecutor
+        self._mcp_executor = MCPToolExecutor(list(self._mcp_servers))
+        self._mcp_executor.connect_and_register(self._registry)
         self._mcp_connected = True
 
     # ── Context management ──────────────────────────────────────────
@@ -592,8 +577,6 @@ class AsyncToolRuntime:
 
     def cleanup(self) -> None:
         """Close all MCP server connections."""
-        from deepseek_toolkit.runtime import ToolRuntime as _SyncRT
-        dummy = _SyncRT(tools=[])
-        dummy._mcp_sessions = self._mcp_sessions
-        dummy.cleanup()
-        self._mcp_sessions.clear()
+        if self._mcp_executor is not None:
+            self._mcp_executor.disconnect()
+            self._mcp_executor = None
