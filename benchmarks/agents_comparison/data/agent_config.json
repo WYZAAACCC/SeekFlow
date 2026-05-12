@@ -1,0 +1,11 @@
+{
+  "models": {
+    "pro": "deepseek-v4-pro",
+    "flash": "deepseek-v4-flash"
+  },
+  "thinking": {
+    "type": "enabled"
+  },
+  "max_steps": 10,
+  "timeout": 120
+}

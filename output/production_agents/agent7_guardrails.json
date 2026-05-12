@@ -1,0 +1,11 @@
+{
+  "output": "你好世界",
+  "cost": 0.00311634,
+  "cost_tag": "chaos-test-7",
+  "cache_hit_rate": 0.0,
+  "events": [
+    "agent.start",
+    "agent.end",
+    "agent.end"
+  ]
+}

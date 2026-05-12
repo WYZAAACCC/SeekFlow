@@ -1,0 +1,66 @@
+{
+  "sdlc_code_review": {
+    "DTK Fast": {
+      "latency_s": 24.2,
+      "cost_cny": 0.0016878000000000002,
+      "output_len": 184,
+      "quality": {
+        "completeness": 5,
+        "accuracy": 5,
+        "depth": 5,
+        "structure": 5,
+        "actionability": 5,
+        "overall": 5
+      },
+      "framework": "DTK Fast",
+      "output_preview": "PR Review：\n本次提交新增了测试生成函数框架，但存在三个关键问题需优先修复。TOP1：函数体为空（pass），未实现任何测试生成逻辑，这是阻塞性问题。TOP2：缺少类型提示和输入验证，code_or_description参数未做空值或类型检查。TOP3：文档字符串不完整，未说明返回值结构和使用示例。修复优先级：先实现核心逻辑，再补充参数验证，最后完善文档。"
+    },
+    "DTK Stable": {
+      "latency_s": 27.9,
+      "cost_cny": 0.0024499200000000004,
+      "output_len": 384,
+      "quality": {
+        "completeness": 5,
+        "accuracy": 5,
+        "depth": 5,
+        "structure": 5,
+        "actionability": 5,
+        "overall": 5
+      },
+      "framework": "DTK Stable",
+      "output_preview": "好的，Tech Lead。以下是本次PR的Review汇总。\n\n**PR Review 汇总**\n\n本次提交了测试用例生成规范文档，整体框架清晰，定义了用例结构和基本原则。但存在三个关键问题需优先修复。\n\n**TOP3 问题与修复优先级：**\n\n1.  **【P0-阻塞】缺少非功能性测试指导**：文档仅覆盖功能验证，完全缺失性能、安全等非功能性用例的生成规范，这是重大遗漏，必须立即补充。\n2.  "
+    },
+    "LangChain": {
+      "latency_s": 24.6,
+      "cost_cny": 0,
+      "output_len": 561,
+      "quality": {
+        "completeness": 1,
+        "accuracy": 2,
+        "depth": 1,
+        "structure": 2,
+        "actionability": 1,
+        "overall": 1
+      },
+      "framework": "LangChain",
+      "output_preview": "[代码阅读员]: ```python\n# 类: TestV3Agent\n# 方法: setUp, test_initialization, test_basic_query, test_error_handling, test_context_management\n```\n[安全员]: 好的，请提供具体场景或项目信息，以便我进行针对性审查。\n[性能员]: 请提供需要审查的代码或系统描述，以便我进行"
+    },
+    "CrewAI": {
+      "latency_s": 94.6,
+      "cost_cny": 0,
+      "output_len": 209,
+      "quality": {
+        "completeness": 5,
+        "accuracy": 5,
+        "depth": 5,
+        "structure": 5,
+        "actionability": 5,
+        "overall": 5
+      },
+      "framework": "CrewAI",
+      "output_preview": "API密钥硬编码风险是本次审查的核心发现。测试代码中直接使用`\"api_key\": \"test_key\"`，虽为测试环境，但可能误导开发者在生产代码中采用相同模式。建议所有密钥通过环境变量读取，并在测试中使用`os.environ.get()`或模拟环境变量。测试覆盖全面，包含初始化、响应生成、流式处理、错误重试、对话管理等核心功能，代码结构清晰，异常处理规范。整体质量良好，但需立即修复密钥存储方"
+    }
+  },
+  "data_etl": {},
+  "compliance": {}
+}

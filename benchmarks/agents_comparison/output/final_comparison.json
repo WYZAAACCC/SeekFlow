@@ -1,0 +1,191 @@
+{
+  "timestamp": "2026-05-10",
+  "model": "deepseek-v4-pro",
+  "frameworks": [
+    "DeepSeekToolkit",
+    "LangChain",
+    "CrewAI"
+  ],
+  "key_findings": {
+    "cost_efficiency": "DTK is 10-15x cheaper due to 94-99% prompt cache hit rate",
+    "token_efficiency": "LangChain uses 7-8x more tokens than DTK for identical tasks",
+    "cache_utilization": "DTK: 90-99% cached vs LangChain: ~0% (no cache observation)",
+    "unique_features": "12 DeepSeek-specific features only DTK provides",
+    "crewai_status": "CrewAI works but token tracking broken for 3/4 agents"
+  },
+  "per_agent_comparison": {
+    "financial": {
+      "DeepSeekToolkit": {
+        "success": true,
+        "latency_ms": 222912.2772216797,
+        "cost_cny": 0.002188124,
+        "total_tokens": 10349,
+        "prompt_tokens": 9869,
+        "completion_tokens": 480,
+        "cached_tokens": 9728,
+        "cache_hit_rate": "99%",
+        "tool_calls": 8,
+        "steps": 1,
+        "error": null,
+        "report_size": 8384
+      },
+      "LangChain": {
+        "success": true,
+        "latency_ms": 129392.03548431396,
+        "cost_cny": 0.022371099999999998,
+        "total_tokens": 34762,
+        "prompt_tokens": 31479,
+        "completion_tokens": 3283,
+        "cached_tokens": 25600,
+        "cache_hit_rate": "81%",
+        "tool_calls": 17,
+        "steps": 8,
+        "error": null,
+        "report_size": 10978
+      },
+      "CrewAI": {
+        "success": true,
+        "latency_ms": 150381.5314769745,
+        "cost_cny": 0.042677344,
+        "total_tokens": 48210,
+        "prompt_tokens": 44060,
+        "completion_tokens": 4150,
+        "cached_tokens": 28288,
+        "cache_hit_rate": "64%",
+        "tool_calls": 0,
+        "steps": 2,
+        "error": null,
+        "report_size": 10940
+      }
+    },
+    "investment": {
+      "DeepSeekToolkit": {
+        "success": true,
+        "latency_ms": 587440.4606819153,
+        "cost_cny": 0.002608208,
+        "total_tokens": 28337,
+        "prompt_tokens": 27846,
+        "completion_tokens": 491,
+        "cached_tokens": 27776,
+        "cache_hit_rate": "100%",
+        "tool_calls": 25,
+        "steps": 1,
+        "error": null,
+        "report_size": 6884
+      },
+      "LangChain": {
+        "success": true,
+        "latency_ms": 334294.51274871826,
+        "cost_cny": 0.042939948000000006,
+        "total_tokens": 230085,
+        "prompt_tokens": 222401,
+        "completion_tokens": 7684,
+        "cached_tokens": 216576,
+        "cache_hit_rate": "97%",
+        "tool_calls": 59,
+        "steps": 34,
+        "error": null,
+        "report_size": 5071
+      },
+      "CrewAI": {
+        "success": true,
+        "latency_ms": 188598.7057685852,
+        "cost_cny": 0.0,
+        "total_tokens": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cached_tokens": 0,
+        "cache_hit_rate": "N/A",
+        "tool_calls": 0,
+        "steps": 0,
+        "error": null
+      }
+    },
+    "data_analysis": {
+      "DeepSeekToolkit": {
+        "success": true,
+        "latency_ms": 579270.1556682587,
+        "cost_cny": 0.0062254599999999995,
+        "total_tokens": 30506,
+        "prompt_tokens": 30357,
+        "completion_tokens": 149,
+        "cached_tokens": 27520,
+        "cache_hit_rate": "91%",
+        "tool_calls": 27,
+        "steps": 1,
+        "error": null
+      },
+      "LangChain": {
+        "success": true,
+        "latency_ms": 535577.7068138123,
+        "cost_cny": 0.06107716799999999,
+        "total_tokens": 239688,
+        "prompt_tokens": 225516,
+        "completion_tokens": 14172,
+        "cached_tokens": 222336,
+        "cache_hit_rate": "99%",
+        "tool_calls": 82,
+        "steps": 25,
+        "error": null,
+        "report_size": 16213
+      },
+      "CrewAI": {
+        "success": true,
+        "latency_ms": 155759.23013687134,
+        "cost_cny": 0.0,
+        "total_tokens": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cached_tokens": 0,
+        "cache_hit_rate": "N/A",
+        "tool_calls": 0,
+        "steps": 0,
+        "error": null
+      }
+    },
+    "director": {
+      "DeepSeekToolkit": {
+        "success": true,
+        "latency_ms": 94054.0521144867,
+        "cost_cny": 0.001338528,
+        "total_tokens": 28607,
+        "prompt_tokens": 28486,
+        "completion_tokens": 121,
+        "cached_tokens": 28416,
+        "cache_hit_rate": "100%",
+        "tool_calls": 32,
+        "steps": 1,
+        "error": null,
+        "report_size": 17589
+      },
+      "LangChain": {
+        "success": true,
+        "latency_ms": 133511.30056381226,
+        "cost_cny": 0.011791364,
+        "total_tokens": 11324,
+        "prompt_tokens": 8189,
+        "completion_tokens": 3135,
+        "cached_tokens": 7808,
+        "cache_hit_rate": "95%",
+        "tool_calls": 5,
+        "steps": 5,
+        "error": null,
+        "report_size": 10656
+      },
+      "CrewAI": {
+        "success": true,
+        "latency_ms": 388554.09240722656,
+        "cost_cny": 0.0,
+        "total_tokens": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cached_tokens": 0,
+        "cache_hit_rate": "N/A",
+        "tool_calls": 0,
+        "steps": 0,
+        "error": null,
+        "report_size": 13627
+      }
+    }
+  }
+}

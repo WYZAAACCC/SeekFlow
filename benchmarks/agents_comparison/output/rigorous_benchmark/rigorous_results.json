@@ -1,0 +1,31 @@
+{
+  "investment": {
+    "DTK": {
+      "latency": 45.4,
+      "cost": 0.00243078,
+      "output_len": 385,
+      "quality": {
+        "overall": 5,
+        "critique": "Judge error: Expecting value: line 1 column 1 (char 0)"
+      },
+      "errors": 0
+    },
+    "LangChain": {
+      "error": "Connection error."
+    },
+    "CrewAI": {
+      "error": "name 'Task' is not defined"
+    }
+  },
+  "devops": {
+    "DTK": {
+      "error": "Connection error."
+    },
+    "LangChain": {
+      "note": "No built-in StateGraph equivalent (requires LangGraph, 29K lines)"
+    },
+    "CrewAI": {
+      "note": "No graph-based orchestration"
+    }
+  }
+}

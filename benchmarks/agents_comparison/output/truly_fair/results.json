@@ -1,0 +1,101 @@
+{
+  "investment_DTK": {
+    "latency_s": 241.2,
+    "cost_cny": 0.01119864,
+    "output_len": 3488,
+    "quality": {
+      "completeness": 5,
+      "accuracy": 5,
+      "depth": 5,
+      "structure": 5,
+      "actionability": 5,
+      "overall": 5
+    },
+    "errors": 0,
+    "framework": "DTK",
+    "output_preview": "好的，首席策略师。以下是基于现有分析框架，为您撰写的专业投资报告。\n\n---\n\n### **AI芯片行业深度投资研究报告：算力主权化下的机遇与重构**\n\n**报告日期：** 2024年5月23日\n**研究团队：** 首席策略办公室\n\n**致投资人：**\n\n本报告旨在深入剖析正处于范式转移期的全球AI芯片产业。在生成式AI的浪潮推动下，算力已成为新时代的基础能源，其背后的芯片产业正经历着前所未有的增长、变革与地缘政治博弈。我们基于对市场规模、技术路径、竞争格局及风险敞口的综合研判，提出以下投资策略。\n\n#### **一、 市场规模与增长 (2023-2025E)**\n\n全球AI芯片市场正以指数级"
+  },
+  "investment_LangChain": {
+    "latency_s": 137.5,
+    "cost_cny": 0.0,
+    "output_len": 4586,
+    "quality": {
+      "completeness": 5,
+      "accuracy": 5,
+      "depth": 5,
+      "structure": 5,
+      "actionability": 5,
+      "overall": 5
+    },
+    "framework": "LangChain",
+    "output_preview": "我注意到搜索工具返回的结果未能提供有效信息。让我基于行业公开数据为您整理AI芯片市场规模概况：\n\n---\n\n**AI芯片行业市场规模（2023-2025）**\n\n据多家研究机构（Gartner、IDC、McKinsey等）综合数据：\n\n- **2023年**：全球AI芯片市场规模约**530亿-550亿美元**，同比增长约**25%-30%**，主要受大模型训练需求驱动，GPU占据主导地位。\n\n- **2024年**：市场规模预计达**700亿-750亿美元**，增长率约**30%-35%**，英伟达H100/B200系列持续放量，云厂商自研AI芯片加速。\n\n- **2025年**：市场规模预"
+  },
+  "investment_CrewAI": {
+    "latency_s": 98.0,
+    "cost_cny": 0.0793179,
+    "output_len": 2693,
+    "quality": {
+      "completeness": 5,
+      "accuracy": 5,
+      "depth": 5,
+      "structure": 5,
+      "actionability": 5,
+      "overall": 5
+    },
+    "framework": "CrewAI",
+    "output_preview": "**AI芯片行业投资研究报告**\n\n**发布日期：** 2024年5月22日\n**分析师：** 首席策略师，CFA\n\n---\n\n### 一、市场规模与增长（2023-2025年）\n\n全球AI芯片市场正经历由大语言模型（LLM）训练和生成式AI推理驱动的指数级增长。综合Gartner、IDC及MarketsandMarkets数据，2023年全球市场规模约为536亿美元。进入2024年，受云端超大规模基础设施资本支出激增及边缘AI部署加速影响，市场规模预计同比增长38%，达到约740亿美元。展望2025年，随着从GPT-4向万亿参数多模态模型演进，以及AI PC和AI手机等终端设备的渗透率提升，"
+  },
+  "devops_DTK": {
+    "latency_s": 21.3,
+    "cost_cny": 0.0,
+    "output_len": 91,
+    "quality": {
+      "completeness": 5,
+      "accuracy": 5,
+      "depth": 5,
+      "structure": 5,
+      "actionability": 5,
+      "overall": 5
+    },
+    "framework": "DTK",
+    "engine": "StateGraph (~200 lines built-in)"
+  },
+  "devops_LangChain": {
+    "latency_s": 7.2,
+    "cost_cny": 0.0,
+    "output_len": 54,
+    "quality": {
+      "completeness": 1,
+      "accuracy": 1,
+      "depth": 1,
+      "structure": 1,
+      "actionability": 1,
+      "overall": 1
+    },
+    "framework": "LangChain",
+    "engine": "LangGraph (~29K lines, separate package)"
+  },
+  "devops_CrewAI": {
+    "latency_s": 3.9,
+    "cost_cny": 0.0,
+    "output_len": 75,
+    "quality": {
+      "completeness": 5,
+      "accuracy": 5,
+      "depth": 5,
+      "structure": 5,
+      "actionability": 5,
+      "overall": 5
+    },
+    "framework": "CrewAI",
+    "engine": "Sequential (no graph engine)"
+  },
+  "bonus_dtk_thinking": {
+    "latency_s": 15.8,
+    "cost_cny": 0.0,
+    "output_len": 50,
+    "reasoning_len": 78,
+    "framework": "DTK (thinking=ON)",
+    "note": "LangChain/CrewAI CANNOT run this — thinking mode not supported"
+  }
+}

@@ -1,0 +1,692 @@
+{
+  "timestamp": "2026-05-10 21:33:57",
+  "streaming": true,
+  "agents_tested": 5,
+  "agent_types": [
+    "financial",
+    "investment",
+    "data_analysis",
+    "director",
+    "research"
+  ],
+  "frameworks": [
+    "deepseek_toolkit",
+    "langchain",
+    "crewai"
+  ],
+  "comparisons": [
+    {
+      "agent_type": "financial",
+      "deepseek_toolkit": {
+        "latency_ms": 504338.8600349426,
+        "cost": 0.027646168,
+        "steps": 0,
+        "features_count": 11,
+        "features": [
+          "balance_query",
+          "cost_tracking",
+          "prompt_cache",
+          "rate_limit_awareness",
+          "session_management",
+          "token_counter",
+          "runtime_saver",
+          "file_attachment",
+          "standard_mode",
+          "streaming",
+          "session_persistence"
+        ],
+        "errors": [],
+        "framework": "DeepSeekToolkit",
+        "tokens": {
+          "prompt_tokens": 14782,
+          "completion_tokens": 5402,
+          "total_tokens": 20184,
+          "prompt_tokens_details": {
+            "cached_tokens": 9856
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 10001,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.2,
+          "data_citation": 8.0,
+          "actionability": 10,
+          "professionalism": 10,
+          "total": 9.5
+        },
+        "balance": "20.65 CNY",
+        "cache_hits": 9856,
+        "thinking_used": false,
+        "session_messages": 21
+      },
+      "langchain": {
+        "latency_ms": 309354.71653938293,
+        "cost": 0.040851272,
+        "steps": 5,
+        "features_count": 5,
+        "features": [
+          "langchain_tool_decorator",
+          "langchain_middleware",
+          "langgraph_agent",
+          "chatopenai_provider",
+          "streaming"
+        ],
+        "errors": [],
+        "framework": "LangChain",
+        "tokens": {
+          "prompt_tokens": 25406,
+          "completion_tokens": 9300,
+          "total_tokens": 34706
+        },
+        "tool_call_count": 0,
+        "final_output_len": 7031,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.5,
+          "data_citation": 8.0,
+          "actionability": 8.5,
+          "professionalism": 8.5,
+          "total": 9.3
+        }
+      },
+      "crewai": {
+        "latency_ms": 234353.6548614502,
+        "cost": 0.049877452,
+        "steps": 1,
+        "features_count": 6,
+        "features": [
+          "crewai_agent_model",
+          "crewai_task_model",
+          "crewai_crew_orchestration",
+          "crewai_tool_decorator",
+          "crewai_token_tracking",
+          "crewai_llm_provider"
+        ],
+        "errors": [],
+        "framework": "CrewAI",
+        "tokens": {
+          "prompt_tokens": 57703,
+          "completion_tokens": 6765,
+          "total_tokens": 64468,
+          "prompt_tokens_details": {
+            "cached_tokens": 43264
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 6688,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.5,
+          "data_citation": 8.0,
+          "actionability": 10,
+          "professionalism": 8.5,
+          "total": 9.4
+        }
+      }
+    },
+    {
+      "agent_type": "investment",
+      "deepseek_toolkit": {
+        "latency_ms": 997996.7436790466,
+        "cost": 0.015599015999999999,
+        "steps": 0,
+        "features_count": 11,
+        "features": [
+          "balance_query",
+          "cost_tracking",
+          "prompt_cache",
+          "rate_limit_awareness",
+          "session_management",
+          "token_counter",
+          "runtime_saver",
+          "file_attachment",
+          "standard_mode",
+          "streaming",
+          "session_persistence"
+        ],
+        "errors": [],
+        "framework": "DeepSeekToolkit",
+        "tokens": {
+          "prompt_tokens": 49236,
+          "completion_tokens": 4045,
+          "total_tokens": 53281,
+          "prompt_tokens_details": {
+            "cached_tokens": 49152
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 7691,
+        "quality": {
+          "completeness": 9.5,
+          "structure": 10,
+          "depth": 9.3,
+          "data_citation": 8.0,
+          "actionability": 10,
+          "professionalism": 10,
+          "total": 9.4
+        },
+        "balance": "20.39 CNY",
+        "cache_hits": 49152,
+        "thinking_used": false,
+        "session_messages": 40
+      },
+      "langchain": {
+        "latency_ms": 412064.8183822632,
+        "cost": 0.08950666,
+        "steps": 9,
+        "features_count": 5,
+        "features": [
+          "langchain_tool_decorator",
+          "langchain_middleware",
+          "langgraph_agent",
+          "chatopenai_provider",
+          "streaming"
+        ],
+        "errors": [],
+        "framework": "LangChain",
+        "tokens": {
+          "prompt_tokens": 187195,
+          "completion_tokens": 11780,
+          "total_tokens": 198975
+        },
+        "tool_call_count": 0,
+        "final_output_len": 6072,
+        "quality": {
+          "completeness": 9.5,
+          "structure": 10,
+          "depth": 9.3,
+          "data_citation": 10,
+          "actionability": 10,
+          "professionalism": 10,
+          "total": 9.7
+        }
+      },
+      "crewai": {
+        "latency_ms": 593109.5726490021,
+        "cost": 0.103083712,
+        "steps": 1,
+        "features_count": 6,
+        "features": [
+          "crewai_agent_model",
+          "crewai_task_model",
+          "crewai_crew_orchestration",
+          "crewai_tool_decorator",
+          "crewai_token_tracking",
+          "crewai_llm_provider"
+        ],
+        "errors": [],
+        "framework": "CrewAI",
+        "tokens": {
+          "prompt_tokens": 170832,
+          "completion_tokens": 17440,
+          "total_tokens": 188272,
+          "prompt_tokens_details": {
+            "cached_tokens": 148864
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 6721,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.3,
+          "data_citation": 8.0,
+          "actionability": 10,
+          "professionalism": 10,
+          "total": 9.5
+        }
+      }
+    },
+    {
+      "agent_type": "data_analysis",
+      "deepseek_toolkit": {
+        "latency_ms": 545977.9007434845,
+        "cost": 0.027748012,
+        "steps": 0,
+        "features_count": 11,
+        "features": [
+          "balance_query",
+          "cost_tracking",
+          "prompt_cache",
+          "rate_limit_awareness",
+          "session_management",
+          "token_counter",
+          "runtime_saver",
+          "file_attachment",
+          "standard_mode",
+          "streaming",
+          "session_persistence"
+        ],
+        "errors": [],
+        "framework": "DeepSeekToolkit",
+        "tokens": {
+          "prompt_tokens": 31085,
+          "completion_tokens": 5214,
+          "total_tokens": 36299,
+          "prompt_tokens_details": {
+            "cached_tokens": 25984
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 9349,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.6,
+          "data_citation": 10,
+          "actionability": 10,
+          "professionalism": 7.5,
+          "total": 9.7
+        },
+        "balance": "19.71 CNY",
+        "cache_hits": 25984,
+        "thinking_used": false,
+        "session_messages": 26
+      },
+      "langchain": {
+        "latency_ms": 821282.1083068848,
+        "cost": 0.126647244,
+        "steps": 12,
+        "features_count": 5,
+        "features": [
+          "langchain_tool_decorator",
+          "langchain_middleware",
+          "langgraph_agent",
+          "chatopenai_provider",
+          "streaming"
+        ],
+        "errors": [],
+        "framework": "LangChain",
+        "tokens": {
+          "prompt_tokens": 180057,
+          "completion_tokens": 25140,
+          "total_tokens": 205197
+        },
+        "tool_call_count": 0,
+        "final_output_len": 9339,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.3,
+          "data_citation": 10,
+          "actionability": 10,
+          "professionalism": 9.0,
+          "total": 9.7
+        }
+      },
+      "crewai": {
+        "latency_ms": 377976.9003391266,
+        "cost": 0.07677722399999999,
+        "steps": 1,
+        "features_count": 6,
+        "features": [
+          "crewai_agent_model",
+          "crewai_task_model",
+          "crewai_crew_orchestration",
+          "crewai_tool_decorator",
+          "crewai_token_tracking",
+          "crewai_llm_provider"
+        ],
+        "errors": [],
+        "framework": "CrewAI",
+        "tokens": {
+          "prompt_tokens": 86598,
+          "completion_tokens": 11256,
+          "total_tokens": 97854,
+          "prompt_tokens_details": {
+            "cached_tokens": 66048
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 7136,
+        "quality": {
+          "completeness": 8.8,
+          "structure": 10,
+          "depth": 9.4,
+          "data_citation": 10,
+          "actionability": 10,
+          "professionalism": 9.0,
+          "total": 9.5
+        }
+      }
+    },
+    {
+      "agent_type": "director",
+      "deepseek_toolkit": {
+        "latency_ms": 563489.1502857208,
+        "cost": 0.015906612,
+        "steps": 0,
+        "features_count": 11,
+        "features": [
+          "balance_query",
+          "cost_tracking",
+          "prompt_cache",
+          "rate_limit_awareness",
+          "session_management",
+          "token_counter",
+          "runtime_saver",
+          "file_attachment",
+          "standard_mode",
+          "streaming",
+          "session_persistence"
+        ],
+        "errors": [],
+        "framework": "DeepSeekToolkit",
+        "tokens": {
+          "prompt_tokens": 27325,
+          "completion_tokens": 4321,
+          "total_tokens": 31646,
+          "prompt_tokens_details": {
+            "cached_tokens": 27264
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 8248,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.4,
+          "data_citation": 8.0,
+          "actionability": 10,
+          "professionalism": 8.5,
+          "total": 9.4
+        },
+        "balance": "19.22 CNY",
+        "cache_hits": 27264,
+        "thinking_used": false,
+        "session_messages": 51
+      },
+      "langchain": {
+        "latency_ms": 496052.81043052673,
+        "cost": 0.07023808000000001,
+        "steps": 8,
+        "features_count": 5,
+        "features": [
+          "langchain_tool_decorator",
+          "langchain_middleware",
+          "langgraph_agent",
+          "chatopenai_provider",
+          "streaming"
+        ],
+        "errors": [],
+        "framework": "LangChain",
+        "tokens": {
+          "prompt_tokens": 58450,
+          "completion_tokens": 14887,
+          "total_tokens": 73337
+        },
+        "tool_call_count": 0,
+        "final_output_len": 10184,
+        "quality": {
+          "completeness": 10,
+          "structure": 10,
+          "depth": 9.2,
+          "data_citation": 8.0,
+          "actionability": 10,
+          "professionalism": 9.0,
+          "total": 9.4
+        }
+      },
+      "crewai": {
+        "latency_ms": 183923.8419532776,
+        "cost": 0.045028368,
+        "steps": 1,
+        "features_count": 6,
+        "features": [
+          "crewai_agent_model",
+          "crewai_task_model",
+          "crewai_crew_orchestration",
+          "crewai_tool_decorator",
+          "crewai_token_tracking",
+          "crewai_llm_provider"
+        ],
+        "errors": [],
+        "framework": "CrewAI",
+        "tokens": {
+          "prompt_tokens": 42140,
+          "completion_tokens": 4904,
+          "total_tokens": 47044,
+          "prompt_tokens_details": {
+            "cached_tokens": 26496
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 7133,
+        "quality": {
+          "completeness": 8.9,
+          "structure": 10,
+          "depth": 9.0,
+          "data_citation": 8.0,
+          "actionability": 10,
+          "professionalism": 7.5,
+          "total": 8.9
+        }
+      }
+    },
+    {
+      "agent_type": "research",
+      "deepseek_toolkit": {
+        "latency_ms": 1157822.7090835571,
+        "cost": 0.0065366800000000004,
+        "steps": 0,
+        "features_count": 11,
+        "features": [
+          "balance_query",
+          "cost_tracking",
+          "prompt_cache",
+          "rate_limit_awareness",
+          "session_management",
+          "token_counter",
+          "runtime_saver",
+          "file_attachment",
+          "standard_mode",
+          "streaming",
+          "session_persistence"
+        ],
+        "errors": [],
+        "framework": "DeepSeekToolkit",
+        "tokens": {
+          "prompt_tokens": 48736,
+          "completion_tokens": 1439,
+          "total_tokens": 50175,
+          "prompt_tokens_details": {
+            "cached_tokens": 48640
+          }
+        },
+        "tool_call_count": 0,
+        "final_output_len": 4267,
+        "quality": {
+          "completeness": 7.9,
+          "structure": 9.6,
+          "depth": 10,
+          "data_citation": 7.3,
+          "actionability": 10,
+          "professionalism": 6.0,
+          "total": 8.6
+        },
+        "balance": "18.81 CNY",
+        "cache_hits": 48640,
+        "thinking_used": false,
+        "session_messages": 35
+      },
+      "langchain": {
+        "latency_ms": 639801.2840747833,
+        "cost": 0.081238856,
+        "steps": 8,
+        "features_count": 5,
+        "features": [
+          "langchain_tool_decorator",
+          "langchain_middleware",
+          "langgraph_agent",
+          "chatopenai_provider",
+          "streaming"
+        ],
+        "errors": [],
+        "framework": "LangChain",
+        "tokens": {
+          "prompt_tokens": 86654,
+          "completion_tokens": 18996,
+          "total_tokens": 105650
+        },
+        "tool_call_count": 0,
+        "final_output_len": 8542,
+        "quality": {
+          "completeness": 4.4,
+          "structure": 10,
+          "depth": 9.3,
+          "data_citation": 10,
+          "actionability": 10,
+          "professionalism": 9.0,
+          "total": 8.3
+        }
+      },
+      "crewai": {
+        "error": "KeyError: 'research'"
+      }
+    }
+  ],
+  "deepseek_toolkit_latencies": [
+    504338.8600349426,
+    997996.7436790466,
+    545977.9007434845,
+    563489.1502857208,
+    1157822.7090835571
+  ],
+  "deepseek_toolkit_costs": [
+    0.027646168,
+    0.015599015999999999,
+    0.027748012,
+    0.015906612,
+    0.0065366800000000004
+  ],
+  "deepseek_toolkit_features": [
+    11,
+    11,
+    11,
+    11,
+    11
+  ],
+  "deepseek_toolkit_tokens": [
+    20184,
+    53281,
+    36299,
+    31646,
+    50175
+  ],
+  "deepseek_toolkit_tool_calls": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "deepseek_toolkit_quality_totals": [
+    9.5,
+    9.4,
+    9.7,
+    9.4,
+    8.6
+  ],
+  "langchain_latencies": [
+    309354.71653938293,
+    412064.8183822632,
+    821282.1083068848,
+    496052.81043052673,
+    639801.2840747833
+  ],
+  "langchain_costs": [
+    0.040851272,
+    0.08950666,
+    0.126647244,
+    0.07023808000000001,
+    0.081238856
+  ],
+  "langchain_features": [
+    5,
+    5,
+    5,
+    5,
+    5
+  ],
+  "langchain_tokens": [
+    34706,
+    198975,
+    205197,
+    73337,
+    105650
+  ],
+  "langchain_tool_calls": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "langchain_quality_totals": [
+    9.3,
+    9.7,
+    9.7,
+    9.4,
+    8.3
+  ],
+  "crewai_latencies": [
+    234353.6548614502,
+    593109.5726490021,
+    377976.9003391266,
+    183923.8419532776
+  ],
+  "crewai_costs": [
+    0.049877452,
+    0.103083712,
+    0.07677722399999999,
+    0.045028368
+  ],
+  "crewai_features": [
+    6,
+    6,
+    6,
+    6
+  ],
+  "crewai_tokens": [
+    64468,
+    188272,
+    97854,
+    47044
+  ],
+  "crewai_tool_calls": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "crewai_quality_totals": [
+    9.4,
+    9.5,
+    9.5,
+    8.9
+  ],
+  "deepseek_toolkit_avg_latency_ms": 753925.0727653503,
+  "deepseek_toolkit_avg_cost": 0.0186872976,
+  "deepseek_toolkit_avg_features": 11.0,
+  "deepseek_toolkit_avg_tokens": 38317.0,
+  "deepseek_toolkit_avg_tool_calls": 0.0,
+  "deepseek_toolkit_avg_quality": 9.32,
+  "langchain_avg_latency_ms": 535711.1475467682,
+  "langchain_avg_cost": 0.0816964224,
+  "langchain_avg_features": 5.0,
+  "langchain_avg_tokens": 123573.0,
+  "langchain_avg_tool_calls": 0.0,
+  "langchain_avg_quality": 9.28,
+  "crewai_avg_latency_ms": 347340.9924507141,
+  "crewai_avg_cost": 0.068691689,
+  "crewai_avg_features": 6.0,
+  "crewai_avg_tokens": 99409.5,
+  "crewai_avg_tool_calls": 0.0,
+  "crewai_avg_quality": 9.325,
+  "dtk_total_features": 28,
+  "deepseek_specific_count": 12
+}

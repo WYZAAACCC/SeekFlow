@@ -1,0 +1,42 @@
+{
+  "framework": "LangChain",
+  "agent_type": "director",
+  "success": true,
+  "total_latency_ms": 496059.3593120575,
+  "total_cost_cny": 0.07023808000000001,
+  "total_tokens": 73337,
+  "prompt_tokens": 58450,
+  "completion_tokens": 14887,
+  "cached_tokens": 48640,
+  "reasoning_tokens": 0,
+  "steps": 8,
+  "tool_calls": 10,
+  "error": null,
+  "features_available": [
+    "streaming",
+    "tool_decorator",
+    "retry_middleware",
+    "langgraph_checkpointer",
+    "langgraph_tracing",
+    "model_fallback",
+    "summarization",
+    "todo_list_middleware",
+    "human_in_the_loop",
+    "structured_output",
+    "parallel_tool_calls"
+  ],
+  "features_missing": [
+    "balance_query",
+    "deepseek_pricing_table",
+    "error_classification",
+    "fim_completions",
+    "prompt_cache_observation",
+    "rate_limit_awareness",
+    "json_repair",
+    "anthropic_compat",
+    "session_persistence",
+    "strict_tools",
+    "thinking_mode_param",
+    "truncation_strategy"
+  ]
+}

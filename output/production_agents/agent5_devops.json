@@ -1,0 +1,16 @@
+{
+  "build_ok": true,
+  "test_ok": true,
+  "deployed": true,
+  "events": [
+    "agent.start",
+    "agent.end",
+    "agent.end",
+    "agent.start",
+    "agent.end",
+    "agent.end",
+    "agent.start",
+    "agent.end",
+    "agent.end"
+  ]
+}

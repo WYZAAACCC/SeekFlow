@@ -1,0 +1,1074 @@
+{
+  "tool_selection": {
+    "OpenAI SDK": {
+      "overall_accuracy": 68.4375,
+      "overall_latency": 1061.387005833194,
+      "crashes": 0,
+      "total_tests": 1920,
+      "p50_latency": 1053.5742499996559,
+      "p95_latency": 1605.6994349946763,
+      "p99_latency": 2275.60316299794
+    },
+    "LangChain": {
+      "overall_accuracy": 69.42708333333333,
+      "overall_latency": 2615.3587140698683,
+      "crashes": 1,
+      "total_tests": 1920,
+      "p50_latency": 1799.3370999975014,
+      "p95_latency": 7965.431920001719,
+      "p99_latency": 9441.601067998992
+    },
+    "DeepSeekToolkit": {
+      "overall_accuracy": 70.9375,
+      "overall_latency": 2791.016057946936,
+      "crashes": 1,
+      "total_tests": 1920,
+      "p50_latency": 2469.5432000007713,
+      "p95_latency": 6217.993290002049,
+      "p99_latency": 7981.102924002043
+    }
+  },
+  "json_repair": {
+    "DeepSeekToolkit": {
+      "correct": 90,
+      "total": 90,
+      "rate": 100.0
+    },
+    "LangChain": {
+      "correct": 49,
+      "total": 90,
+      "rate": 54.44444444444444
+    },
+    "OpenAI SDK": {
+      "correct": 10,
+      "total": 90,
+      "rate": 11.11111111111111
+    }
+  },
+  "error_recovery": {
+    "DeepSeekToolkit": {
+      "graceful": 4,
+      "crashes": 0,
+      "total": 4,
+      "rate": 100.0
+    },
+    "LangChain": {
+      "graceful": 1,
+      "crashes": 1,
+      "total": 1,
+      "rate": 100.0
+    },
+    "OpenAI SDK": {
+      "graceful": 0,
+      "crashes": 0,
+      "total": 4,
+      "rate": 0.0
+    }
+  },
+  "conversation_longevity": {
+    "DeepSeekToolkit": {
+      "5-turn": {
+        "results": [
+          {
+            "turn": 0,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 3629.7811000040383,
+            "crash": false
+          },
+          {
+            "turn": 1,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 3766.896300003282,
+            "crash": false
+          },
+          {
+            "turn": 2,
+            "correct": true,
+            "called": [
+              "add"
+            ],
+            "elapsed_ms": 3239.20850000286,
+            "crash": false
+          },
+          {
+            "turn": 3,
+            "correct": true,
+            "called": [
+              "get_time"
+            ],
+            "elapsed_ms": 3593.088900001021,
+            "crash": false
+          },
+          {
+            "turn": 4,
+            "correct": true,
+            "called": [],
+            "elapsed_ms": 2816.186600000947,
+            "crash": false
+          }
+        ],
+        "total_turns": 5,
+        "correct": 5,
+        "accuracy": 100.0,
+        "avg_latency_ms": 3409.0322800024296,
+        "crashes": 0,
+        "conversation_id": "5-turn"
+      },
+      "10-turn": {
+        "results": [
+          {
+            "turn": 0,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 4253.450899996096,
+            "crash": false
+          },
+          {
+            "turn": 1,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 4318.053499999223,
+            "crash": false
+          },
+          {
+            "turn": 2,
+            "correct": true,
+            "called": [
+              "search_knowledge",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 4085.7066999960807,
+            "crash": false
+          },
+          {
+            "turn": 3,
+            "correct": true,
+            "called": [
+              "get_time"
+            ],
+            "elapsed_ms": 4183.580999997503,
+            "crash": false
+          },
+          {
+            "turn": 4,
+            "correct": false,
+            "called": [
+              "search_knowledge",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 4475.917300005676,
+            "crash": false
+          },
+          {
+            "turn": 5,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 4145.8124999990105,
+            "crash": false
+          },
+          {
+            "turn": 6,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 4912.93510000105,
+            "crash": false
+          },
+          {
+            "turn": 7,
+            "correct": true,
+            "called": [
+              "get_time"
+            ],
+            "elapsed_ms": 3651.333699999668,
+            "crash": false
+          },
+          {
+            "turn": 8,
+            "correct": true,
+            "called": [
+              "add"
+            ],
+            "elapsed_ms": 4636.169700002938,
+            "crash": false
+          },
+          {
+            "turn": 9,
+            "correct": true,
+            "called": [],
+            "elapsed_ms": 3719.0900999994483,
+            "crash": false
+          }
+        ],
+        "total_turns": 10,
+        "correct": 8,
+        "accuracy": 80.0,
+        "avg_latency_ms": 4238.205049999669,
+        "crashes": 0,
+        "conversation_id": "10-turn"
+      },
+      "20-turn": {
+        "results": [
+          {
+            "turn": 0,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 3555.688200001896,
+            "crash": false
+          },
+          {
+            "turn": 1,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 3630.8099000016227,
+            "crash": false
+          },
+          {
+            "turn": 2,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 4473.729099998309,
+            "crash": false
+          },
+          {
+            "turn": 3,
+            "correct": true,
+            "called": [
+              "add"
+            ],
+            "elapsed_ms": 3702.285999999731,
+            "crash": false
+          },
+          {
+            "turn": 4,
+            "correct": true,
+            "called": [
+              "search_knowledge",
+              "search_knowledge",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 4593.50689999701,
+            "crash": false
+          },
+          {
+            "turn": 5,
+            "correct": true,
+            "called": [
+              "get_time"
+            ],
+            "elapsed_ms": 4083.2837999987532,
+            "crash": false
+          },
+          {
+            "turn": 6,
+            "correct": true,
+            "called": [],
+            "elapsed_ms": 1752.7667000031215,
+            "crash": false
+          },
+          {
+            "turn": 7,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 4684.611700002279,
+            "crash": false
+          },
+          {
+            "turn": 8,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 5624.564500001725,
+            "crash": false
+          },
+          {
+            "turn": 9,
+            "correct": true,
+            "called": [
+              "search_knowledge",
+              "search_knowledge",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 7834.344800001418,
+            "crash": false
+          },
+          {
+            "turn": 10,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 10445.931100002781,
+            "crash": false
+          },
+          {
+            "turn": 11,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 12709.319499997946,
+            "crash": false
+          },
+          {
+            "turn": 12,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 18583.11390000017,
+            "crash": false
+          },
+          {
+            "turn": 13,
+            "correct": false,
+            "called": [],
+            "elapsed_ms": 10104.961199998797,
+            "crash": true,
+            "error": "Error code: 400 - {'error': {'message': \"This model's maximum context length is 1048576 tokens. However, you requested 1282171 tokens (1282171 in the messages, 0 in the completion). Please reduce the length of the messages or completion.\", 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+          },
+          {
+            "turn": 14,
+            "correct": false,
+            "called": [],
+            "elapsed_ms": 9999.399500004074,
+            "crash": true,
+            "error": "Error code: 400 - {'error': {'message': \"This model's maximum context length is 1048576 tokens. However, you requested 1282175 tokens (1282175 in the messages, 0 in the completion). Please reduce the length of the messages or completion.\", 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+          },
+          {
+            "turn": 15,
+            "correct": false,
+            "called": [],
+            "elapsed_ms": 9733.18719999952,
+            "crash": true,
+            "error": "Error code: 400 - {'error': {'message': \"This model's maximum context length is 1048576 tokens. However, you requested 1282178 tokens (1282178 in the messages, 0 in the completion). Please reduce the length of the messages or completion.\", 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+          },
+          {
+            "turn": 16,
+            "correct": false,
+            "called": [],
+            "elapsed_ms": 10645.236000003933,
+            "crash": true,
+            "error": "Error code: 400 - {'error': {'message': \"This model's maximum context length is 1048576 tokens. However, you requested 1282181 tokens (1282181 in the messages, 0 in the completion). Please reduce the length of the messages or completion.\", 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+          },
+          {
+            "turn": 17,
+            "correct": false,
+            "called": [],
+            "elapsed_ms": 10629.930700000841,
+            "crash": true,
+            "error": "Error code: 400 - {'error': {'message': \"This model's maximum context length is 1048576 tokens. However, you requested 1282186 tokens (1282186 in the messages, 0 in the completion). Please reduce the length of the messages or completion.\", 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+          },
+          {
+            "turn": 18,
+            "correct": false,
+            "called": [],
+            "elapsed_ms": 10715.109600001597,
+            "crash": true,
+            "error": "Error code: 400 - {'error': {'message': \"This model's maximum context length is 1048576 tokens. However, you requested 1282194 tokens (1282194 in the messages, 0 in the completion). Please reduce the length of the messages or completion.\", 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+          },
+          {
+            "turn": 19,
+            "correct": false,
+            "called": [],
+            "elapsed_ms": 9979.98980000557,
+            "crash": true,
+            "error": "Error code: 400 - {'error': {'message': \"This model's maximum context length is 1048576 tokens. However, you requested 1282197 tokens (1282197 in the messages, 0 in the completion). Please reduce the length of the messages or completion.\", 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_request_error'}}"
+          }
+        ],
+        "total_turns": 20,
+        "correct": 10,
+        "accuracy": 50.0,
+        "avg_latency_ms": 4283.697805000338,
+        "crashes": 7,
+        "conversation_id": "20-turn"
+      }
+    },
+    "LangChain": {
+      "5-turn": {
+        "results": [
+          {
+            "turn": 0,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 2706.841600003827,
+            "crash": false
+          },
+          {
+            "turn": 1,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 4395.969400000467,
+            "crash": false
+          },
+          {
+            "turn": 2,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "add"
+            ],
+            "elapsed_ms": 6356.057199998759,
+            "crash": false
+          },
+          {
+            "turn": 3,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "add",
+              "get_time"
+            ],
+            "elapsed_ms": 8352.419999995618,
+            "crash": false
+          },
+          {
+            "turn": 4,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "add",
+              "get_time"
+            ],
+            "elapsed_ms": 7453.920799998741,
+            "crash": false
+          }
+        ],
+        "total_turns": 5,
+        "correct": 4,
+        "accuracy": 80.0,
+        "avg_latency_ms": 5853.0417999994825,
+        "crashes": 0,
+        "conversation_id": "5-turn"
+      },
+      "10-turn": {
+        "results": [
+          {
+            "turn": 0,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 2399.996000000101,
+            "crash": false
+          },
+          {
+            "turn": 1,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 3374.699599997257,
+            "crash": false
+          },
+          {
+            "turn": 2,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 4922.253100005037,
+            "crash": false
+          },
+          {
+            "turn": 3,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 5303.384899998491,
+            "crash": false
+          },
+          {
+            "turn": 4,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge",
+              "get_time",
+              "add"
+            ],
+            "elapsed_ms": 6532.579599996097,
+            "crash": false
+          },
+          {
+            "turn": 5,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge",
+              "get_time",
+              "add",
+              "get_weather"
+            ],
+            "elapsed_ms": 6842.679000001226,
+            "crash": false
+          },
+          {
+            "turn": 6,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge",
+              "get_time",
+              "add",
+              "get_weather",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 7984.520899997733,
+            "crash": false
+          },
+          {
+            "turn": 7,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge",
+              "get_time",
+              "add",
+              "get_weather",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 9124.274100002367,
+            "crash": false
+          },
+          {
+            "turn": 8,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge",
+              "get_time",
+              "add",
+              "get_weather",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 13904.223300000012,
+            "crash": false
+          },
+          {
+            "turn": 9,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "search_knowledge",
+              "get_time",
+              "add",
+              "get_weather",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 8355.704000001424,
+            "crash": false
+          }
+        ],
+        "total_turns": 10,
+        "correct": 9,
+        "accuracy": 90.0,
+        "avg_latency_ms": 6874.431449999975,
+        "crashes": 0,
+        "conversation_id": "10-turn"
+      },
+      "20-turn": {
+        "results": [
+          {
+            "turn": 0,
+            "correct": true,
+            "called": [
+              "get_weather"
+            ],
+            "elapsed_ms": 2984.014699999534,
+            "crash": false
+          },
+          {
+            "turn": 1,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 3364.122999999381,
+            "crash": false
+          },
+          {
+            "turn": 2,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather"
+            ],
+            "elapsed_ms": 4733.662499995262,
+            "crash": false
+          },
+          {
+            "turn": 3,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add"
+            ],
+            "elapsed_ms": 4782.840400002897,
+            "crash": false
+          },
+          {
+            "turn": 4,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 6178.944400002365,
+            "crash": false
+          },
+          {
+            "turn": 5,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 6633.675100005348,
+            "crash": false
+          },
+          {
+            "turn": 6,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 6938.1726999999955,
+            "crash": false
+          },
+          {
+            "turn": 7,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather"
+            ],
+            "elapsed_ms": 8148.727200001304,
+            "crash": false
+          },
+          {
+            "turn": 8,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add"
+            ],
+            "elapsed_ms": 8421.061000000918,
+            "crash": false
+          },
+          {
+            "turn": 9,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 8225.306700005603,
+            "crash": false
+          },
+          {
+            "turn": 10,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 8816.822400011006,
+            "crash": false
+          },
+          {
+            "turn": 11,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather"
+            ],
+            "elapsed_ms": 9817.017599998508,
+            "crash": false
+          },
+          {
+            "turn": 12,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add"
+            ],
+            "elapsed_ms": 11568.30979998631,
+            "crash": false
+          },
+          {
+            "turn": 13,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 11774.280099998577,
+            "crash": false
+          },
+          {
+            "turn": 14,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge"
+            ],
+            "elapsed_ms": 13845.2324999962,
+            "crash": false
+          },
+          {
+            "turn": 15,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time"
+            ],
+            "elapsed_ms": 12674.815200007288,
+            "crash": false
+          },
+          {
+            "turn": 16,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather"
+            ],
+            "elapsed_ms": 14162.738300001365,
+            "crash": false
+          },
+          {
+            "turn": 17,
+            "correct": true,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add"
+            ],
+            "elapsed_ms": 13725.194799990277,
+            "crash": false
+          },
+          {
+            "turn": 18,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "add",
+              "add",
+              "add",
+              "search_knowledge",
+              "search_knowledge",
+              "search_knowledge",
+              "get_time",
+              "get_time",
+              "get_time"
+            ],
+            "elapsed_ms": 16777.872099992237,
+            "crash": false
+          },
+          {
+            "turn": 19,
+            "correct": false,
+            "called": [
+              "get_weather",
+              "get_weather",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add",
+              "search_knowledge",
+              "get_time",
+              "get_weather",
+              "add"
+            ],
+            "elapsed_ms": 26369.74380000902,
+            "crash": false
+          }
+        ],
+        "total_turns": 20,
+        "correct": 16,
+        "accuracy": 80.0,
+        "avg_latency_ms": 9997.12771500017,
+        "crashes": 0,
+        "conversation_id": "20-turn"
+      }
+    }
+  },
+  "concurrent_load": {
+    "DeepSeekToolkit": {
+      "1": {
+        "concurrency": 1,
+        "total": 3,
+        "correct": 3,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 3835.3641666665985,
+        "p50_latency_ms": 3838.5875999956625,
+        "p95_latency_ms": 3846.1295100074494,
+        "p99_latency_ms": 3846.799902008497
+      },
+      "5": {
+        "concurrency": 5,
+        "total": 15,
+        "correct": 15,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 4871.313346666284,
+        "p50_latency_ms": 4770.035699999426,
+        "p95_latency_ms": 5694.649559997197,
+        "p99_latency_ms": 5904.8708719955175
+      },
+      "10": {
+        "concurrency": 10,
+        "total": 30,
+        "correct": 30,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 5739.694593332145,
+        "p50_latency_ms": 5760.048050004116,
+        "p95_latency_ms": 6135.3033100000175,
+        "p99_latency_ms": 6213.346535998426
+      },
+      "20": {
+        "concurrency": 20,
+        "total": 60,
+        "correct": 60,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 8806.36985500023,
+        "p50_latency_ms": 8828.895550002926,
+        "p95_latency_ms": 9156.876454995654,
+        "p99_latency_ms": 9286.346854999283
+      }
+    },
+    "LangChain": {
+      "1": {
+        "concurrency": 1,
+        "total": 3,
+        "correct": 3,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 2667.586466666156,
+        "p50_latency_ms": 2670.1039999898057,
+        "p95_latency_ms": 2812.963160002255,
+        "p99_latency_ms": 2825.6617520033615
+      },
+      "5": {
+        "concurrency": 5,
+        "total": 15,
+        "correct": 15,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 2746.213313334738,
+        "p50_latency_ms": 2753.0734000029042,
+        "p95_latency_ms": 2947.9911000016727,
+        "p99_latency_ms": 2990.1518200014834
+      },
+      "10": {
+        "concurrency": 10,
+        "total": 30,
+        "correct": 30,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 2637.4986199987084,
+        "p50_latency_ms": 2663.354899996193,
+        "p95_latency_ms": 2961.726775000716,
+        "p99_latency_ms": 3004.1284999948402
+      },
+      "20": {
+        "concurrency": 20,
+        "total": 60,
+        "correct": 60,
+        "accuracy": 100.0,
+        "crashes": 0,
+        "avg_latency_ms": 2634.780091666956,
+        "p50_latency_ms": 2620.5077999911737,
+        "p95_latency_ms": 2861.995614998886,
+        "p99_latency_ms": 3060.6198370076886
+      }
+    }
+  }
+}

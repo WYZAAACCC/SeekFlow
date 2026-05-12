@@ -1,0 +1,42 @@
+{
+  "framework": "LangChain",
+  "agent_type": "financial",
+  "success": true,
+  "total_latency_ms": 310324.6262073517,
+  "total_cost_cny": 0.040851272,
+  "total_tokens": 34706,
+  "prompt_tokens": 25406,
+  "completion_tokens": 9300,
+  "cached_tokens": 20864,
+  "reasoning_tokens": 0,
+  "steps": 5,
+  "tool_calls": 6,
+  "error": null,
+  "features_available": [
+    "streaming",
+    "tool_decorator",
+    "retry_middleware",
+    "langgraph_checkpointer",
+    "langgraph_tracing",
+    "model_fallback",
+    "summarization",
+    "todo_list_middleware",
+    "human_in_the_loop",
+    "structured_output",
+    "parallel_tool_calls"
+  ],
+  "features_missing": [
+    "balance_query",
+    "deepseek_pricing_table",
+    "error_classification",
+    "fim_completions",
+    "prompt_cache_observation",
+    "rate_limit_awareness",
+    "json_repair",
+    "anthropic_compat",
+    "session_persistence",
+    "strict_tools",
+    "thinking_mode_param",
+    "truncation_strategy"
+  ]
+}

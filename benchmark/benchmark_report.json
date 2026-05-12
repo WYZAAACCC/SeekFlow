@@ -1,0 +1,42 @@
+{
+  "JSON Repair": {
+    "name": "JSON Repair",
+    "baseline_success_rate": 2.5,
+    "toolkit_success_rate": 97.5,
+    "improvement_pp": 95.0,
+    "cases": 40
+  },
+  "Type Coercion": {
+    "name": "Type Coercion",
+    "baseline_success_rate": 10.0,
+    "toolkit_success_rate": 90.0,
+    "improvement_pp": 80.0,
+    "cases": 20
+  },
+  "Strict Check": {
+    "name": "Strict Check",
+    "baseline_success_rate": 62.5,
+    "toolkit_success_rate": 100.0,
+    "improvement_pp": 37.5,
+    "cases": 8
+  },
+  "Error Recovery": {
+    "name": "Error Recovery",
+    "graceful_rate": 100.0,
+    "handled": 5,
+    "crashes": 0
+  },
+  "Trace Observability": {
+    "name": "Trace Observability",
+    "events_captured": 9,
+    "all_critical_events": true,
+    "json_exportable": true
+  },
+  "Live API Tool Calling": {
+    "name": "Live API Tool Calling",
+    "tool_selection_accuracy": 100.0,
+    "total_errors": 0,
+    "total_scenarios": 8,
+    "avg_latency_ms": 3396.125687499989
+  }
+}

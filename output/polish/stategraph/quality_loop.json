@@ -1,0 +1,62 @@
+[
+  {
+    "run": 0,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 1,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 2,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 3,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 4,
+    "loops": 2,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 5,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 6,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 7,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 8,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  },
+  {
+    "run": 9,
+    "loops": 1,
+    "score": 85,
+    "has_report": true
+  }
+]

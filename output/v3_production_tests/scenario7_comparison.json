@@ -1,0 +1,22 @@
+{
+  "dtk": {
+    "framework": "DTK",
+    "latency_s": 15.7,
+    "cost_cny": 0.0014181,
+    "tokens": 444,
+    "output_length": 298,
+    "has_reasoning": true,
+    "reasoning_length": 357,
+    "tool_calls": 0
+  },
+  "langchain": {
+    "framework": "LangChain",
+    "latency_s": 14.3,
+    "output_length": 265
+  },
+  "crewai": {
+    "framework": "CrewAI",
+    "latency_s": 4.8,
+    "output_length": 164
+  }
+}

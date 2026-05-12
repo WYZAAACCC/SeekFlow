@@ -1,0 +1,9 @@
+{
+  "rounds": 10,
+  "recall_checks_passed": 3,
+  "memory_stats": {
+    "short_term_items": 0,
+    "long_term_items": 23,
+    "total_stored": 23
+  }
+}
