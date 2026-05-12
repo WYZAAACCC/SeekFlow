@@ -3,41 +3,49 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
+from typing import Any
 
 from openai import OpenAI, APIStatusError
 
-from deepseek_toolkit.errors import map_http_error, DeepSeekAPIError
+from deepseek_toolkit.errors import map_http_error
 from deepseek_toolkit.types import ChatResponse, ToolCall, StreamChunk
 
 
-def _usage_to_dict(usage: object) -> dict:
+def _usage_to_dict(usage: object) -> dict[str, Any]:
     """Convert an OpenAI Usage object to a plain dict."""
     if isinstance(usage, dict):
         return usage
-    result: dict = {}
+    result: dict[str, Any] = {}
     for field in ("prompt_tokens", "completion_tokens", "total_tokens"):
         val = getattr(usage, field, None)
         if val is not None:
             result[field] = val
     details = getattr(usage, "prompt_tokens_details", None)
     if details is not None:
-        result["prompt_tokens_details"] = {}
+        details_dict: dict[str, Any] = {}
         for field in ("cached_tokens",):
             val = getattr(details, field, None)
             if val is not None:
-                result["prompt_tokens_details"][field] = val
+                details_dict[field] = val
+        if details_dict:
+            result["prompt_tokens_details"] = details_dict
     return result
 
 
 class DeepSeekClient:
     """Lightweight wrapper around OpenAI SDK for DeepSeek API."""
 
+    api_key: str
+    base_url: str
+    timeout: float
+    _client: OpenAI
+
     def __init__(
         self,
         api_key: str | None = None,
         base_url: str = "https://api.deepseek.com",
         timeout: float = 60.0,
-    ):
+    ) -> None:
         self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY", "")
         self.base_url = (
             base_url
@@ -45,22 +53,24 @@ class DeepSeekClient:
             else os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
         )
         self.timeout = timeout
-        self._client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout)
+        self._client = OpenAI(
+            api_key=self.api_key, base_url=self.base_url, timeout=timeout,
+        )
 
     def chat(
         self,
         *,
         model: str,
-        messages: list[dict],
-        tools: list[dict] | None = None,
-        tool_choice: str | dict | None = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
         stream: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> ChatResponse:
         """Send a chat completion request to DeepSeek."""
         client = self._client
 
-        params: dict = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
             **kwargs,
@@ -110,9 +120,9 @@ class DeepSeekClient:
         self,
         *,
         model: str,
-        messages: list[dict],
-        tools: list[dict] | None = None,
-        **kwargs,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
     ) -> Iterator[StreamChunk]:
         """Send a streaming chat completion request to DeepSeek.
 
@@ -121,7 +131,7 @@ class DeepSeekClient:
         """
         client = self._client
 
-        params: dict = {
+        params: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": True,
@@ -140,8 +150,8 @@ class DeepSeekClient:
             ) from e
 
         # Accumulate tool call deltas
-        tool_call_buf: dict[int, dict] = {}
-        stream_usage: dict | None = None
+        tool_call_buf: dict[int, dict[str, str]] = {}
+        stream_usage: dict[str, Any] | None = None
 
         for event in stream:
             # Capture usage from the stream event (OpenAI SDK puts it on the last chunk)

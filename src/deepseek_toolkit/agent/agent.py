@@ -2,7 +2,14 @@
 from __future__ import annotations
 
 import os
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from deepseek_toolkit.agent.memory import AgentMemory
+    from deepseek_toolkit.compat.compressor import ContextCompressor
 
 from deepseek_toolkit.runtime import ToolRuntime
 
@@ -130,20 +137,20 @@ class DeepSeekAgent:
         self._tools: list = []
         self._mcp_servers: list = []
         self._documents_text: str = ""
-        self._embedding_fn = None
-        self._vector_store = None
+        self._embedding_fn: Callable[..., Any] | None = None
+        self._vector_store: Any = None
         self._runtime: ToolRuntime | None = None
-        self._cache_stats: dict = {"total_requests": 0, "total_cached": 0, "total_prompt": 0}  # cached, invalidated on tool changes
-        self._runtime_lock: Any = None  # threading.Lock, lazy init
-        self._compressor: Any = None  # ContextCompressor, set on first use
-        self._max_cost: float = float("inf")  # cost ceiling for guardrails
-        self._session_messages: list[dict] = []  # persistent conversation history
+        self._cache_stats: dict[str, int] = {"total_requests": 0, "total_cached": 0, "total_prompt": 0}
+        self._runtime_lock: threading.Lock | None = None
+        self._compressor: ContextCompressor | None = None
+        self._max_cost: float = float("inf")
+        self._session_messages: list[dict[str, Any]] = []
         self._api_key_validated: bool = False
         from deepseek_toolkit.cache import CacheSentinel
         self._cache_sentinel = CacheSentinel()
         from deepseek_toolkit.retry import RateLimitState
         self._rate_limit_state = RateLimitState()
-        self.memory: Any = None  # AgentMemory, set via enable_memory()
+        self.memory: AgentMemory | None = None
 
         # Validate API key format early
         if self._api_key and not self._api_key.startswith("sk-"):
@@ -266,48 +273,7 @@ class DeepSeekAgent:
             except Exception as e:
                 return f"Download failed: {e}"
 
-        def calculate(expression: str) -> str:
-            """Evaluate a math expression. e.g. '(8630-3120)/8630'
-
-            Uses AST whitelist for safe evaluation — only arithmetic operators,
-            numbers, and allowlisted functions (abs, round, min, max, sum, pow).
-            """
-            import ast as _ast
-            import operator as _operator
-
-            _SAFE_OPS = {
-                _ast.Add: _operator.add, _ast.Sub: _operator.sub,
-                _ast.Mult: _operator.mul, _ast.Div: _operator.truediv,
-                _ast.FloorDiv: _operator.floordiv, _ast.Mod: _operator.mod,
-                _ast.Pow: _operator.pow, _ast.USub: _operator.neg,
-                _ast.UAdd: _operator.pos,
-            }
-            _SAFE_FUNCS = {
-                "abs": abs, "round": round, "min": min, "max": max,
-                "sum": sum, "pow": pow,
-            }
-
-            def _eval_node(node):
-                if isinstance(node, _ast.Constant):
-                    return node.value
-                if isinstance(node, _ast.BinOp) and type(node.op) in _SAFE_OPS:
-                    left = _eval_node(node.left)
-                    right = _eval_node(node.right)
-                    return _SAFE_OPS[type(node.op)](left, right)
-                if isinstance(node, _ast.UnaryOp) and type(node.op) in _SAFE_OPS:
-                    return _SAFE_OPS[type(node.op)](_eval_node(node.operand))
-                if isinstance(node, _ast.Call):
-                    if isinstance(node.func, _ast.Name) and node.func.id in _SAFE_FUNCS:
-                        args = [_eval_node(a) for a in node.args]
-                        return _SAFE_FUNCS[node.func.id](*args)
-                raise ValueError(f"Unsupported expression: {_ast.unparse(node)}")
-
-            try:
-                tree = _ast.parse(expression.strip(), mode="eval")
-                result = _eval_node(tree.body)
-                return f"Result: {result:.4f}"
-            except Exception as e:
-                return f"Calculation error: {e}"
+        calculate = safe_calculate  # standalone function below
 
         def save_result(filename: str, content: str) -> str:
             """Save content to output directory."""
@@ -952,3 +918,58 @@ class DeepSeekAgent:
             checkpoint_store.save(cp)
 
         return self._result_from_runtime(result, None, output_model=output_model)
+
+
+# ── Standalone safe calculator (extracted for testability) ──────────
+
+def safe_calculate(expression: str) -> str:
+    """Evaluate a math expression using AST whitelist.
+
+    Only arithmetic operators (+, -, *, /, //, %, **, unary +/-) and
+    allowlisted functions (abs, round, min, max, sum, pow) are permitted.
+    All other constructs — attribute access, imports, comprehensions,
+    lambdas, assignments — are rejected at the AST level.
+
+    Returns "Result: {value:.4f}" on success, "Calculation error: {details}" on failure.
+    """
+    import ast
+    import operator
+
+    _SAFE_OPS: dict[type, Any] = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+    _SAFE_FUNCS: dict[str, Any] = {
+        "abs": abs, "round": round, "min": min, "max": max,
+        "sum": sum, "pow": pow,
+    }
+
+    def _eval(node: ast.AST) -> Any:
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.List):
+            return [_eval(e) for e in node.elts]
+        if isinstance(node, ast.Tuple):
+            return tuple(_eval(e) for e in node.elts)
+        if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_OPS:
+            return _SAFE_OPS[type(node.op)](_eval(node.left), _eval(node.right))
+        if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_OPS:
+            return _SAFE_OPS[type(node.op)](_eval(node.operand))
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id in _SAFE_FUNCS:
+                return _SAFE_FUNCS[node.func.id](*map(_eval, node.args))
+        raise ValueError(f"Unsupported expression: {ast.unparse(node)}")
+
+    try:
+        tree = ast.parse(expression.strip(), mode="eval")
+        result = _eval(tree.body)
+        return f"Result: {result:.4f}"
+    except Exception as e:
+        return f"Calculation error: {e}"

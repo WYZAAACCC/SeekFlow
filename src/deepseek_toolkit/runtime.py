@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from deepseek_toolkit.mcp.executor import MCPToolExecutor
 
 from deepseek_toolkit.batch_client import BatchClient, BatchTimeoutError
 from deepseek_toolkit.client import DeepSeekClient
@@ -77,8 +80,8 @@ class ToolRuntime:
         # MCP servers — connect on first use
         self._mcp_servers = mcp_servers or []
         self._mcp_connected = False
-        self._mcp_executor: Any = None  # MCPToolExecutor, set on first use
-        self._client = None  # lazily set by chat/chat_stream
+        self._mcp_executor: MCPToolExecutor | None = None
+        self._client: RetryExecutor | None = None
         self._step_callback: Any = None
         self._active_cache: ToolCallCache | None = None
 
