@@ -127,103 +127,11 @@ class ToolRuntime:
             on_retry=on_retry_event,
         )
 
-    # ── context window management ──────────────────────────────────
-
-    @staticmethod
-    def _estimate_tokens(messages: list[dict]) -> int:
-        """Accurate token estimate using tiktoken when available."""
-        from deepseek_toolkit.token_counter import count_tokens
-        return count_tokens(messages)
+    # ── context window management (delegates to _runtime_base) ──────
 
     def _trim_messages(self, messages: list[dict]) -> list[dict]:
-        """Trim oldest non-system messages to stay under max_context_tokens."""
-        if self._max_context_tokens is None:
-            return messages
-
-        if self._estimate_tokens(messages) <= self._max_context_tokens:
-            return messages
-
-        # Keep system message if first
-        system_msg = messages[0] if messages and messages[0].get("role") == "system" else None
-        rest = messages[1:] if system_msg else list(messages)
-
-        # Walk backwards, keep tool-call/result pairs intact
-        kept: list[dict] = []
-        budget = self._max_context_tokens - (self._estimate_tokens([system_msg]) if system_msg else 0)
-
-        i = len(rest) - 1
-        while i >= 0:
-            chunk: list[dict] = []
-            found_pair = True  # whether tool→assistant pairing is complete
-            # tool message must stay with its assistant message
-            if rest[i].get("role") == "tool":
-                chunk.append(rest[i])
-                i -= 1
-                # grab the assistant with matching tool_calls
-                while i >= 0:
-                    chunk.append(rest[i])
-                    if rest[i].get("role") == "assistant" and rest[i].get("tool_calls"):
-                        i -= 1
-                        break
-                    i -= 1
-                else:
-                    # Reached i < 0 without finding paired assistant → orphan
-                    found_pair = False
-            else:
-                chunk.append(rest[i])
-                i -= 1
-
-            if not found_pair:
-                continue  # skip orphaned tool message
-
-            cost = self._estimate_tokens(chunk)
-            if budget - cost < 0:
-                break
-            budget -= cost
-            # Reverse chunk: we built it backwards (newest first), but API
-            # requires chronological order (oldest → newest)
-            kept = list(reversed(chunk)) + kept
-
-        result = [system_msg] if system_msg else []
-        result.extend(kept)
-
-        # Post-process: strip orphaned tool messages and ensure valid order
-        result = self._repair_message_order(result)
-
-        return result
-
-    @staticmethod
-    def _repair_message_order(messages: list[dict]) -> list[dict]:
-        """Ensure message list is API-valid: no orphaned tool messages,
-        first non-system is a user, no consecutive assistants without tool_calls."""
-        if not messages:
-            return messages
-
-        # Pass 1: remove orphaned tool messages (no preceding assistant+tools_calls)
-        cleaned: list[dict] = []
-        for m in messages:
-            if m.get("role") == "tool":
-                if not cleaned or cleaned[-1].get("role") != "assistant" or not cleaned[-1].get("tool_calls"):
-                    continue
-            cleaned.append(m)
-
-        # Pass 2: ensure first non-system message is a user
-        for j, m in enumerate(cleaned):
-            if m.get("role") != "system":
-                if m.get("role") != "user":
-                    cleaned.insert(j, {"role": "user", "content": "Please continue."})
-                break
-        else:
-            cleaned.append({"role": "user", "content": "Please continue."})
-
-        # Pass 3: no leading non-user/non-system messages
-        start = 0
-        if cleaned and cleaned[0].get("role") == "system":
-            start = 1
-        while len(cleaned) > start and cleaned[start].get("role") not in ("user",):
-            cleaned.pop(start)
-
-        return cleaned
+        from deepseek_toolkit._runtime_base import trim_messages
+        return trim_messages(messages, self._max_context_tokens)
 
     def chat(
         self,

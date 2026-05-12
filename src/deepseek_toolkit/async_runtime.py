@@ -98,75 +98,16 @@ class AsyncToolRuntime:
         self._mcp_executor.connect_and_register(self._registry)
         self._mcp_connected = True
 
-    # ── Context management ──────────────────────────────────────────
+    # ── Context management (delegates to _runtime_base) ─────────────
 
     @staticmethod
     def _estimate_tokens(messages: list[dict]) -> int:
-        from deepseek_toolkit.token_counter import count_tokens
-        return count_tokens(messages)
+        from deepseek_toolkit._runtime_base import estimate_tokens
+        return estimate_tokens(messages)
 
     def _trim_messages(self, messages: list[dict]) -> list[dict]:
-        if self._max_context_tokens is None:
-            return messages
-        if self._estimate_tokens(messages) <= self._max_context_tokens:
-            return messages
-        system_msg = messages[0] if messages and messages[0].get("role") == "system" else None
-        rest = messages[1:] if system_msg else list(messages)
-        kept: list[dict] = []
-        budget = self._max_context_tokens - (
-            self._estimate_tokens([system_msg]) if system_msg else 0
-        )
-        i = len(rest) - 1
-        while i >= 0:
-            chunk: list[dict] = []
-            if rest[i].get("role") == "tool":
-                chunk.append(rest[i])
-                i -= 1
-                while i >= 0:
-                    chunk.append(rest[i])
-                    if rest[i].get("role") == "assistant" and rest[i].get("tool_calls"):
-                        i -= 1
-                        break
-                    i -= 1
-                else:
-                    continue
-            else:
-                chunk.append(rest[i])
-                i -= 1
-            cost = self._estimate_tokens(chunk)
-            if budget - cost < 0:
-                break
-            budget -= cost
-            kept = list(reversed(chunk)) + kept
-        result = [system_msg] if system_msg else []
-        result.extend(kept)
-        return self._repair_message_order(result)
-
-    @staticmethod
-    def _repair_message_order(messages: list[dict]) -> list[dict]:
-        """Ensure message list is API-valid: no orphaned tool messages,
-        first non-system is a user."""
-        if not messages:
-            return messages
-        cleaned: list[dict] = []
-        for m in messages:
-            if m.get("role") == "tool":
-                if not cleaned or cleaned[-1].get("role") != "assistant" or not cleaned[-1].get("tool_calls"):
-                    continue
-            cleaned.append(m)
-        for j, m in enumerate(cleaned):
-            if m.get("role") != "system":
-                if m.get("role") != "user":
-                    cleaned.insert(j, {"role": "user", "content": "Please continue."})
-                break
-        else:
-            cleaned.append({"role": "user", "content": "Please continue."})
-        start = 0
-        if cleaned and cleaned[0].get("role") == "system":
-            start = 1
-        while len(cleaned) > start and cleaned[start].get("role") not in ("user",):
-            cleaned.pop(start)
-        return cleaned
+        from deepseek_toolkit._runtime_base import trim_messages
+        return trim_messages(messages, self._max_context_tokens)
 
     # ── Async retry with circuit breaker ────────────────────────────
 
