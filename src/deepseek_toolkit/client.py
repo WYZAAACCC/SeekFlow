@@ -111,16 +111,25 @@ class DeepSeekClient:
         if not isinstance(reasoning, str):
             reasoning = None
 
+        usage_dict = None
+        if response.usage:
+            usage_dict = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+            # Preserve prompt_tokens_details for cache token tracking
+            details = getattr(response.usage, "prompt_tokens_details", None)
+            if details is not None:
+                cached = getattr(details, "cached_tokens", 0)
+                usage_dict["prompt_tokens_details"] = {"cached_tokens": cached}
+
         return ChatResponse(
             content=choice.message.content,
             reasoning_content=reasoning,
             tool_calls=tool_calls,
             finish_reason=choice.finish_reason,
-            usage={
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens,
-            } if response.usage else None,
+            usage=usage_dict,
             raw=response,
         )
 

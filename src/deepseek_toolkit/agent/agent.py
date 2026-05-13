@@ -132,8 +132,11 @@ class DeepSeekAgent:
         self._check_balance = check_balance
         self._cost_tag = cost_tag
         self._fallback_models = fallback_models or []
-        # DeepSeek V3/V4: put system prompt at END for better results
-        self._system_at_end: bool = True
+        # Cache-first strategy: system prompt FIRST for maximum cache hit rate.
+        # DeepSeek caches from byte 0 — system-first shares cache across sessions.
+        # system-at-end improves adherence but kills cache (user msg is unique per call).
+        # Tradeoff: 10x cheaper input tokens vs minor quality difference.
+        self._system_at_end: bool = False
         self._tools: list = []
         self._mcp_servers: list = []
         self._documents_text: str = ""
@@ -146,8 +149,9 @@ class DeepSeekAgent:
         self._max_cost: float = float("inf")
         self._session_messages: list[dict[str, Any]] = []
         self._api_key_validated: bool = False
-        from deepseek_toolkit.cache import CacheSentinel
+        from deepseek_toolkit.cache import CacheSentinel, CacheStabilizer
         self._cache_sentinel = CacheSentinel()
+        self._cache_stabilizer = CacheStabilizer(warn_on_drift=self._mode == "stable")
         from deepseek_toolkit.retry import RateLimitState
         self._rate_limit_state = RateLimitState()
         self.memory: AgentMemory | None = None
@@ -643,34 +647,44 @@ class DeepSeekAgent:
             max_context_tokens=self._max_context_tokens,
             mcp_servers=[s for s in self._mcp_servers],
         )
+        # FREEZE the cacheable prefix now that tools are finalized
+        if self._mode == "stable":
+            tools_schema = self._runtime._registry.to_deepseek_tools()
+            self._cache_stabilizer.freeze(
+                self._build_system_prompt(),
+                tool_schemas=tools_schema,
+            )
         if checkpoint_cb:
             self._runtime._step_callback = checkpoint_cb
         return self._runtime
 
     def _make_messages(self, task: str) -> list[dict]:
+        # Static system prompt — NEVER append dynamic content here!
+        # Dynamic content (docs, memories, vectors) goes as separate messages
+        # to preserve the byte-stable cache prefix.
         system = self._build_system_prompt()
-        if self._documents_text:
-            system += f"\n\n## 参考文档\n{self._documents_text}"
 
-        # Sanitize input + cache sentinel (stable mode only)
+        # Sanitize input (stable mode only)
         if self._mode == "stable":
             task = self._sanitize_input(task)
-            msgs = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": task},
-            ]
-            advice = self._cache_sentinel.check(msgs)
-            if advice.status == "changed":
-                import warnings
-                warnings.warn(
-                    f"DeepSeek prompt cache INVALIDATED. {advice.message} "
-                    f"Uncached input costs ¥1.74/M vs ¥0.028/M cached (62x)."
-                )
+
+        # Build dynamic context as separate messages (not merged into system)
+        dynamic_msgs: list[dict] = []
+
+        if self._documents_text:
+            dynamic_msgs.append({
+                "role": "user",
+                "content": f"[Reference Documents]\n{self._documents_text[:8000]}",
+            })
+
         # Memory retrieval (stable mode only)
         if self._mode == "stable" and self.memory is not None:
             memories = self.memory.recall(task, top_k=3, min_importance=0.3)
             if memories:
-                system += "\n\n## 相关记忆\n" + "\n".join(f"- {m}" for m in memories)
+                dynamic_msgs.append({
+                    "role": "user",
+                    "content": "[Relevant Memories]\n" + "\n".join(f"- {m}" for m in memories),
+                })
 
         # Vector store retrieval
         if self._vector_store is not None:
@@ -680,24 +694,40 @@ class DeepSeekAgent:
             try:
                 results = self._vector_store.search(query_vec, top_k=5)
                 from deepseek_toolkit.compat.documents import to_agent_text
-                system += f"\n\n## 向量检索结果\n{to_agent_text(results)}"
+                dynamic_msgs.append({
+                    "role": "user",
+                    "content": f"[Vector Search Results]\n{to_agent_text(results)[:8000]}",
+                })
             except Exception:
-                pass  # vector search failure should not block Agent
-        # DeepSeek json_object mode: must include "json" keyword in prompt
+                pass
+
+        # DeepSeek json_object mode
         user_task = task
         if self._response_format == "json_object" and "json" not in task.lower():
             user_task = task + "\n\n请以JSON格式输出。"
 
+        # Build message list — get the cache-stabilized system prompt first
         if self._system_at_end:
-            # DeepSeek V3/V4: system prompt at END for better adherence
-            return [
-                {"role": "user", "content": user_task},
-                {"role": "system", "content": system},
-            ]
-        return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_task},
-        ]
+            msgs = [{"role": "user", "content": user_task}]
+            msgs.extend(dynamic_msgs)
+            msgs.append({"role": "system", "content": system})
+        else:
+            msgs = [{"role": "system", "content": system}]
+            msgs.extend(dynamic_msgs)
+            msgs.append({"role": "user", "content": user_task})
+
+        # Cache stability check (stable mode only)
+        if self._mode == "stable":
+            msgs = self._cache_stabilizer.ensure_stable_prefix(msgs)
+            advice = self._cache_sentinel.check(msgs)
+            if advice.status == "changed":
+                import warnings
+                warnings.warn(
+                    f"DeepSeek prompt cache INVALIDATED. {advice.message} "
+                    f"Uncached input costs ¥1.74/M vs ¥0.028/M cached (62x)."
+                )
+
+        return msgs
 
     def _thinking_mode(self) -> str:
         return "enabled" if self._thinking else "disabled"
@@ -798,6 +828,14 @@ class DeepSeekAgent:
                 )
 
         task = task.strip()[:50000]
+
+        # Adaptive max_steps: scale with task complexity.
+        # Short tasks get fewer steps, complex multi-tool tasks get more.
+        task_chars = len(task)
+        tool_count = len(self._tools)
+        estimated_steps = max(3, min(task_chars // 1500 + tool_count // 5, 8))
+        if self._max_steps < estimated_steps:
+            self._max_steps = estimated_steps
 
         # Execution timeout via ThreadPoolExecutor (clean, no recursion)
         if execution_timeout and execution_timeout > 0:

@@ -1,7 +1,0 @@
-{
-  "phase1_output": "ToolRuntime stopped because max_steps was reached.",
-  "phase2_output": "ToolRuntime stopped because max_steps was reached.",
-  "checkpoint_saved": true,
-  "phase1_cost": 0.0,
-  "phase2_cost": 0.0
-}

@@ -52,7 +52,10 @@ class TestDeepSeekClient:
         assert isinstance(result, ChatResponse)
         assert result.content == "Hello!"
         assert result.finish_reason == "stop"
-        assert result.usage == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        assert result.usage["prompt_tokens"] == 10
+        assert result.usage["completion_tokens"] == 5
+        assert result.usage["total_tokens"] == 15
+        assert "prompt_tokens_details" in result.usage  # cache tracking
 
     def test_chat_with_tool_calls(self, mock_chat_completion):
         mock_tc = MagicMock()

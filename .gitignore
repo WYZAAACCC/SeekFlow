@@ -34,3 +34,19 @@ pip-wheel-metadata/
 htmlcov/
 apikey.txt
 .env
+# Archive of development artifacts (not published)
+_archive/
+# IDE / Editor
+.vscode/
+.idea/
+# Claude config
+.claude/
+.agents/
+skills-lock.json
+# Benchmark outputs
+output/
+# Trace outputs
+trace_output.json
+# Dev scripts
+integration_test.py
+verify_reliability.py

@@ -67,7 +67,8 @@ from deepseek_toolkit.repair.coercion import coerce_arguments
 from deepseek_toolkit.retry import RetryPolicy, CircuitBreaker
 from deepseek_toolkit.cost import CostTracker
 from deepseek_toolkit.trace.recorder import TraceRecorder
-from deepseek_toolkit.reasoning import check_consistency
+from deepseek_toolkit.reasoning import check_consistency, harvest_thoughts, HarvestedThoughts
+from deepseek_toolkit.consistency import run_branched, BranchResult
 from deepseek_toolkit.token_counter import count_tokens, count_text
 from deepseek_toolkit.structured import structured_output
 from deepseek_toolkit.fim import fim_complete, fim_complete_stream, FIMResponse
@@ -125,6 +126,10 @@ __all__ = [
     "CostTracker",
     "TraceRecorder",
     "check_consistency",
+    "harvest_thoughts",
+    "HarvestedThoughts",
+    "run_branched",
+    "BranchResult",
     "count_tokens",
     "count_text",
     "structured_output",

@@ -52,8 +52,13 @@ class ToolRegistry:
         return [td for td in self._tools.values() if td.source == source]
 
     def to_deepseek_tools(self, strict: bool = False) -> list[dict]:
-        """Export all tools in DeepSeek-compatible format."""
-        return [
+        """Export all tools in DeepSeek-compatible format.
+
+        Tools are sorted by name for deterministic JSON serialization.
+        This is CRITICAL for prompt cache stability — non-deterministic
+        key ordering invalidates the DeepSeek byte-prefix cache.
+        """
+        tools = [
             {
                 "type": "function",
                 "function": {
@@ -62,5 +67,6 @@ class ToolRegistry:
                     "parameters": td.parameters,
                 },
             }
-            for td in self._tools.values()
+            for td in sorted(self._tools.values(), key=lambda t: t.name)
         ]
+        return tools

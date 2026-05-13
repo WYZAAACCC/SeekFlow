@@ -1,7 +1,0 @@
-{
-  "tool_calls": 1,
-  "tool_failures": 0,
-  "failure_rate": "0%",
-  "agent_output": "一次成功！处理结果如下：\n\n> ✅ **处理成功**\n> \n> 输出：`Success: processed 'test-data'`\n\nunreliable_tool 这次运气不错，第一次调用就成功处理了 `test-data`，无需重试。任务完成！",
-  "agent_succeeded": true
-}

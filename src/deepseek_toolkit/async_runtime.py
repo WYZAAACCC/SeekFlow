@@ -198,6 +198,10 @@ class AsyncToolRuntime:
         working_messages = list(messages)
         tool_results: list = []
         reasoning_contents: list[str] = []
+        cumulative_usage: dict[str, Any] = {
+            "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+            "prompt_tokens_details": {"cached_tokens": 0},
+        }
 
         for step in range(self._max_steps):
             working_messages = self._trim_messages(working_messages)
@@ -248,6 +252,17 @@ class AsyncToolRuntime:
                 "tool_call_count": len(tool_calls),
             })
 
+            # Accumulate token usage across ALL steps (including cache)
+            if raw_response.usage:
+                cumulative_usage["prompt_tokens"] += raw_response.usage.prompt_tokens
+                cumulative_usage["completion_tokens"] += raw_response.usage.completion_tokens
+                cumulative_usage["total_tokens"] += raw_response.usage.total_tokens
+                details = getattr(raw_response.usage, "prompt_tokens_details", None)
+                cached = 0
+                if details is not None:
+                    cached = getattr(details, "cached_tokens", 0) or 0
+                cumulative_usage["prompt_tokens_details"]["cached_tokens"] += cached
+
             # Reasoning consistency check
             if rc and tool_calls:
                 registered_names = [td.name for td in self._registry.list()]
@@ -280,11 +295,7 @@ class AsyncToolRuntime:
                     final=content, messages=working_messages,
                     tool_results=tool_results,
                     trace=recorder,
-                    usage={
-                        "prompt_tokens": raw_response.usage.prompt_tokens,
-                        "completion_tokens": raw_response.usage.completion_tokens,
-                        "total_tokens": raw_response.usage.total_tokens,
-                    } if raw_response.usage else None,
+                    usage=dict(cumulative_usage),
                     cache_stats=self._active_cache.stats if self._active_cache else None,
                     reasoning_contents=reasoning_contents,
                 )
@@ -339,6 +350,7 @@ class AsyncToolRuntime:
             messages=working_messages,
             tool_results=tool_results,
             trace=recorder,
+            usage=dict(cumulative_usage),
             cache_stats=self._active_cache.stats if self._active_cache else None,
             reasoning_contents=reasoning_contents,
         )
