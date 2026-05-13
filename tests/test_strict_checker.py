@@ -1,5 +1,5 @@
 """Tests for strict schema compatibility checker."""
-from deepseek_toolkit.tools.strict import check_strict_compatibility
+from seekflow.tools.strict import check_strict_compatibility
 
 
 class TestStrictChecker:

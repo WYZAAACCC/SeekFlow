@@ -3,15 +3,15 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from deepseek_toolkit.client import DeepSeekClient
-from deepseek_toolkit.types import ChatResponse, ToolCall
+from seekflow.client import DeepSeekClient
+from seekflow.types import ChatResponse, ToolCall
 
 
 class TestDeepSeekClient:
     @pytest.fixture
     def mock_chat_completion(self):
         """Mock OpenAI().chat.completions.create to return a controlled response."""
-        with patch("deepseek_toolkit.client.OpenAI") as mock_openai_class:
+        with patch("seekflow.client.OpenAI") as mock_openai_class:
             mock_client = MagicMock()
             mock_openai_class.return_value = mock_client
             yield mock_client.chat.completions.create

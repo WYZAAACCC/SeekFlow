@@ -23,7 +23,7 @@
 
 ## 任务
 
-1. 在 `deepseek_toolkit/errors.py` 中建立完整的错误类型层次：
+1. 在 `seekflow/errors.py` 中建立完整的错误类型层次：
    ```
    DeepSeekError (基类)
    ├── AuthenticationError (401)

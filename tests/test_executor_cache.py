@@ -1,8 +1,8 @@
 """Tests for ToolExecutor cache integration (P1-2)."""
-from deepseek_toolkit.tool_cache import ToolCallCache
-from deepseek_toolkit.tools.executor import ToolExecutor
-from deepseek_toolkit.tools.registry import ToolRegistry
-from deepseek_toolkit.types import ToolCall
+from seekflow.tool_cache import ToolCallCache
+from seekflow.tools.executor import ToolExecutor
+from seekflow.tools.registry import ToolRegistry
+from seekflow.types import ToolCall
 
 
 _call_counts: dict[str, int] = {}

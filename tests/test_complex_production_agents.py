@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DATA_DIR = Path(__file__).parent.parent / "benchmarks" / "agents_comparison" / "data"
+DATA_DIR = Path(__file__).parent.parent / "_archive" / "benchmarks" / "agents_comparison" / "data"
 OUTPUT_DIR = Path(__file__).parent.parent / "output" / "complex_agents"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 pytestmark = pytest.mark.skipif(not API_KEY, reason="DEEPSEEK_API_KEY not set")
@@ -24,9 +24,9 @@ class TestSDLCCodeReview:
     """8-agent SDLC pipeline: read → scan → analyze → review → fix."""
 
     def test_full_sdlc_pipeline(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew
 
         target_file = str(Path(__file__).parent / "test_v3_agent.py")
 
@@ -76,9 +76,9 @@ class TestDataETLPipeline:
     """6-agent ETL: discover → infer → plan → validate → transform → report."""
 
     def test_etl_pipeline_with_conditional_routing(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew
 
         csv_path = str(DATA_DIR / "sales_data.csv")
 
@@ -124,9 +124,9 @@ class TestComplianceAudit:
     """7-agent hierarchical compliance audit with checkpoint."""
 
     def test_hierarchical_compliance_audit(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
 
         manager = DeepSeekAgent(role="审计总监", goal="将GDPR合规审计分解为子任务并分配给团队", backstory="CISA认证,15年IT审计经验", api_key=API_KEY, thinking=True, max_steps=8, mode="stable")
         researcher = DeepSeekAgent(role="法规研究员", goal="研究适用的GDPR条款", backstory="隐私法专家", api_key=API_KEY, thinking=False, max_steps=2, mode="fast")
@@ -160,10 +160,10 @@ class TestComplianceAudit:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_compliance_with_checkpoint_resume(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.checkpoint import InMemoryStore
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.checkpoint import InMemoryStore
 
         store = InMemoryStore()
         tid = f"compliance-{int(time.time())}"

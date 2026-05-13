@@ -100,11 +100,11 @@ class EvalReport(BaseModel):
 使用 Typer + Rich：
 
 ```bash
-dstk eval benchmarks/basic_tools.yaml    # 运行评测
-dstk trace view trace.json               # 查看 trace
+seekflow eval benchmarks/basic_tools.yaml    # 运行评测
+seekflow trace view trace.json               # 查看 trace
 ```
 
-`dstk eval` 输出示例：
+`seekflow eval` 输出示例：
 
 ```
 Benchmark: basic_tool_calling
@@ -133,9 +133,9 @@ Average latency: 1530 ms
 - [ ] 参数正确匹配时 `argument_accuracy` 为 100%
 - [ ] 最终回答包含预期文本时 `final_contains_accuracy` 正确
 - [ ] `EvalReport.print()` 输出格式化报告
-- [ ] `dstk eval benchmarks/basic_tools.yaml` CLI 命令可运行
-- [ ] `dstk trace view trace.json` 使用 Rich 打印事件列表
-- [ ] `dstk --help` 显示所有可用命令
+- [ ] `seekflow eval benchmarks/basic_tools.yaml` CLI 命令可运行
+- [ ] `seekflow trace view trace.json` 使用 Rich 打印事件列表
+- [ ] `seekflow --help` 显示所有可用命令
 
 ## 测试建议
 

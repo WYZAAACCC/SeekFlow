@@ -1,6 +1,6 @@
 """Tests for MCP tool adapter."""
 
-from deepseek_toolkit.mcp.adapter import mcp_tool_to_deepseek_tool
+from seekflow.mcp.adapter import mcp_tool_to_deepseek_tool
 
 
 class TestMCPToolAdapter:

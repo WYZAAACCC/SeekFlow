@@ -1,6 +1,6 @@
 """REAL production stress tests — concurrent, context overflow, memory pressure, error injection.
 
-These tests are DESIGNED to break fragile frameworks. If DTK survives these,
+These tests are DESIGNED to break fragile frameworks. If SeekFlow survives these,
 it deserves a production label.
 """
 import concurrent.futures
@@ -29,8 +29,8 @@ class TestContextOverflowPressure:
 
     def test_context_overflow_with_compression(self):
         """Fill context with documents, trigger compression, verify no data loss."""
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.compat.compressor import ContextCompressor
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.compat.compressor import ContextCompressor
 
         agent = DeepSeekAgent(
             role="档案管理员",
@@ -93,7 +93,7 @@ class TestConcurrentAgentHammer:
 
     def test_concurrent_agent_storm(self):
         """5 threads, 10 runs each, shared API key."""
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         NUM_THREADS = 4
         RUNS_PER_THREAD = 5
@@ -164,7 +164,7 @@ class TestMemoryDegradation:
 
     def test_memory_recall_under_load(self):
         """Insert 100 items, verify top-3 recall contains target."""
-        from deepseek_toolkit.agent.memory import AgentMemory
+        from seekflow.agent.memory import AgentMemory
 
         mem = AgentMemory(long_term_max=200)
 
@@ -208,7 +208,7 @@ class TestLongSessionMemory:
     """Agent with memory: 15-round conversation, memory must retain context."""
 
     def test_long_session_with_memory(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="私人助理",

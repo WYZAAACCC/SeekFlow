@@ -12,13 +12,13 @@ Two layers, one library:
 
 DeepSeek's function-calling API is powerful but produces malformed JSON in production: single quotes, trailing commas, markdown code fences, Python literals, and truncated arguments. Every framework treats DeepSeek as "just another OpenAI-compatible API" — none handle these real failure modes.
 
-DeepSeek Toolkit is the only library purpose-built for DeepSeek's actual behavior. Use just the reliability core (11 lines for tool calling) or compose Agents and Crews for complex multi-agent workflows.
+SeekFlow is the only library purpose-built for DeepSeek's actual behavior. Use just the reliability core (11 lines for tool calling) or compose Agents and Crews for complex multi-agent workflows.
 
 ## Benchmarks
 
 5,760 real API calls (DeepSeek-chat and DeepSeek-V3). 64 scenarios × 30 iterations per framework. Mann-Whitney U significance tests, 95% confidence intervals (±). Test set: 90 real DeepSeek tool-calling failure patterns collected from production logs and public issue trackers.
 
-| Capability | DeepSeekToolkit | LangChain | OpenAI SDK |
+| Capability | SeekFlow | LangChain | OpenAI SDK |
 |---|---:|---:|---:|
 | JSON Repair (90 patterns, n=2700) | 98.7% ± 0.4% | 54.4% ± 2.2% | 11.1% ± 1.4% |
 | Error Recovery (4 failure modes) | 4/4 handled | 2/4 (1 crash, 1 silent) | 0/4 (all crash) |
@@ -27,12 +27,12 @@ DeepSeek Toolkit is the only library purpose-built for DeepSeek's actual behavio
 | Stream + Tool Calling | Native | Supported | Manual assembly |
 | Dependencies | 6 | 40+ | 2 |
 
-> Values shown as mean ± 95%CI. Differences < 2% are not statistically significant (p > 0.05). See [benchmark/](benchmark/) for methodology.
+> Values shown as mean ± 95%CI. Differences < 2% are not statistically significant (p > 0.05). See [_archive/benchmark/](_archive/benchmark/) for methodology.
 
 ## Quick Start
 
 ```python
-from deepseek_toolkit import tool, ToolRuntime
+from seekflow import tool, ToolRuntime
 
 @tool
 def get_weather(city: str) -> dict:
@@ -55,10 +55,10 @@ print(result.final)
 ## Installation
 
 ```bash
-pip install deepseek-toolkit
+pip install seekflow
 
 # with MCP support
-pip install deepseek-toolkit[mcp]
+pip install seekflow[mcp]
 ```
 
 Set your API key:
@@ -137,9 +137,9 @@ JSON-exportable execution traces record every event: model requests, tool calls,
 ## CLI
 
 ```bash
-dstk eval run benchmarks/basic_tools.yaml   # Run benchmarks
-dstk trace view trace.json                  # View trace files
-dstk --help                                 # All commands
+seekflow eval run examples/05_eval_example.yaml   # Run benchmarks
+seekflow trace view trace.json                  # View trace files
+seekflow --help                                 # All commands
 ```
 
 ## Architecture
@@ -161,7 +161,7 @@ ToolExecutor ◄── ToolCall ◄── ToolRuntime.chat() / .chat_stream()
 
 ## Comparison
 
-| Feature | DeepSeekToolkit | LangChain | CrewAI | OpenAI SDK |
+| Feature | SeekFlow | LangChain | CrewAI | OpenAI SDK |
 |---|---|---|---|---|
 | JSON Repair (integrated) | 8-rule pipeline | None | None | None |
 | Strict Mode Check | Built-in | Manual only | Manual only | Manual only |
@@ -176,12 +176,12 @@ ToolExecutor ◄── ToolCall ◄── ToolRuntime.chat() / .chat_stream()
 | LOC for a tool call | 11 | 16 | 27 | 20 |
 | Dependencies | 6 | 40+ | 30+ | 2 |
 
-No framework is best for everything. Choose LangChain for 700+ integrations. Choose CrewAI for mature docs and community. Choose DeepSeekToolkit when reliability on DeepSeek is the priority.
+No framework is best for everything. Choose LangChain for 700+ integrations. Choose CrewAI for mature docs and community. Choose SeekFlow when reliability on DeepSeek is the priority.
 
 ## Documentation
 
 - [Examples](examples/) — `01_basic_tools.py` through `05_eval_example.yaml`
-- [Benchmarks](benchmark/) — production_benchmark.py and comprehensive_comparison.py
+- [Benchmarks](_archive/benchmark/) — production_benchmark.py and comprehensive_comparison.py
 - [Tests](tests/) — 140+ tests covering all modules
 
 ## License

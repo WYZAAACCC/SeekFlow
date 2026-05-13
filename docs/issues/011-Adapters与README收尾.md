@@ -53,7 +53,7 @@ def export_pydantic_ai_tool_schemas(registry: ToolRegistry) -> list[dict]
 
 ### README 定稿
 
-- 标题：`# DeepSeek Toolkit`
+- 标题：`# SeekFlow`
 - 第一屏清楚说明项目定位：不是 Agent 框架，是工具调用可靠性增强层
 - 包含与 Reasonix 的区别说明
 - 包含 Quick Start 代码示例

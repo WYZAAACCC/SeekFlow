@@ -20,7 +20,7 @@ class TestThinkingModeParameter:
         return client
 
     def test_thinking_mode_enabled_maps_to_extra_body(self):
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -31,10 +31,10 @@ class TestThinkingModeParameter:
             thinking_mode="enabled",
         )
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled", "budget_tokens": 512}}
 
     def test_thinking_mode_max_maps_to_extra_body(self):
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -49,7 +49,7 @@ class TestThinkingModeParameter:
 
     def test_thinking_mode_none_defaults_to_enabled_single_turn(self):
         """thinking_mode=None on single-turn → extra_body["thinking"]="enabled"."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -59,10 +59,10 @@ class TestThinkingModeParameter:
             messages=[{"role": "user", "content": "hi"}],
         )
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
 
     def test_thinking_mode_overrides_extra_body_thinking(self):
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -74,12 +74,12 @@ class TestThinkingModeParameter:
             extra_body={"thinking": {"type": "max"}, "temperature": 0.5},
         )
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
         assert call_kwargs["extra_body"]["temperature"] == 0.5
 
     def test_chat_stream_supports_thinking_mode(self):
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.types import StreamEvent
+        from seekflow.runtime import ToolRuntime
+        from seekflow.types import StreamEvent
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
 
@@ -96,7 +96,7 @@ class TestThinkingModeParameter:
             thinking_mode="enabled",
         ))
         call_kwargs = client.chat_stream.call_args.kwargs
-        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled", "budget_tokens": 512}}
 
 
 class TestThinkingModeSmartDefault:
@@ -122,18 +122,18 @@ class TestThinkingModeSmartDefault:
 
     def test_single_turn_default_enables_thinking(self):
         """thinking_mode=None on single-turn → extra_body["thinking"]="enabled"."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
 
         rt.chat(model="deepseek-v4-pro", messages=self.SINGLE_TURN)
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
 
     def test_multi_turn_default_disables_thinking_and_warns(self):
         """thinking_mode=None on multi-turn → extra_body["thinking"]="disabled" + UserWarning."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -151,7 +151,7 @@ class TestThinkingModeSmartDefault:
 
     def test_multi_turn_explicit_enabled_respected(self):
         """thinking_mode="enabled" on multi-turn → not downgraded, no warning."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -161,14 +161,14 @@ class TestThinkingModeSmartDefault:
             rt.chat(model="deepseek-v4-pro", messages=self.MULTI_TURN, thinking_mode="enabled")
 
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
         # No auto-downgrade warning
         warning_msgs = [str(x.message) for x in w]
         assert not any("automatically" in msg for msg in warning_msgs)
 
     def test_multi_turn_explicit_disabled_respected(self):
         """thinking_mode="disabled" on multi-turn → not changed, no warning."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -184,7 +184,7 @@ class TestThinkingModeSmartDefault:
 
     def test_multi_turn_explicit_max_respected(self):
         """thinking_mode="max" on multi-turn → not downgraded, no warning."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         rt._client = client
@@ -200,8 +200,8 @@ class TestThinkingModeSmartDefault:
 
     def test_streaming_default_single_turn_enables_thinking(self):
         """chat_stream with thinking_mode=None on single-turn enables thinking."""
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.types import StreamEvent
+        from seekflow.runtime import ToolRuntime
+        from seekflow.types import StreamEvent
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         client.chat_stream.return_value = iter([
@@ -212,12 +212,12 @@ class TestThinkingModeSmartDefault:
 
         list(rt.chat_stream(model="deepseek-v4-pro", messages=self.SINGLE_TURN))
         call_kwargs = client.chat_stream.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 512}
 
     def test_streaming_default_multi_turn_disables_thinking(self):
         """chat_stream with thinking_mode=None on multi-turn disables thinking."""
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.types import StreamEvent
+        from seekflow.runtime import ToolRuntime
+        from seekflow.types import StreamEvent
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
         client = self._make_mock_client()
         client.chat_stream.return_value = iter([

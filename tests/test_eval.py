@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deepseek_toolkit.eval.types import EvalCase, EvalReport, ExpectedToolCall
-from deepseek_toolkit.types import ToolExecutionResult, ToolRuntimeResult
+from seekflow.eval.types import EvalCase, EvalReport, ExpectedToolCall
+from seekflow.types import ToolExecutionResult, ToolRuntimeResult
 
 
 class TestEvalTypes:
@@ -77,7 +77,7 @@ class TestEvalLoader:
             path = Path(tmpdir) / "bench.yaml"
             path.write_text(yaml_content)
 
-            from deepseek_toolkit.eval.loader import load_benchmark
+            from seekflow.eval.loader import load_benchmark
             name, model, cases = load_benchmark(str(path))
 
         assert name == "basic_tool_calling"
@@ -106,7 +106,7 @@ cases:
             path = Path(tmpdir) / "chat.yaml"
             path.write_text(yaml_content)
 
-            from deepseek_toolkit.eval.loader import load_benchmark
+            from seekflow.eval.loader import load_benchmark
             name, model, cases = load_benchmark(str(path))
 
         assert len(cases) == 1
@@ -115,7 +115,7 @@ cases:
 
 class TestEvalMetrics:
     def test_calculate_metrics_all_pass(self):
-        from deepseek_toolkit.eval.metrics import calculate_metrics
+        from seekflow.eval.metrics import calculate_metrics
 
         case_results = [
             {
@@ -150,7 +150,7 @@ class TestEvalMetrics:
         assert metrics["avg_latency_ms"] == 1250.0
 
     def test_calculate_metrics_mixed(self):
-        from deepseek_toolkit.eval.metrics import calculate_metrics
+        from seekflow.eval.metrics import calculate_metrics
 
         case_results = [
             {
@@ -183,7 +183,7 @@ class TestEvalMetrics:
         assert metrics["final_contains_accuracy"] == 100.0
 
     def test_calculate_metrics_empty(self):
-        from deepseek_toolkit.eval.metrics import calculate_metrics
+        from seekflow.eval.metrics import calculate_metrics
 
         metrics = calculate_metrics([])
         assert metrics["total_cases"] == 0
@@ -220,7 +220,7 @@ class TestEvalRunner:
         return runtime
 
     def test_run_cases(self, mock_runtime):
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         cases = [
             EvalCase(
@@ -251,7 +251,7 @@ class TestEvalRunner:
 
     def test_run_cases_with_failure(self, mock_runtime):
         """When final text doesn't contain expected text, case fails."""
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         # Override the runtime to return a non-matching final
         mock_runtime.chat = MagicMock(return_value=ToolRuntimeResult(
@@ -276,7 +276,7 @@ class TestEvalRunner:
         assert report.metrics["success_rate"] == 0.0
 
     def test_run_cases_tool_name_mismatch(self, mock_runtime):
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         mock_runtime.chat = MagicMock(return_value=ToolRuntimeResult(
             final="Done",
@@ -309,7 +309,7 @@ class TestEvalRunner:
 
     def test_run_cases_batch_uses_chat_batch(self, mock_runtime):
         """run_cases_batch() calls runtime.chat_batch() with correct requests."""
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         mock_runtime.chat_batch = MagicMock(return_value=[
             ToolRuntimeResult(
@@ -362,7 +362,7 @@ class TestEvalRunner:
 
     def test_run_cases_batch_all_pass(self, mock_runtime):
         """run_cases_batch() evaluates all cases correctly."""
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         mock_runtime.chat_batch = MagicMock(return_value=[
             ToolRuntimeResult(
@@ -417,7 +417,7 @@ class TestEvalRunner:
 
     def test_run_cases_batch_with_failure(self, mock_runtime):
         """run_cases_batch() handles failed cases."""
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         mock_runtime.chat_batch = MagicMock(return_value=[
             ToolRuntimeResult(
@@ -444,7 +444,7 @@ class TestEvalRunner:
 
     def test_run_cases_batch_empty(self, mock_runtime):
         """run_cases_batch() handles empty case list."""
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         mock_runtime.chat_batch = MagicMock(return_value=[])
 
@@ -456,7 +456,7 @@ class TestEvalRunner:
 
     def test_run_cases_batch_passes_max_wait(self, mock_runtime):
         """run_cases_batch() passes poll_interval and max_wait to chat_batch."""
-        from deepseek_toolkit.eval.runner import EvalRunner
+        from seekflow.eval.runner import EvalRunner
 
         mock_runtime.chat_batch = MagicMock(return_value=[
             ToolRuntimeResult(final="ok", messages=[], tool_results=[]),

@@ -1,13 +1,13 @@
 """Tests for ecosystem adapters."""
 
-from deepseek_toolkit.tools.decorator import tool
-from deepseek_toolkit.tools.registry import ToolRegistry
+from seekflow.tools.decorator import tool
+from seekflow.tools.registry import ToolRegistry
 
 
 class TestOpenAIAdapter:
     def test_to_openai_tools_format(self):
         """Output should be OpenAI-compatible tools format."""
-        from deepseek_toolkit.adapters.openai_compatible import to_openai_tools
+        from seekflow.adapters.openai_compatible import to_openai_tools
 
         registry = ToolRegistry()
 
@@ -27,7 +27,7 @@ class TestOpenAIAdapter:
 
     def test_to_openai_tools_strict(self):
         """Strict flag should be accepted."""
-        from deepseek_toolkit.adapters.openai_compatible import to_openai_tools
+        from seekflow.adapters.openai_compatible import to_openai_tools
 
         registry = ToolRegistry()
 
@@ -44,7 +44,7 @@ class TestOpenAIAdapter:
 
     def test_to_openai_tools_empty_registry(self):
         """Empty registry returns empty list."""
-        from deepseek_toolkit.adapters.openai_compatible import to_openai_tools
+        from seekflow.adapters.openai_compatible import to_openai_tools
 
         registry = ToolRegistry()
         tools = to_openai_tools(registry)
@@ -54,7 +54,7 @@ class TestOpenAIAdapter:
 class TestLangChainAdapter:
     def test_export_langchain_tool_schemas(self):
         """Should work without LangChain installed."""
-        from deepseek_toolkit.adapters.langchain import export_langchain_tool_schemas
+        from seekflow.adapters.langchain import export_langchain_tool_schemas
 
         registry = ToolRegistry()
 
@@ -72,7 +72,7 @@ class TestLangChainAdapter:
 
     def test_export_langchain_no_langchain_installed(self):
         """Should not raise even if langchain is not installed."""
-        from deepseek_toolkit.adapters.langchain import export_langchain_tool_schemas
+        from seekflow.adapters.langchain import export_langchain_tool_schemas
 
         registry = ToolRegistry()
         schemas = export_langchain_tool_schemas(registry)

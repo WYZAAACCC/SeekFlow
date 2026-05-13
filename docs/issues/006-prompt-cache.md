@@ -33,7 +33,7 @@ usage = {
 
 ## 任务
 
-1. 新建 `deepseek_toolkit/cache.py`
+1. 新建 `seekflow/cache.py`
 2. **第一层 — 被动观测**：解析 `usage.prompt_tokens_details.cached_tokens`，在 `ChatResponse.usage` 中保留，日志中输出缓存命中率（如 `Cache hit: 48000/50000 (96%)`）
 3. **第二层 — 主动告警**：实现 `CacheSentinel`，对可缓存前缀做 hash，每次请求时对比。前缀变化时发出警告：`"Cache prefix changed — cache invalidated. Keep system message stable for best cache performance."`
 4. 可缓存前缀定义：从 system message 开始到最后一个 user message 之前的所有消息。提取并 hash 这段内容，变化时告警
@@ -57,4 +57,4 @@ usage = {
 - 测试 `CacheSentinel` 状态转换：`first_request` → `stable` → `changed`
 - 测试跨模型缓存不共享
 - 测试前缀 hash 逻辑（system message 不变 = hash 不变）
-- 参考现有 usage 处理：[src/deepseek_toolkit/types.py](../../src/deepseek_toolkit/types.py)
+- 参考现有 usage 处理：[src/seekflow/types.py](../../src/seekflow/types.py)

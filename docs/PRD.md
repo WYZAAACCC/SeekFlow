@@ -101,7 +101,7 @@ DeepSeek 已支持 function calling / tool calling 能力，但 Python 开发者
 
 ### CLI 与适配
 
-26. 作为一个喜欢命令行的开发者，我希望用 `dstk eval` 运行评测，用 `dstk trace view` 查看 trace。
+26. 作为一个喜欢命令行的开发者，我希望用 `seekflow eval` 运行评测，用 `seekflow trace view` 查看 trace。
 27. 作为一个同时使用 OpenAI SDK 的开发者，我希望能导出 OpenAI-compatible 格式的 tools schema。
 28. 作为一个 LangChain / PydanticAI 用户，我希望有最小化的适配器导出工具 schema。
 
@@ -169,7 +169,7 @@ DeepSeek 已支持 function calling / tool calling 能力，但 Python 开发者
 
 - YAML 格式定义 benchmark（cases：input、expected_tools、expected_final_contains）
 - `EvalRunner` 批量执行，计算：success_rate、tool_name_accuracy、argument_accuracy、final_contains_accuracy、avg_steps、avg_latency_ms
-- CLI：`dstk eval benchmarks/basic_tools.yaml`
+- CLI：`seekflow eval benchmarks/basic_tools.yaml`
 
 ### 模块十：Adapters
 
@@ -183,7 +183,7 @@ DeepSeek 已支持 function calling / tool calling 能力，但 Python 开发者
 2. **Schema 可导出**：`ToolRegistry.to_deepseek_tools(strict=True)` 返回合法的 DeepSeek tools schema
 3. **JSON repair 可用**：`repair_json_arguments("{'city': '杭州'}")` 返回 `ok=true`，`value={"city": "杭州"}`
 4. **Trace 可保存**：`result.trace.save("trace.json")` 生成合法的 JSON 文件
-5. **Eval 可运行**：`dstk eval benchmarks/basic_tools.yaml` 输出含 success_rate 的评测报告
+5. **Eval 可运行**：`seekflow eval benchmarks/basic_tools.yaml` 输出含 success_rate 的评测报告
 6. **MCP 文件系统示例可运行**：连接 `@modelcontextprotocol/server-filesystem`，完成基本文件操作
 7. **所有测试通过**：`pytest` 全部通过，覆盖 tool schema、strict checker、json repair、tool executor、trace、eval runner、runtime（mock）
 8. **README 边界清晰**：第一屏清楚说明项目定位和与 Reasonix 的区别
@@ -210,14 +210,14 @@ DeepSeek 已支持 function calling / tool calling 能力，但 Python 开发者
 
 ### Phase 1：项目骨架
 - 创建 `pyproject.toml`（含依赖和 CLI 入口）
-- 创建 `src/deepseek_toolkit/` 源码目录结构
+- 创建 `src/seekflow/` 源码目录结构
 - 创建 `tests/` 目录
 - 添加 `README.md`、`LICENSE`（MIT）、`.gitignore`
 - 配置 pytest、ruff
 
 ### Phase 2：基础类型和错误
 - 实现 `types.py`：`ToolDefinition`、`ToolCall`、`ToolExecutionResult`、`ChatResponse`、`ToolRuntimeResult`
-- 实现 `errors.py`：`DeepSeekToolkitError` 及其子类
+- 实现 `errors.py`：`SeekFlowError` 及其子类
 
 ### Phase 3：工具装饰器和 Schema 生成
 - 实现 `tools/decorator.py`：`@tool` 装饰器
@@ -251,7 +251,7 @@ DeepSeek 已支持 function calling / tool calling 能力，但 Python 开发者
 - 实现 `evals/loader.py`、`evals/runner.py`、`evals/metrics.py`、`evals/report.py`
 
 ### Phase 12：CLI
-- 实现 `cli.py`：`dstk eval`、`dstk trace view`
+- 实现 `cli.py`：`seekflow eval`、`seekflow trace view`
 
 ### Phase 13：Examples 和 Tests
 - 实现 5 个 example 文件

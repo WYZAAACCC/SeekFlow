@@ -3,10 +3,10 @@ from unittest import mock
 
 import pytest
 
-from deepseek_toolkit.batch_client import BatchClient, BatchTimeoutError
-from deepseek_toolkit.runtime import ToolRuntime
-from deepseek_toolkit.tools.decorator import tool
-from deepseek_toolkit.types import ChatResponse, ToolRuntimeResult
+from seekflow.batch_client import BatchClient, BatchTimeoutError
+from seekflow.runtime import ToolRuntime
+from seekflow.tools.decorator import tool
+from seekflow.types import ChatResponse, ToolRuntimeResult
 
 
 class FakeBatchClient:
@@ -53,7 +53,7 @@ class TestChatBatchBasic:
              "response": {"choices": [{"message": {"content": "C"}}]}, "error": None},
         ])
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", return_value=fake_bc):
+        with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[])
             rt._client = mock.MagicMock()  # bypass _make_client
             results = rt.chat_batch(
@@ -84,7 +84,7 @@ class TestChatBatchBasic:
             """Add two numbers."""
             return a + b
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", return_value=fake_bc):
+        with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[add])
             rt._client = mock.MagicMock()  # bypass _make_client
             rt.chat_batch(
@@ -109,7 +109,7 @@ class TestChatBatchBasic:
              "response": {"choices": [{"message": {"content": "first"}}]}, "error": None},
         ])
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", return_value=fake_bc):
+        with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[])
             rt._client = mock.MagicMock()  # bypass _make_client
             results = rt.chat_batch(
@@ -155,7 +155,7 @@ class TestChatBatchWithTools:
             """Add two numbers."""
             return a + b
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", return_value=fake_bc):
+        with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[add])
             rt._client = mock.MagicMock()  # bypass _make_client
             results = rt.chat_batch(
@@ -195,7 +195,7 @@ class TestChatBatchWithTools:
         def risky() -> str:
             raise ValueError("boom")
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", return_value=fake_bc):
+        with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[risky])
             rt._client = mock.MagicMock()  # bypass _make_client
             results = rt.chat_batch(
@@ -222,7 +222,7 @@ class TestChatBatchErrors:
              "response": None, "error": {"message": "bad request"}},
         ])
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", return_value=fake_bc):
+        with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[])
             rt._client = mock.MagicMock()  # bypass _make_client
             results = rt.chat_batch(
@@ -241,7 +241,7 @@ class TestChatBatchErrors:
         """Timeout in batch polling raises BatchTimeoutError."""
         fake_bc = FakeBatchClient(error=BatchTimeoutError("timeout"))
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", return_value=fake_bc):
+        with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[])
             rt._client = mock.MagicMock()  # bypass _make_client
             with pytest.raises(BatchTimeoutError):
@@ -252,7 +252,7 @@ class TestChatBatchErrors:
 
     def test_chat_batch_creates_deepseek_client_when_client_is_none(self):
         """When self._client is None, a DeepSeekClient is created and passed to BatchClient."""
-        from deepseek_toolkit.client import DeepSeekClient
+        from seekflow.client import DeepSeekClient
 
         fake_bc = FakeBatchClient(results=[
             {"custom_id": "req-0", "status_code": 200,
@@ -265,7 +265,7 @@ class TestChatBatchErrors:
             captured_client.append(client)
             return fake_bc
 
-        with mock.patch("deepseek_toolkit.runtime.BatchClient", side_effect=capture_batch_client):
+        with mock.patch("seekflow.runtime.BatchClient", side_effect=capture_batch_client):
             rt = ToolRuntime(tools=[], api_key="sk-test")
             # self._client is None by default — this is the real user path
             rt.chat_batch(

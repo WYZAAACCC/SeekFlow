@@ -1,6 +1,6 @@
 """Tests for JSON repair and argument coercion."""
-from deepseek_toolkit.repair.json_repair import repair_json_arguments
-from deepseek_toolkit.repair.coercion import coerce_arguments
+from seekflow.repair.json_repair import repair_json_arguments
+from seekflow.repair.coercion import coerce_arguments
 
 
 class TestJsonRepair:

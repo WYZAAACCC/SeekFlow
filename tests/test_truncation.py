@@ -1,7 +1,7 @@
 """Tests for JSON-aware truncation (P3-1)."""
 import json
 
-from deepseek_toolkit.truncation import (
+from seekflow.truncation import (
     TruncationStrategy,
     truncate_result,
 )

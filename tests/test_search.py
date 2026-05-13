@@ -1,18 +1,18 @@
-"""Tests for deepseek_toolkit.search — SearchProvider abstraction."""
+"""Tests for seekflow.search — SearchProvider abstraction."""
 import pytest
 from unittest.mock import patch, MagicMock
 
 
 class TestSearchProviderABC:
     def test_cannot_instantiate_abstract(self):
-        from deepseek_toolkit.search import SearchProvider
+        from seekflow.search import SearchProvider
         with pytest.raises(TypeError):
             SearchProvider()  # type: ignore[abstract]
 
 
 class TestDuckDuckGoProvider:
     def test_search_returns_snippets(self):
-        from deepseek_toolkit.search import DuckDuckGoProvider
+        from seekflow.search import DuckDuckGoProvider
 
         mock_html = """
         <html><body>
@@ -34,7 +34,7 @@ class TestDuckDuckGoProvider:
         assert "Second result snippet" in results[1]
 
     def test_search_timeout_returns_graceful_message(self):
-        from deepseek_toolkit.search import DuckDuckGoProvider
+        from seekflow.search import DuckDuckGoProvider
         import urllib.error
 
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
@@ -45,7 +45,7 @@ class TestDuckDuckGoProvider:
         assert "暂时不可用" in results[0]
 
     def test_no_results_returns_message(self):
-        from deepseek_toolkit.search import DuckDuckGoProvider
+        from seekflow.search import DuckDuckGoProvider
 
         mock_html = "<html><body>No results here</body></html>"
         with patch("urllib.request.urlopen") as mock_urlopen:
@@ -63,18 +63,18 @@ class TestDuckDuckGoProvider:
 
 class TestBingWebSearchProvider:
     def test_requires_api_key(self):
-        from deepseek_toolkit.search import BingWebSearchProvider
+        from seekflow.search import BingWebSearchProvider
         with patch("os.environ", {}):
             with pytest.raises(ValueError, match="BING_API_KEY"):
                 BingWebSearchProvider()
 
     def test_accepts_explicit_api_key(self):
-        from deepseek_toolkit.search import BingWebSearchProvider
+        from seekflow.search import BingWebSearchProvider
         provider = BingWebSearchProvider(api_key="test-key")
         assert provider.api_key == "test-key"
 
     def test_search_parses_response(self):
-        from deepseek_toolkit.search import BingWebSearchProvider
+        from seekflow.search import BingWebSearchProvider
         import json
 
         mock_response = {
@@ -99,7 +99,7 @@ class TestBingWebSearchProvider:
         assert "Snippet A" in results[0]
 
     def test_search_api_error_returns_graceful_message(self):
-        from deepseek_toolkit.search import BingWebSearchProvider
+        from seekflow.search import BingWebSearchProvider
         import json
 
         mock_response = {"error": {"code": "401", "message": "Access denied"}}
@@ -116,7 +116,7 @@ class TestBingWebSearchProvider:
         assert "Bing API error" in results[0]
 
     def test_search_timeout_returns_graceful_message(self):
-        from deepseek_toolkit.search import BingWebSearchProvider
+        from seekflow.search import BingWebSearchProvider
         import urllib.error
 
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
@@ -129,7 +129,7 @@ class TestBingWebSearchProvider:
 
 class TestBingChinaSearchProvider:
     def test_search_parses_results(self):
-        from deepseek_toolkit.search import BingChinaSearchProvider
+        from seekflow.search import BingChinaSearchProvider
 
         mock_html = """
         <html><body>
@@ -154,7 +154,7 @@ class TestBingChinaSearchProvider:
         assert "Test Page" in results[1]
 
     def test_search_timeout_returns_graceful_message(self):
-        from deepseek_toolkit.search import BingChinaSearchProvider
+        from seekflow.search import BingChinaSearchProvider
         import urllib.error
 
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
@@ -165,7 +165,7 @@ class TestBingChinaSearchProvider:
         assert "暂时不可用" in results[0]
 
     def test_no_results_returns_message(self):
-        from deepseek_toolkit.search import BingChinaSearchProvider
+        from seekflow.search import BingChinaSearchProvider
 
         mock_html = "<html><body>No results here</body></html>"
         with patch("urllib.request.urlopen") as mock_urlopen:
@@ -181,7 +181,7 @@ class TestBingChinaSearchProvider:
         assert "未找到" in results[0]
 
     def test_results_truncated_to_max(self):
-        from deepseek_toolkit.search import BingChinaSearchProvider
+        from seekflow.search import BingChinaSearchProvider
 
         # Create 10 result blocks
         blocks = []
@@ -205,13 +205,13 @@ class TestBingChinaSearchProvider:
 
 class TestAutoDetectProvider:
     def test_with_bing_key_returns_bing_provider(self):
-        from deepseek_toolkit.search import auto_detect_provider, BingWebSearchProvider
+        from seekflow.search import auto_detect_provider, BingWebSearchProvider
         with patch.dict("os.environ", {"BING_API_KEY": "test-key"}):
             provider = auto_detect_provider()
         assert isinstance(provider, BingWebSearchProvider)
 
     def test_without_bing_key_returns_bingchina(self):
-        from deepseek_toolkit.search import auto_detect_provider, BingChinaSearchProvider
+        from seekflow.search import auto_detect_provider, BingChinaSearchProvider
         with patch.dict("os.environ", {}, clear=True):
             provider = auto_detect_provider()
         assert isinstance(provider, BingChinaSearchProvider)
@@ -219,34 +219,34 @@ class TestAutoDetectProvider:
 
 class TestGetSearchProvider:
     def test_auto_string_with_key_returns_bing(self):
-        from deepseek_toolkit.search import get_search_provider, BingWebSearchProvider
+        from seekflow.search import get_search_provider, BingWebSearchProvider
         with patch.dict("os.environ", {"BING_API_KEY": "test-key"}):
             provider = get_search_provider("auto")
         assert isinstance(provider, BingWebSearchProvider)
 
     def test_auto_string_without_key_returns_bingchina(self):
-        from deepseek_toolkit.search import get_search_provider, BingChinaSearchProvider
+        from seekflow.search import get_search_provider, BingChinaSearchProvider
         with patch.dict("os.environ", {}, clear=True):
             provider = get_search_provider("auto")
         assert isinstance(provider, BingChinaSearchProvider)
 
     def test_bingchina_string_returns_bingchina(self):
-        from deepseek_toolkit.search import get_search_provider, BingChinaSearchProvider
+        from seekflow.search import get_search_provider, BingChinaSearchProvider
         provider = get_search_provider("bingchina")
         assert isinstance(provider, BingChinaSearchProvider)
 
     def test_duckduckgo_string_returns_duckduckgo(self):
-        from deepseek_toolkit.search import get_search_provider, DuckDuckGoProvider
+        from seekflow.search import get_search_provider, DuckDuckGoProvider
         provider = get_search_provider("duckduckgo")
         assert isinstance(provider, DuckDuckGoProvider)
 
     def test_bing_string_returns_bing(self):
-        from deepseek_toolkit.search import get_search_provider, BingWebSearchProvider
+        from seekflow.search import get_search_provider, BingWebSearchProvider
         provider = get_search_provider("bing", api_key="test-key")
         assert isinstance(provider, BingWebSearchProvider)
 
     def test_passing_provider_instance_returns_same(self):
-        from deepseek_toolkit.search import get_search_provider, DuckDuckGoProvider
+        from seekflow.search import get_search_provider, DuckDuckGoProvider
         original = DuckDuckGoProvider()
         result = get_search_provider(original)
         assert result is original

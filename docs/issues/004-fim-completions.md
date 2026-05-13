@@ -23,7 +23,7 @@ FIM 请求格式与 OpenAI Completions API 类似，但使用特定的 token 标
 
 ## 任务
 
-1. 新建 `deepseek_toolkit/fim.py`
+1. 新建 `seekflow/fim.py`
 2. 实现 `fim_complete(prefix, suffix, *, model, api_key=None, **kwargs) -> FIMResponse`：
    - `FIMResponse` 数据类：`text`, `usage`, `model`, `finish_reason`
 3. 实现 `fim_complete_stream(prefix, suffix, *, model, api_key=None, **kwargs) -> Iterator[FIMChunk]`：

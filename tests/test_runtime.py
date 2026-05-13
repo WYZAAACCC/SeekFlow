@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deepseek_toolkit.tools.decorator import tool
-from deepseek_toolkit.tools.strict import StrictCheckIssue, StrictCheckResult
-from deepseek_toolkit.types import ChatResponse, ToolCall, ToolRuntimeResult
+from seekflow.tools.decorator import tool
+from seekflow.tools.strict import StrictCheckIssue, StrictCheckResult
+from seekflow.types import ChatResponse, ToolCall, ToolRuntimeResult
 
 
 class TestToolRuntime:
@@ -23,7 +23,7 @@ class TestToolRuntime:
     @pytest.fixture
     def mock_two_round_client(self, add_tool):
         """Mock DeepSeekClient that returns tool_calls then final answer."""
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
 
             # Round 1: model asks to call add(1, 2)
@@ -51,7 +51,7 @@ class TestToolRuntime:
 
     def test_basic_tool_loop(self, mock_two_round_client, add_tool):
         """A full tool loop: model calls tool, executor runs it, model gets result."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
         runtime = ToolRuntime(tools=[add_tool], api_key="sk-test")
         result = runtime.chat(
@@ -71,9 +71,9 @@ class TestToolRuntime:
 
     def test_chat_without_tools(self):
         """Empty tool list degenerates to plain chat."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
             resp = ChatResponse(
                 content="Hello, how can I help?",
@@ -94,9 +94,9 @@ class TestToolRuntime:
 
     def test_max_steps_exhausted(self, add_tool):
         """When the model keeps calling tools, stop after max_steps."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
 
             # Always return tool_calls so the loop never ends naturally
@@ -124,9 +124,9 @@ class TestToolRuntime:
 
     def test_strict_fallback(self, add_tool):
         """strict=True + incompatible schema + fallback=True → auto fallback."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
-        with patch("deepseek_toolkit.runtime.check_strict_compatibility") as mock_check:
+        with patch("seekflow.runtime.check_strict_compatibility") as mock_check:
             mock_check.return_value = StrictCheckResult(
                 ok=False,
                 issues=[StrictCheckIssue(
@@ -136,7 +136,7 @@ class TestToolRuntime:
                 )],
             )
 
-            with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+            with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
                 mock_client = MagicMock()
                 resp = ChatResponse(
                     content="Done",
@@ -167,10 +167,10 @@ class TestToolRuntime:
 
     def test_strict_no_fallback_raises(self, add_tool):
         """strict=True + incompatible schema + fallback=False → raises StrictSchemaError."""
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.errors import StrictSchemaError
+        from seekflow.runtime import ToolRuntime
+        from seekflow.errors import StrictSchemaError
 
-        with patch("deepseek_toolkit.runtime.check_strict_compatibility") as mock_check:
+        with patch("seekflow.runtime.check_strict_compatibility") as mock_check:
             mock_check.return_value = StrictCheckResult(
                 ok=False,
                 issues=[StrictCheckIssue(
@@ -199,7 +199,7 @@ class TestToolRuntime:
         import tempfile
         from pathlib import Path
 
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
         runtime = ToolRuntime(tools=[add_tool], api_key="sk-test", trace=True)
         result = runtime.chat(
@@ -229,9 +229,9 @@ class TestToolRuntime:
 
     def test_tool_call_error_recorded(self, add_tool):
         """When a tool call fails (tool not found), the error is recorded."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
 
             # Model calls a tool that's not registered
@@ -262,9 +262,9 @@ class TestToolRuntime:
 
     def test_reasoning_content_preserved_non_streaming_no_tools(self):
         """Non-streaming: reasoning_content survives into assistant message (no tool calls)."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
             resp = ChatResponse(
                 content="Final answer",
@@ -291,9 +291,9 @@ class TestToolRuntime:
 
         This path already works — regression guard.
         """
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
 
             resp1 = ChatResponse(
@@ -326,15 +326,15 @@ class TestToolRuntime:
 
     def test_reasoning_content_preserved_streaming_with_tools(self):
         """Streaming: reasoning_content is included in assistant msg for next turn."""
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.types import _StreamChunk
+        from seekflow.runtime import ToolRuntime
+        from seekflow.types import _StreamChunk
 
         @tool
         def greet(name: str) -> str:
             """Greet someone."""
             return f"Hello, {name}!"
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
 
             stream_1 = iter([
@@ -369,10 +369,10 @@ class TestToolRuntime:
 
     def test_streaming_done_event_includes_reasoning(self):
         """Streaming done event carries accumulated reasoning_content (no tool calls)."""
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.types import _StreamChunk
+        from seekflow.runtime import ToolRuntime
+        from seekflow.types import _StreamChunk
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.chat_stream.return_value = iter([
                 _StreamChunk(type="reasoning", content="Let me think..."),
@@ -406,16 +406,16 @@ class TestRuntimeSaverIntegration:
     def test_non_streaming_agent_saves_runtime_data(self, add_tool, tmp_path):
         """Non-streaming agent records steps, tokens, tool calls via RuntimeSaver."""
         from unittest.mock import patch, MagicMock
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
         # Import from the benchmarks package (same-dir relative)
         import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / "benchmarks" / "agents_comparison"))
+        sys.path.insert(0, str(Path(__file__).parent.parent / "_archive" / "benchmarks" / "agents_comparison"))
         from comprehensive_saver import RuntimeSaver, get_framework_features
 
-        saver = RuntimeSaver("DeepSeekToolkit", "test_agent", "deepseek-chat")
+        saver = RuntimeSaver("SeekFlow", "test_agent", "deepseek-chat")
 
-        with patch("deepseek_toolkit.runtime.DeepSeekClient") as mock_client_class:
+        with patch("seekflow.runtime.DeepSeekClient") as mock_client_class:
             mock_client = MagicMock()
 
             resp1 = ChatResponse(
@@ -440,7 +440,7 @@ class TestRuntimeSaverIntegration:
             # ── Simulate the integration that run_agent() will do ──
             messages = [{"role": "user", "content": "What is 1+2?"}]
             saver.start(task="Add 1+2", system_prompt="You are a math assistant.")
-            saver.set_features(get_framework_features("DeepSeekToolkit"))
+            saver.set_features(get_framework_features("SeekFlow"))
 
             result = runtime.chat(model="deepseek-chat", messages=messages)
 
@@ -478,18 +478,18 @@ class TestRuntimeSaverIntegration:
                 cs.RUNTIME_DUMP_DIR = orig_dir
 
         # ── Assertions ──
-        assert (tmp_path / "runtime_dumps" / "DeepSeekToolkit" / "test_agent").exists()
-        assert (tmp_path / "runtime_dumps" / "DeepSeekToolkit" / "test_agent" / "summary.json").exists()
-        assert (tmp_path / "runtime_dumps" / "DeepSeekToolkit" / "test_agent" / "message_trace.json").exists()
-        assert (tmp_path / "runtime_dumps" / "DeepSeekToolkit" / "test_agent" / "runtime_dump.json").exists()
+        assert (tmp_path / "runtime_dumps" / "SeekFlow" / "test_agent").exists()
+        assert (tmp_path / "runtime_dumps" / "SeekFlow" / "test_agent" / "summary.json").exists()
+        assert (tmp_path / "runtime_dumps" / "SeekFlow" / "test_agent" / "message_trace.json").exists()
+        assert (tmp_path / "runtime_dumps" / "SeekFlow" / "test_agent" / "runtime_dump.json").exists()
 
         # Verify summary
         import json
         summary = json.loads(
-            (tmp_path / "runtime_dumps" / "DeepSeekToolkit" / "test_agent" / "summary.json")
+            (tmp_path / "runtime_dumps" / "SeekFlow" / "test_agent" / "summary.json")
             .read_text(encoding="utf-8")
         )
-        assert summary["framework"] == "DeepSeekToolkit"
+        assert summary["framework"] == "SeekFlow"
         assert summary["agent_type"] == "test_agent"
         assert summary["success"] is True
         assert summary["total_tokens"] == 43  # 15 + 28

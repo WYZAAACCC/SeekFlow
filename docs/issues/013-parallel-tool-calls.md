@@ -34,7 +34,7 @@ LLM 已经在协议层面声明了并行意图：
 
 ## 任务
 
-1. 修改 `deepseek_toolkit/tools/executor.py` 中的 `ToolExecutor.execute_batch()`
+1. 修改 `seekflow/tools/executor.py` 中的 `ToolExecutor.execute_batch()`
 2. 并行执行策略：
    - 同一响应中的多个 `tool_calls` → 直接并行执行
    - 使用 `asyncio.Semaphore(max_parallel)` 限流
@@ -77,4 +77,4 @@ response.tool_calls = [
 - 测试工具失败场景的错误隔离
 - 测试 sync（ThreadPoolExecutor）/ async（asyncio.gather）两种模式
 - 测试空 tool_calls 列表
-- 参考现有 executor：[src/deepseek_toolkit/tools/executor.py](../../src/deepseek_toolkit/tools/executor.py)
+- 参考现有 executor：[src/seekflow/tools/executor.py](../../src/seekflow/tools/executor.py)

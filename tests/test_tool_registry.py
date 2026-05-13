@@ -1,8 +1,8 @@
 """Tests for ToolRegistry."""
 import pytest
-from deepseek_toolkit.tools import ToolRegistry
-from deepseek_toolkit.errors import ToolSchemaError
-from deepseek_toolkit.types import ToolDefinition
+from seekflow.tools import ToolRegistry
+from seekflow.errors import ToolSchemaError
+from seekflow.types import ToolDefinition
 
 
 class TestToolRegistry:

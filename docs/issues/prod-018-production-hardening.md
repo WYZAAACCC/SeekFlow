@@ -8,10 +8,10 @@
 
 ## 问题陈述
 
-一名资深开发者在初次接触 DeepSeek Toolkit 时，会在 5 分钟内发现以下问题：
+一名资深开发者在初次接触 SeekFlow 时，会在 5 分钟内发现以下问题：
 
-1. `import deepseek_toolkit` 之后什么都做不了 — 顶层 `__init__.py` 只有一个 docstring，公开 API 是空白
-2. 需要用 `from deepseek_toolkit.tools.decorator import tool` 这种五层深的路径来导入核心功能
+1. `import seekflow` 之后什么都做不了 — 顶层 `__init__.py` 只有一个 docstring，公开 API 是空白
+2. 需要用 `from seekflow.tools.decorator import tool` 这种五层深的路径来导入核心功能
 3. `build/` 和 `dist/` 目录被提交，包含一份过时的源代码副本（缺失 `agent/`、`async_runtime.py` 等十几个新模块）
 4. README 上的基准表格声称 100% 成功率，但没有任何置信区间、样本量或测试方法描述——有经验的工程师会直接判定为造假
 5. `benchmarks/agents_comparison/` 里有 11 个不同名字的"最终对决"脚本（`final_showdown.py`、`no_excuses_showdown.py`、`truly_fair_comparison.py`...），看起来更像是焦虑驱动的反复验证而非严谨的基准测试
@@ -47,7 +47,7 @@
 
 ### 决策 1：顶层公开 API 设计
 
-`deepseek_toolkit/__init__.py` 应暴露三个层级的 API：
+`seekflow/__init__.py` 应暴露三个层级的 API：
 
 **核心层**（所有用户都需要）：
 - `tool` — 装饰器
@@ -57,7 +57,7 @@
 - `ToolExecutor` — 工具执行器
 - `DeepSeekClient` — API 客户端
 - 核心类型：`ToolDefinition`、`ToolCall`、`ToolExecutionResult`、`ChatResponse`、`ToolRuntimeResult`、`StreamEvent`
-- 核心错误：`DeepSeekToolkitError`、`DeepSeekAPIError`、`AuthenticationError`、`RateLimitError`、`InsufficientBalanceError`
+- 核心错误：`SeekFlowError`、`DeepSeekAPIError`、`AuthenticationError`、`RateLimitError`、`InsufficientBalanceError`
 
 **Agent 层**（构建 Agent 的用户）：
 - `DeepSeekAgent`、`AgentResult`
@@ -75,11 +75,11 @@
 用户的目标体验：
 ```python
 # 之前
-from deepseek_toolkit.tools.decorator import tool
-from deepseek_toolkit.runtime import ToolRuntime
+from seekflow.tools.decorator import tool
+from seekflow.runtime import ToolRuntime
 
 # 之后
-from deepseek_toolkit import tool, ToolRuntime
+from seekflow import tool, ToolRuntime
 ```
 
 ### 决策 2：MCP 架构统一
@@ -180,7 +180,7 @@ README 和 `__init__.py` 的 docstring 从"not an agent framework"改为：
 
 ## 用户故事
 
-1. 作为一名 Python 开发者，我希望用 `from deepseek_toolkit import tool, ToolRuntime` 一行导入所有核心功能，无需记忆深层模块路径
+1. 作为一名 Python 开发者，我希望用 `from seekflow import tool, ToolRuntime` 一行导入所有核心功能，无需记忆深层模块路径
 2. 作为一名框架评估者，我希望 README 中的基准数据附带置信区间和样本量，以便我相信这些数字是真实的
 3. 作为一名生产环境运维者，我希望框架的 README 描述和实际代码一致——如果代码里有 Agent/Crew/Task，README 里不应该说"not an agent framework"
 4. 作为一名贡献者，我希望 MCP 只有一套实现，这样我不需要在三套不同的代码库之间选择从哪里开始修改
@@ -226,11 +226,11 @@ README 和 `__init__.py` 的 docstring 从"not an agent framework"改为：
 | 无（项目根目录） | 执行 `git init` | 初始化版本控制 |
 | `.gitignore` | 确认 `build/` `dist/` `*.egg-info/` 在其中 | 已存在，无需修改 |
 | `build/` `dist/` `*.egg-info/` | 删除 | 构建产物不应入库 |
-| `src/deepseek_toolkit/__init__.py` | 重写 | 暴露三层公开 API（核心/Agent/高级） |
-| `src/deepseek_toolkit/adapters/__init__.py` | 重写 | 暴露 `export_langchain_tool_schemas`、`to_openai_tools` |
-| `src/deepseek_toolkit/compat/__init__.py` | 重写 | 暴露 bridge 函数 |
-| `src/deepseek_toolkit/agent/__init__.py` | 扩写 | 补上 `Crew`、`Task`、`StateGraph`、`AgentMemory` |
-| `src/deepseek_toolkit/adapters/pydantic_ai.py` | 删除 | 死模块，从未被使用或测试 |
+| `src/seekflow/__init__.py` | 重写 | 暴露三层公开 API（核心/Agent/高级） |
+| `src/seekflow/adapters/__init__.py` | 重写 | 暴露 `export_langchain_tool_schemas`、`to_openai_tools` |
+| `src/seekflow/compat/__init__.py` | 重写 | 暴露 bridge 函数 |
+| `src/seekflow/agent/__init__.py` | 扩写 | 补上 `Crew`、`Task`、`StateGraph`、`AgentMemory` |
+| `src/seekflow/adapters/pydantic_ai.py` | 删除 | 死模块，从未被使用或测试 |
 | `benchmarks/agents_comparison/` | 精简 | 11 个文件 → 1 个 `compare.py`，其余删除 |
 | `README.md` | 重写对比表格 | 加置信区间、样本量、方法描述 |
 | `docs/PRD.md` | 更新非目标 | 承认 Agent 框架身份 |

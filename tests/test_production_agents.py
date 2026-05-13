@@ -1,4 +1,4 @@
-"""Production-grade agent stress tests — 5 complex agents exercising ALL DTK features.
+"""Production-grade agent stress tests — 5 complex agents exercising ALL SeekFlow features.
 
 Based on real 2025 patterns: Deep Research (MCP-Agent/Hyperresearch),
 Code Review, Financial Multi-Analyst, Memory Assistant, DevOps Pipeline.
@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DATA_DIR = Path(__file__).parent.parent / "benchmarks" / "agents_comparison" / "data"
+DATA_DIR = Path(__file__).parent.parent / "_archive" / "benchmarks" / "agents_comparison" / "data"
 OUTPUT_DIR = Path(__file__).parent.parent / "output" / "production_agents"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -27,9 +27,9 @@ class TestDeepResearchAgent:
     """Hierarchical research: planner → researchers → synthesizer."""
 
     def test_deep_research_pipeline(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
 
         manager = DeepSeekAgent(
             role="研究总监",
@@ -85,7 +85,7 @@ class TestCodeReviewAgent:
     """Code review: read files → analyze → FIM suggestions → structured report."""
 
     def test_code_review_with_fim(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="资深代码审查员",
@@ -132,9 +132,9 @@ class TestFinancialMultiAnalyst:
     """Parallel financial analysis with conditional routing + batch API."""
 
     def test_parallel_financial_analysis(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
 
         profitability = DeepSeekAgent(
             role="盈利分析师", goal="分析盈利能力", backstory="CFA",
@@ -170,9 +170,9 @@ class TestFinancialMultiAnalyst:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_conditional_routing_in_financial_workflow(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew
 
         analyst = DeepSeekAgent(
             role="分析师", goal="分析并决定下一步", backstory="专家",
@@ -208,7 +208,7 @@ class TestMemoryAssistant:
     """Multi-turn chat with memory accumulation and context compression."""
 
     def test_long_term_memory_assistant(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="私人助理",
@@ -256,9 +256,9 @@ class TestDevOpsPipeline:
     """StateGraph pipeline: build → test → deploy with conditional rollback."""
 
     def test_devops_state_graph_pipeline(self):
-        from deepseek_toolkit.agent.stategraph import StateGraph
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.events import get_event_bus
+        from seekflow.agent.stategraph import StateGraph
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.events import get_event_bus
 
         events = []
         get_event_bus().subscribe("*", lambda e: events.append(e.type))
@@ -314,8 +314,8 @@ class TestDevOpsPipeline:
         assert "DEPLOYED" in result.get("deploy", ""), "Deploy failed"
 
     def test_checkpoint_resume_in_pipeline(self):
-        from deepseek_toolkit.agent.stategraph import StateGraph, Interrupt, Command
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.stategraph import StateGraph, Interrupt, Command
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="操作员", goal="执行审批流程", backstory="审批系统",
@@ -357,7 +357,7 @@ class TestInvestmentPipeline:
     """Full investment workflow: plan→solve→reflect, batch, structured output."""
 
     def test_investment_plan_solve_reflect(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="投资分析师",
@@ -385,7 +385,7 @@ class TestInvestmentPipeline:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_investment_structured_output(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
         from pydantic import BaseModel
 
         class InvestmentAdvice(BaseModel):
@@ -412,7 +412,7 @@ class TestInvestmentPipeline:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_prewarm_and_batch(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
         import time
 
         agent = DeepSeekAgent(
@@ -451,8 +451,8 @@ class TestFullFeatureChaos:
     """Every guardrail and auto-behavior active simultaneously."""
 
     def test_all_guardrails_active(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.events import get_event_bus
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.events import get_event_bus
 
         events = []
         get_event_bus().subscribe("*", lambda e: events.append(e.type))
@@ -492,7 +492,7 @@ class TestFullFeatureChaos:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_context_compression_under_pressure(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="压缩测试员",
@@ -522,7 +522,7 @@ class TestFullFeatureChaos:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_failure_recovery_with_empty_content(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="恢复测试员",
@@ -547,9 +547,9 @@ class TestConcurrentMultiModal:
     """Multiple crews executing simultaneously with streaming and memory."""
 
     def test_multi_crew_concurrent_execution(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
         import concurrent.futures
 
         def make_crew(topic: str) -> Crew:
@@ -582,7 +582,7 @@ class TestConcurrentMultiModal:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_streaming_with_memory_and_tools(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="实时分析师", goal="流式输出分析结果", backstory="需要实时响应",
@@ -614,9 +614,9 @@ class TestConcurrentMultiModal:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_task_graph_parallel_execution(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.graph import TaskGraph
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.graph import TaskGraph
 
         a1 = DeepSeekAgent(
             role="分析师A", goal="分析市场A", backstory="专家",
@@ -650,8 +650,8 @@ class TestConcurrentMultiModal:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def test_document_loaders_integration(self):
-        from deepseek_toolkit.compat.loaders import auto_load
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.compat.loaders import auto_load
+        from seekflow.agent.agent import DeepSeekAgent
 
         # Load real data files
         csv_path = str(DATA_DIR / "sales_data.csv")

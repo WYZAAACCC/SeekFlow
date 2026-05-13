@@ -1,5 +1,5 @@
-"""Tests for deepseek_toolkit.types — verify all Pydantic models behave correctly."""
-from deepseek_toolkit.types import (
+"""Tests for seekflow.types — verify all Pydantic models behave correctly."""
+from seekflow.types import (
     ToolDefinition,
     ToolCall,
     ToolExecutionResult,

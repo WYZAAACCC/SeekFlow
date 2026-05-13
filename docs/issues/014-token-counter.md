@@ -21,7 +21,7 @@ DeepSeek 使用标准的 tokenizer（与 OpenAI `cl100k_base` 兼容），可使
 
 ## 任务
 
-1. 新建 `deepseek_toolkit/token_counter.py`
+1. 新建 `seekflow/token_counter.py`
 2. 实现 `count_tokens(messages, model="deepseek-v4-pro") -> int`：
    - 计算消息列表中所有文本的 token 数
    - 包含 `content`、`tool_calls`、`reasoning_content` 的计数
@@ -48,4 +48,4 @@ DeepSeek 使用标准的 tokenizer（与 OpenAI `cl100k_base` 兼容），可使
 - 测试 tiktoken 不可用时的回退
 - 测试中英文混合文本
 - 测试极长文本的计数
-- 参考 types：[src/deepseek_toolkit/types.py](../../src/deepseek_toolkit/types.py)
+- 参考 types：[src/seekflow/types.py](../../src/seekflow/types.py)

@@ -1,8 +1,8 @@
 """Tests for ToolCallCache LRU+TTL (P1-1)."""
 import time
 
-from deepseek_toolkit.tool_cache import ToolCallCache, make_cache_key
-from deepseek_toolkit.types import ToolExecutionResult
+from seekflow.tool_cache import ToolCallCache, make_cache_key
+from seekflow.types import ToolExecutionResult
 
 
 def _make_result(name: str = "add", args: dict | None = None) -> ToolExecutionResult:

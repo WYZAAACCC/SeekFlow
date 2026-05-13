@@ -14,7 +14,7 @@ pytestmark = pytest.mark.skipif(not API_KEY, reason="DEEPSEEK_API_KEY not set")
 
 
 def _make_agent(role="助手", goal="帮助", backstory="通用", **kw):
-    from deepseek_toolkit.agent.agent import DeepSeekAgent
+    from seekflow.agent.agent import DeepSeekAgent
     return DeepSeekAgent(
         role=role, goal=goal, backstory=backstory,
         api_key=API_KEY, thinking=False, max_steps=2, **kw,
@@ -30,7 +30,7 @@ class TestStateGraphStress:
 
     def test_quality_loop_workflow(self):
         """research→analyze→check, loop back if score<80, max 3 loops."""
-        from deepseek_toolkit.agent.stategraph import StateGraph
+        from seekflow.agent.stategraph import StateGraph
 
         results = []
         for run_n in range(10):
@@ -99,7 +99,7 @@ class TestStateGraphStress:
 
     def test_conditional_routing_accuracy(self):
         """Verify conditional edges route correctly across 20 runs."""
-        from deepseek_toolkit.agent.stategraph import StateGraph
+        from seekflow.agent.stategraph import StateGraph
 
         routing_results = []
 
@@ -155,9 +155,9 @@ class TestParallelCrewRace:
 
     def test_parallel_crew_no_session_corruption(self):
         """50 parallel crew runs with shared agent — no message loss."""
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
 
         agent = _make_agent("助手", "帮助", "回复简短确认")
         stats = {"runs": 0, "errors": 0, "session_lengths": []}
@@ -187,8 +187,8 @@ class TestParallelCrewRace:
 
     def test_parallel_crew_cache_stats_accurate(self):
         """Cache stats should accurately count parallel runs."""
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
 
         agent = _make_agent("助手", "帮助", "回复简短确认")
         stats_before = dict(agent.cache_stats)
@@ -214,7 +214,7 @@ class TestThinkingLongConversation:
     """10-round thinking mode: no 400 errors, reasoning preserved."""
 
     def test_ten_round_thinking_chat(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="保持对话连贯性",
@@ -246,7 +246,7 @@ class TestMCPRobustness:
 
     def test_mcp_missing_command_does_not_crash_agent(self):
         """Agent with non-existent MCP server still runs normally."""
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -267,9 +267,9 @@ class TestProductionScenarios:
 
     def test_financial_analysis_workflow(self):
         """Read financial data → compute ratios → generate report."""
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
-        DATA = str(Path(__file__).parent.parent / "benchmarks/agents_comparison/data/financial_report.json")
+        DATA = str(Path(__file__).parent.parent / "_archive/benchmarks/agents_comparison/data/financial_report.json")
 
         agent = DeepSeekAgent(
             role="财务分析师", goal="分析财务报告并计算关键比率",
@@ -298,9 +298,9 @@ class TestProductionScenarios:
 
     def test_multi_agent_research_team(self):
         """Researcher → Analyst → Writer sequential crew."""
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew
 
         researcher = _make_agent("研究员", "搜索AI趋势", "搜索整理信息")
         analyst = _make_agent("分析师", "深度分析趋势", "数据分析")
@@ -326,7 +326,7 @@ class TestProductionScenarios:
 
     def test_conditional_workflow(self):
         """plan→execute→evaluate, retry if score<80."""
-        from deepseek_toolkit.agent.stategraph import StateGraph
+        from seekflow.agent.stategraph import StateGraph
 
         results = []
         for run_n in range(10):

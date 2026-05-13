@@ -5,8 +5,8 @@ from unittest import mock
 
 import pytest
 
-from deepseek_toolkit.batch_client import BatchClient, BatchExpiredError, BatchTimeoutError
-from deepseek_toolkit.client import DeepSeekClient
+from seekflow.batch_client import BatchClient, BatchExpiredError, BatchTimeoutError
+from seekflow.client import DeepSeekClient
 
 
 # ---------------------------------------------------------------------------

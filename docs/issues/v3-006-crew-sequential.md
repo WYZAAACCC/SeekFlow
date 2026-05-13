@@ -15,12 +15,12 @@ CrewAI 有 ~100 个事件类实现了 Sequential 编排。DTK v3 的目标是用
 
 ## 任务
 
-1. 创建 `deepseek_toolkit/agent/crew.py`，实现 `Crew` 类
+1. 创建 `seekflow/agent/crew.py`，实现 `Crew` 类
 2. 字段：
    - `tasks: list[Task]` — 任务列表（必填，至少 1 个）
    - `process: Process = Process.SEQUENTIAL` — 编排模式
    - `checkpoint: bool = False` — 是否启用 checkpoint（Phase 4 实现）
-3. 实现 `Process` 枚举（`deepseek_toolkit/agent/orchestration.py`）：
+3. 实现 `Process` 枚举（`seekflow/agent/orchestration.py`）：
    - `SEQUENTIAL = "sequential"`
    - `PARALLEL = "parallel"`
    - `HIERARCHICAL = "hierarchical"`

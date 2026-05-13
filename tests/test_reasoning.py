@@ -1,5 +1,5 @@
 """Tests for ReasoningInspector (P2-1)."""
-from deepseek_toolkit.reasoning import (
+from seekflow.reasoning import (
     ConsistencyResult,
     check_consistency,
     extract_tool_names,

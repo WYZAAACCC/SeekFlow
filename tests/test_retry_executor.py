@@ -4,12 +4,12 @@ import time
 import pytest
 from openai import APIStatusError
 
-from deepseek_toolkit.client import DeepSeekClient
-from deepseek_toolkit.retry import (
+from seekflow.client import DeepSeekClient
+from seekflow.retry import (
     CircuitBreakerOpenError,
     RetryPolicy,
 )
-from deepseek_toolkit.retry_executor import RetryExecutor
+from seekflow.retry_executor import RetryExecutor
 
 
 # --- Fake client helpers ---
@@ -38,7 +38,7 @@ class FakeDeepSeekClient:
             self._call_count += 1
             raise err
         self._call_count += 1
-        from deepseek_toolkit.types import ChatResponse
+        from seekflow.types import ChatResponse
         return ChatResponse(content="success", finish_reason="stop")
 
     def chat_stream(self, *, model, messages, tools=None, **kwargs):
@@ -48,7 +48,7 @@ class FakeDeepSeekClient:
             self._call_count += 1
             raise err
         self._call_count += 1
-        from deepseek_toolkit.types import _StreamChunk
+        from seekflow.types import _StreamChunk
         yield _StreamChunk(type="content", content="hello")
 
 
@@ -122,7 +122,7 @@ class TestCircuitBreakerIntegration:
     """RetryExecutor records failures/successes to CircuitBreaker."""
 
     def test_circuit_breaker_opens_after_threshold_failures(self):
-        from deepseek_toolkit.retry import CircuitBreaker
+        from seekflow.retry import CircuitBreaker
 
         cb = CircuitBreaker(threshold=2, cooldown=60.0)
         # Each chat fails with 503, max_retries=0 so no retry, just one failure per call
@@ -146,7 +146,7 @@ class TestCircuitBreakerIntegration:
             executor.chat(model="deepseek-chat", messages=[{"role": "user", "content": "hi"}])
 
     def test_successful_call_after_cooldown_restores_closed(self):
-        from deepseek_toolkit.retry import CircuitBreaker, CircuitBreakerState
+        from seekflow.retry import CircuitBreaker, CircuitBreakerState
 
         cb = CircuitBreaker(threshold=1, cooldown=0.05)
         fake = FakeDeepSeekClient([

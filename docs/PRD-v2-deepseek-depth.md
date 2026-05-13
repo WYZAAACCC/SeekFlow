@@ -1,15 +1,15 @@
-# PRD: DeepSeekToolkit v2 — 最深入、最完整的 DeepSeek 专用库
+# PRD: SeekFlow v2 — 最深入、最完整的 DeepSeek 专用库
 
 **版本**: 1.0  
 **日期**: 2026-05-09  
 **状态**: 待评审  
-**作者**: DeepSeekToolkit Team
+**作者**: SeekFlow Team
 
 ---
 
 ## 1. 背景
 
-DeepSeekToolkit 已经建立了显著的技术护城河：JSON Repair 管道、Thinking 模式透传、MCP 协议适配、文件附件嵌入、Eval 框架——这些都是市面上 12+ 竞争框架中**没有任何一个**同时具备的能力。当前 274 个测试全部通过，3702 行代码，在 28 项 DeepSeek 特性上覆盖率达到 78.6%（竞争对手最高仅 30%）。
+SeekFlow 已经建立了显著的技术护城河：JSON Repair 管道、Thinking 模式透传、MCP 协议适配、文件附件嵌入、Eval 框架——这些都是市面上 12+ 竞争框架中**没有任何一个**同时具备的能力。当前 274 个测试全部通过，3702 行代码，在 28 项 DeepSeek 特性上覆盖率达到 78.6%（竞争对手最高仅 30%）。
 
 然而，当前版本存在三个结构性问题：
 
@@ -17,7 +17,7 @@ DeepSeekToolkit 已经建立了显著的技术护城河：JSON Repair 管道、T
 2. **DeepSeek 特有 API 未封装**：FIM 补全（`/beta/completions`）、Anthropic 兼容端点（`/anthropic/v1/messages`）等 DeepSeek 独有功能未提供 SDK 级封装，用户需自行拼接 HTTP 请求。
 3. **开发生态缺失**：无 async 支持、无 prompt cache 优化、无模型路由——这些是现代 LLM 应用的标配能力，缺失会直接限制库的采用场景。
 
-本 PRD 定义了将这些短板逐一补齐的完整计划，目标是将 DeepSeekToolkit 从"最好的 DeepSeek 适配库"升级为"**使用 DeepSeek API 的唯一正确方式**"。
+本 PRD 定义了将这些短板逐一补齐的完整计划，目标是将 SeekFlow 从"最好的 DeepSeek 适配库"升级为"**使用 DeepSeek API 的唯一正确方式**"。
 
 ## 2. 目标
 
@@ -87,21 +87,21 @@ DeepSeekToolkit 已经建立了显著的技术护城河：JSON Repair 管道、T
 
 ### 5.1 P0 模块
 
-#### 5.1.1 余额查询 (`deepseek_toolkit.balance`)
+#### 5.1.1 余额查询 (`seekflow.balance`)
 
 - 接口：`get_balance(api_key=None) -> BalanceInfo`
 - 返回：总余额、已用额度、货币单位、查询时间
 - 调用 `GET https://api.deepseek.com/user/balance`
 - 缓存：300 秒 TTL（余额不会秒级变化）
 
-#### 5.1.2 FIM 补全 (`deepseek_toolkit.fim`)
+#### 5.1.2 FIM 补全 (`seekflow.fim`)
 
 - 接口：`fim_complete(prefix, suffix, *, model, **kwargs) -> FIMResponse`
 - 使用 beta 端点：`POST https://api.deepseek.com/beta/completions`
 - 支持 streaming：`fim_complete_stream(...) -> Iterator[FIMChunk]`
 - 兼容 Anthropic FIM 格式，降低迁移成本
 
-#### 5.1.3 错误分类 (`deepseek_toolkit.errors`)
+#### 5.1.3 错误分类 (`seekflow.errors`)
 
 - 将原始 OpenAI SDK 异常映射为 DeepSeek 特定错误类型：
   - `InsufficientBalanceError`（402）
@@ -111,7 +111,7 @@ DeepSeekToolkit 已经建立了显著的技术护城河：JSON Repair 管道、T
   - `ContextLengthExceededError`（400 + context 超限）
 - 每个错误类型携带可操作的 `suggestion` 消息
 
-#### 5.1.4 速率限制感知 (`deepseek_toolkit.retry`)
+#### 5.1.4 速率限制感知 (`seekflow.retry`)
 
 - 解析 `X-RateLimit-Remaining`、`X-RateLimit-Reset` 响应头
 - 自适应退避：接近限流阈值时主动减速，而非被动等 429
@@ -119,31 +119,31 @@ DeepSeekToolkit 已经建立了显著的技术护城河：JSON Repair 管道、T
 
 ### 5.2 P1 模块
 
-#### 5.2.1 Thinking Mode 一等参数 (`deepseek_toolkit.runtime`)
+#### 5.2.1 Thinking Mode 一等参数 (`seekflow.runtime`)
 
 - `chat(..., thinking_mode: Literal["disabled", "enabled", "max"])`
 - 自动映射为 `extra_body={"thinking": {"type": ...}}`
 - 自动处理 `reasoning_content` 透传
 
-#### 5.2.2 Prompt Cache 优化 (`deepseek_toolkit.cache`)
+#### 5.2.2 Prompt Cache 优化 (`seekflow.cache`)
 
 - 自动检测可缓存前缀（≥1024 token 的 system message + 固定 prompt）
 - 前缀对齐：确保后续请求的 system message 保持一致，最大化缓存命中
 - 成本统计中区分 cached/uncached token
 
-#### 5.2.3 1M 上下文管理 (`deepseek_toolkit.context`)
+#### 5.2.3 1M 上下文管理 (`seekflow.context`)
 
 - 上下文预算估算（token 计数）
 - 自动摘要策略：当历史消息超过阈值时触发压缩
 - 滑动窗口 + 关键消息保留（system prompt、最近的 tool results）
 
-#### 5.2.4 Anthropic 兼容端点 (`deepseek_toolkit.adapters.anthropic_compat`)
+#### 5.2.4 Anthropic 兼容端点 (`seekflow.adapters.anthropic_compat`)
 
 - 提供 `DeepSeekAnthropicClient`，实现 Anthropic Messages API 接口
 - 接受 Anthropic SDK 格式的 `messages`，内部转换为 DeepSeek 格式
 - 支持 Anthropic 风格的 tool_use/tool_result
 
-#### 5.2.5 模型路由 (`deepseek_toolkit.router`)
+#### 5.2.5 模型路由 (`seekflow.router`)
 
 - 接口：`ModelRouter.route(task_complexity: str) -> str`
 - 预定义策略：
@@ -154,27 +154,27 @@ DeepSeekToolkit 已经建立了显著的技术护城河：JSON Repair 管道、T
 
 ### 5.3 P2 模块
 
-#### 5.3.1 Async 支持 (`deepseek_toolkit.async_runtime`)
+#### 5.3.1 Async 支持 (`seekflow.async_runtime`)
 
 - `AsyncToolRuntime` — `ToolRuntime` 的 async 镜像
 - 接口：`await runtime.chat_async(...)`, `await runtime.chat_stream_async(...)`
 - 底层使用 `openai.AsyncOpenAI`
 - 所有 tool call 也支持 async（检测函数签名决定 sync/async 调用）
 
-#### 5.3.2 会话管理 (`deepseek_toolkit.session`)
+#### 5.3.2 会话管理 (`seekflow.session`)
 
 - `Session` 类：封装消息历史、配置、统计
 - 自动摘要：当历史消息超过 token 预算时触发
 - 持久化：可选保存/恢复会话到 JSON 文件
 - `session.metrics` — 当前会话的 token/成本统计
 
-#### 5.3.3 成本追踪 (`deepseek_toolkit.cost`)
+#### 5.3.3 成本追踪 (`seekflow.cost`)
 
 - `CostTracker`：记录每次 API 调用的 token 消耗和费用
 - 累计统计：按 session / 按 tool / 按 model 维度
 - 实时回调：`on_cost_update(callback)`
 
-#### 5.3.4 结构化输出 (`deepseek_toolkit.structured`)
+#### 5.3.4 结构化输出 (`seekflow.structured`)
 
 - 封装 `response_format={"type": "json_object"}`
 - Type hints 集成：`def extract() -> MyModel` 自动生成 JSON Schema
@@ -182,17 +182,17 @@ DeepSeekToolkit 已经建立了显著的技术护城河：JSON Repair 管道、T
 
 ### 5.4 P3 模块
 
-#### 5.4.1 并行工具调用 (`deepseek_toolkit.tools.executor`)
+#### 5.4.1 并行工具调用 (`seekflow.tools.executor`)
 
 - 当 LLM 返回多个 `tool_calls` 时，异步并行执行
 - 可配置最大并行数
 
-#### 5.4.2 Token 计数 (`deepseek_toolkit.token_counter`)
+#### 5.4.2 Token 计数 (`seekflow.token_counter`)
 
 - 使用 `tiktoken` 库进行精确计数
 - 接口：`count_tokens(messages, model) -> int`
 
-#### 5.4.3 多 Provider 降级 (`deepseek_toolkit.fallback`)
+#### 5.4.3 多 Provider 降级 (`seekflow.fallback`)
 
 - `FallbackChain`: 有序 provider 列表，遇错自动切换到下一个
 - 健康检查：定期探测 provider 可用性

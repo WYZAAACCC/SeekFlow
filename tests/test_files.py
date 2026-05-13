@@ -1,11 +1,11 @@
-"""Tests for deepseek_toolkit.files — file attachment and text extraction."""
+"""Tests for seekflow.files — file attachment and text extraction."""
 import base64
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from deepseek_toolkit.files import (
+from seekflow.files import (
     FileAttachment,
     embed_files_into_message,
     read_file_as_text,

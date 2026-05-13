@@ -1,6 +1,6 @@
 """Tests for MCPServerConfig."""
 
-from deepseek_toolkit.mcp.config import MCPServerConfig
+from seekflow.mcp.config import MCPServerConfig
 
 
 class TestMCPServerConfig:

@@ -1,6 +1,6 @@
-"""Tests for deepseek_toolkit.cost — cost tracking."""
+"""Tests for seekflow.cost — cost tracking."""
 import pytest
-from deepseek_toolkit.cost import CostTracker, PRICING
+from seekflow.cost import CostTracker, PRICING
 
 
 class TestPricingTable:

@@ -1,4 +1,4 @@
-"""Real-world production tests for DTK v3 Agent Framework.
+"""Real-world production tests for SeekFlow v3 Agent Framework.
 
 Tests cover:
   1. Single Agent + tools + thinking mode (financial analysis)
@@ -7,7 +7,7 @@ Tests cover:
   4. Hierarchical Crew (Manager → Workers)
   5. Checkpoint/Resume (interrupt recovery)
   6. Document Protocol (LangChain bridge)
-  7. Cross-framework comparison (DTK vs minimal LangChain vs minimal CrewAI)
+  7. Cross-framework comparison (SeekFlow vs minimal LangChain vs minimal CrewAI)
 
 Each test verifies: output quality, cost tracking, tool call count, latency.
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DATA_DIR = Path(__file__).parent.parent / "benchmarks" / "agents_comparison" / "data"
+DATA_DIR = Path(__file__).parent.parent / "_archive" / "benchmarks" / "agents_comparison" / "data"
 OUTPUT_DIR = Path(__file__).parent.parent / "output" / "v3_production_tests"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -35,7 +35,7 @@ class TestScenario1_FinancialAgent:
 
     def test_financial_analysis_with_thinking(self):
         """Analyze ByteDance 2025 financials — thinking mode ON."""
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="资深财务分析师",
@@ -96,9 +96,9 @@ class TestScenario2_SequentialCrew:
     """Multi-Agent pipeline: researcher → analyst → writer."""
 
     def test_research_analyze_write_pipeline(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew
 
         researcher = DeepSeekAgent(
             role="行业研究员",
@@ -174,9 +174,9 @@ class TestScenario3_ParallelCrew:
     """Three analysts work simultaneously on different dimensions."""
 
     def test_parallel_multi_dimension_analysis(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
 
         # Three independent analysts
         analyst_args = dict(
@@ -234,9 +234,9 @@ class TestScenario4_HierarchicalCrew:
     """Manager decomposes task and delegates to specialists."""
 
     def test_manager_delegates_to_specialists(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew, Process
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
 
         manager = DeepSeekAgent(
             role="项目总监",
@@ -318,7 +318,7 @@ class TestScenario5_Checkpoint:
     """Checkpoint save and resume after simulated failure."""
 
     def test_checkpoint_save_and_verify(self):
-        from deepseek_toolkit.agent.checkpoint import (
+        from seekflow.agent.checkpoint import (
             AgentCheckpoint, InMemoryStore, SqliteStore,
         )
 
@@ -371,13 +371,13 @@ class TestScenario5_Checkpoint:
 # ══════════════════════════════════════════════════════════════════════
 
 class TestScenario6_DocumentProtocol:
-    """Bridge LangChain ecosystem documents into DTK Agent."""
+    """Bridge LangChain ecosystem documents into SeekFlow Agent."""
 
     def test_langchain_document_to_dtk_agent(self):
-        from deepseek_toolkit.compat.documents import (
+        from seekflow.compat.documents import (
             DocumentLike, to_agent_text, validate_document,
         )
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         # Simulate LangChain Document
         class LangChainDocument:
@@ -426,11 +426,11 @@ class TestScenario6_DocumentProtocol:
 
 
 # ══════════════════════════════════════════════════════════════════════
-# Scenario 7: Comparison — DTK vs minimal LangChain vs minimal CrewAI
+# Scenario 7: Comparison — SeekFlow vs minimal LangChain vs minimal CrewAI
 # ══════════════════════════════════════════════════════════════════════
 
 class TestScenario7_CrossFrameworkComparison:
-    """Same task across DTK, LangChain, CrewAI — compare cost + quality."""
+    """Same task across SeekFlow, LangChain, CrewAI — compare cost + quality."""
 
     COMPARISON_TASK = (
         "从投资人角度分析：AI客服取代人工客服对以下三家公司的影响——"
@@ -439,7 +439,7 @@ class TestScenario7_CrossFrameworkComparison:
     )
 
     def test_dtk_agent_on_comparison_task(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="投资分析师",
@@ -454,7 +454,7 @@ class TestScenario7_CrossFrameworkComparison:
         elapsed = time.time() - start
 
         dtk_metrics = {
-            "framework": "DTK",
+            "framework": "SeekFlow",
             "latency_s": round(elapsed, 1),
             "cost_cny": result.cost,
             "tokens": result.tokens.get("total_tokens", 0),
@@ -467,7 +467,7 @@ class TestScenario7_CrossFrameworkComparison:
         assert dtk_metrics["output_length"] > 100
         assert dtk_metrics["cost_cny"] > 0
 
-        print(f"\n[Scenario 7a] DTK Comparison Task:")
+        print(f"\n[Scenario 7a] SeekFlow Comparison Task:")
         for k, v in dtk_metrics.items():
             print(f"  {k}: {v}")
 

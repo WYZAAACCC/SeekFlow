@@ -103,5 +103,5 @@ Batch API 目前**不支持在 batch 内部的 tool calling 循环**。因此：
 
 - Batch API 的 50% 折扣意味着每个 benchmark 运行的 API 成本从 ~$2 降到 ~$1——对高频 benchmark 场景有实际价值
 - JSONL 构建使用 `json.dumps(..., ensure_ascii=False)` 以支持中文
-- 建议 `chat_batch()` 在 CLI 中暴露为 `dstk eval run --batch` 选项
+- 建议 `chat_batch()` 在 CLI 中暴露为 `seekflow eval run --batch` 选项
 - 轮询间隔默认 30 秒，最小不应低于 10 秒（避免触发 DeepSeek 的请求频率限制）

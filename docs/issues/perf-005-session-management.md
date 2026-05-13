@@ -15,7 +15,7 @@
 3. 上下文使用率达 95% 时发出 UserWarning + 强制压缩
 4. Agent 增加 `fork_session(from_turn: int) -> str`：从指定轮次分叉新会话
 5. Agent 增加 `rollback(to_turn: int)`：回滚到指定轮次
-6. session 自动保存到 `~/.deepseek_toolkit/sessions/`（JSONL 格式）
+6. session 自动保存到 `~/.seekflow/sessions/`（JSONL 格式）
 7. Agent 增加 `list_sessions()` 和 `load_session(session_id)`
 
 ## 验收标准

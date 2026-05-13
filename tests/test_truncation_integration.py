@@ -3,11 +3,11 @@ import json
 
 import pytest
 
-from deepseek_toolkit.tools.decorator import tool
-from deepseek_toolkit.tools.executor import ToolExecutor
-from deepseek_toolkit.tools.registry import ToolRegistry
-from deepseek_toolkit.truncation import TruncationStrategy, truncate_result
-from deepseek_toolkit.types import ToolCall
+from seekflow.tools.decorator import tool
+from seekflow.tools.executor import ToolExecutor
+from seekflow.tools.registry import ToolRegistry
+from seekflow.truncation import TruncationStrategy, truncate_result
+from seekflow.types import ToolCall
 
 
 class TestToolDecoratorKeepFields:

@@ -25,7 +25,7 @@ DeepSeek V4 的定价模型：
 
 ## 任务
 
-1. 新建 `deepseek_toolkit/cost.py`
+1. 新建 `seekflow/cost.py`
 2. 实现定价表 `PRICING`：
    ```python
    PRICING = {
@@ -60,4 +60,4 @@ DeepSeek V4 的定价模型：
 - 测试回调触发
 - 测试 reset 行为
 - 测试大数值精度（避免浮点误差）
-- 参考现有 usage 处理：[src/deepseek_toolkit/types.py](../../src/deepseek_toolkit/types.py)
+- 参考现有 usage 处理：[src/seekflow/types.py](../../src/seekflow/types.py)

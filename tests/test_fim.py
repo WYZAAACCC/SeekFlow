@@ -1,10 +1,10 @@
-"""Tests for deepseek_toolkit.fim — FIM (Fill-in-the-Middle) completions."""
+"""Tests for seekflow.fim — FIM (Fill-in-the-Middle) completions."""
 import pytest
 
 
 class TestFIMResponse:
     def test_fim_response_holds_text_and_usage(self):
-        from deepseek_toolkit.fim import FIMResponse
+        from seekflow.fim import FIMResponse
         resp = FIMResponse(
             text="print('hello')",
             model="deepseek-v4-pro",
@@ -17,20 +17,20 @@ class TestFIMResponse:
         assert resp.usage["total_tokens"] == 15
 
     def test_fim_response_usage_is_none_by_default(self):
-        from deepseek_toolkit.fim import FIMResponse
+        from seekflow.fim import FIMResponse
         resp = FIMResponse(text="x", model="m", finish_reason="length")
         assert resp.usage is None
 
 
 class TestFIMChunk:
     def test_fim_chunk_holds_text_and_finish_reason(self):
-        from deepseek_toolkit.fim import FIMChunk
+        from seekflow.fim import FIMChunk
         chunk = FIMChunk(text="hello", finish_reason=None)
         assert chunk.text == "hello"
         assert chunk.finish_reason is None
 
     def test_fim_chunk_finish_reason_set_on_last(self):
-        from deepseek_toolkit.fim import FIMChunk
+        from seekflow.fim import FIMChunk
         chunk = FIMChunk(text="", finish_reason="stop")
         assert chunk.finish_reason == "stop"
 
@@ -38,7 +38,7 @@ class TestFIMChunk:
 class TestFIMComplete:
     def test_fim_complete_returns_response_with_text(self):
         from unittest.mock import patch, MagicMock
-        from deepseek_toolkit.fim import fim_complete, FIMResponse
+        from seekflow.fim import fim_complete, FIMResponse
 
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -52,7 +52,7 @@ class TestFIMComplete:
         mock_resp.usage.total_tokens = 15
         mock_client.completions.create.return_value = mock_resp
 
-        with patch("deepseek_toolkit.fim._make_fim_client", return_value=mock_client):
+        with patch("seekflow.fim._make_fim_client", return_value=mock_client):
             result = fim_complete(
                 prefix="def greet():\n    ",
                 suffix="\n\ngreet()",
@@ -64,14 +64,14 @@ class TestFIMComplete:
 
     def test_fim_complete_passes_max_tokens_and_temperature(self):
         from unittest.mock import patch, MagicMock
-        from deepseek_toolkit.fim import fim_complete
+        from seekflow.fim import fim_complete
 
         mock_client = MagicMock()
         mock_client.completions.create.return_value = MagicMock(
             choices=[MagicMock(text="ok", finish_reason="stop")],
             model="m", usage=None,
         )
-        with patch("deepseek_toolkit.fim._make_fim_client", return_value=mock_client):
+        with patch("seekflow.fim._make_fim_client", return_value=mock_client):
             fim_complete(
                 prefix="a", suffix="b", model="deepseek-v4-pro",
                 api_key="sk-test", max_tokens=100, temperature=0.5,
@@ -82,14 +82,14 @@ class TestFIMComplete:
 
     def test_fim_complete_with_stop_sequences(self):
         from unittest.mock import patch, MagicMock
-        from deepseek_toolkit.fim import fim_complete
+        from seekflow.fim import fim_complete
 
         mock_client = MagicMock()
         mock_client.completions.create.return_value = MagicMock(
             choices=[MagicMock(text="ok", finish_reason="stop")],
             model="m", usage=None,
         )
-        with patch("deepseek_toolkit.fim._make_fim_client", return_value=mock_client):
+        with patch("seekflow.fim._make_fim_client", return_value=mock_client):
             fim_complete(
                 prefix="a", suffix="b", model="deepseek-v4-pro",
                 api_key="sk-test", stop=["\n\n"],
@@ -101,7 +101,7 @@ class TestFIMComplete:
 class TestFIMCompleteStream:
     def test_fim_complete_stream_yields_chunks(self):
         from unittest.mock import patch, MagicMock
-        from deepseek_toolkit.fim import fim_complete_stream, FIMChunk
+        from seekflow.fim import fim_complete_stream, FIMChunk
 
         mock_client = MagicMock()
         events = []
@@ -115,7 +115,7 @@ class TestFIMCompleteStream:
 
         mock_client.completions.create.return_value = iter(events)
 
-        with patch("deepseek_toolkit.fim._make_fim_client", return_value=mock_client):
+        with patch("seekflow.fim._make_fim_client", return_value=mock_client):
             chunks = list(fim_complete_stream(
                 prefix="def f():", suffix="",
                 model="deepseek-v4-pro", api_key="sk-test",

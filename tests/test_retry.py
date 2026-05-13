@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from deepseek_toolkit.retry import (
+from seekflow.retry import (
     RETRYABLE_HTTP_CODES,
     RATE_LIMIT_HTTP_CODES,
     NON_RETRYABLE_HTTP_CODES,

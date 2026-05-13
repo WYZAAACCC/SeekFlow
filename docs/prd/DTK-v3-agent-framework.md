@@ -3,7 +3,7 @@
 **版本**: 1.0
 **日期**: 2026-05-10
 **状态**: 待评审
-**作者**: DeepSeekToolkit Team
+**作者**: SeekFlow Team
 
 ---
 
@@ -128,7 +128,7 @@ DTK v2 已拥有完整的 DeepSeek 运行时（5K行）。在基础上增加 ~7K
 ### 5.1 模块架构
 
 ```
-deepseek_toolkit/                  # 现有 v2 核心（保持不变）
+seekflow/                  # 现有 v2 核心（保持不变）
 ├── client.py                      # DeepSeekClient (已有)
 ├── runtime.py                     # ToolRuntime (已有)
 ├── types.py                       # ChatResponse, StreamChunk 等 (已有)
@@ -142,20 +142,20 @@ deepseek_toolkit/                  # 现有 v2 核心（保持不变）
 ├── retry.py                       # 重试/熔断 (已有)
 └── async_runtime.py               # 异步运行时 (已有)
 
-deepseek_toolkit/agent/            # v3 新增 — Agent 编排层
+seekflow/agent/            # v3 新增 — Agent 编排层
 ├── agent.py                       # Agent 定义 (role/goal/backstory + Agent.run())
 ├── task.py                        # Task 定义 (description + expected_output + context)
 ├── crew.py                        # Crew 编排 (sequential/parallel/hierarchical)
 ├── orchestration.py               # 编排引擎 (顺序/并行/层级调度)
 ├── checkpoint.py                  # Checkpoint/Resume (借鉴 LangGraph 思路，精简实现)
 
-deepseek_toolkit/compat/           # v3 新增 — 生态兼容桥接层
+seekflow/compat/           # v3 新增 — 生态兼容桥接层
 ├── documents.py                   # 接受 langchain Document 或任意 dict
 ├── embeddings.py                  # 接受任意 embedding 函数 (callable 接口)
 ├── vector_stores.py               # 接受任意 vector store (put/get/search 接口)
 ├── mcp.py                         # MCP 协议 client (已有 v2 基础)
 
-deepseek_toolkit/presets/          # v3 新增 — 预设 Agent 模板
+seekflow/presets/          # v3 新增 — 预设 Agent 模板
 ├── analyst.py                     # 数据分析 Agent
 ├── researcher.py                  # 调研 Agent
 ├── coder.py                       # 代码 Agent
@@ -166,7 +166,7 @@ deepseek_toolkit/presets/          # v3 新增 — 预设 Agent 模板
 
 ```python
 # 3 行代码启动
-from deepseek_toolkit import DeepSeekAgent
+from seekflow import DeepSeekAgent
 
 agent = DeepSeekAgent(
     role="财务分析师",
@@ -179,7 +179,7 @@ result = agent.run(files=["financial_report.json"])
 ### 5.3 Task Pipeline
 
 ```python
-from deepseek_toolkit import DeepSeekAgent, Task, Crew
+from seekflow import DeepSeekAgent, Task, Crew
 
 research = DeepSeekAgent(role="研究员", goal="搜索行业数据")
 analyst = DeepSeekAgent(role="分析师", goal="分析数据并写报告")
@@ -213,7 +213,7 @@ except Exception:
 ```python
 # 桥接 LangChain 生态，不依赖 langchain 运行时
 from langchain_community.document_loaders import PyPDFLoader
-from deepseek_toolkit import DeepSeekAgent
+from seekflow import DeepSeekAgent
 
 loader = PyPDFLoader("report.pdf")
 docs = loader.load()  # List[langchain.schema.Document]

@@ -26,7 +26,7 @@ DeepSeek API 虽然是主要 provider，但以下场景需要备选方案：
 
 ## 任务
 
-1. 新建 `deepseek_toolkit/fallback.py`
+1. 新建 `seekflow/fallback.py`
 2. 实现 `ProviderConfig` 数据类：
    - `name`, `base_url`, `api_key`, `models`（该 provider 支持的模型列表）
    - `priority`（数字越小越优先）
@@ -64,4 +64,4 @@ DeepSeek API 虽然是主要 provider，但以下场景需要备选方案：
 - 测试配置文件加载
 - 测试不同 provider 的 model 名称映射
 - 测试并发访问的线程安全
-- 参考现有重试逻辑：[src/deepseek_toolkit/retry.py](../../src/deepseek_toolkit/retry.py)
+- 参考现有重试逻辑：[src/seekflow/retry.py](../../src/seekflow/retry.py)

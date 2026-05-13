@@ -21,7 +21,7 @@
 
 ## 任务
 
-1. 新建 `deepseek_toolkit/async_runtime.py`
+1. 新建 `seekflow/async_runtime.py`
 2. 实现 `AsyncToolRuntime` — `ToolRuntime` 的 async 镜像：
    - `await chat_async(model, messages, tools=None, files=None, **kwargs) -> ToolRuntimeResult`
    - `async for event in chat_stream_async(...) -> AsyncIterator[StreamEvent]`

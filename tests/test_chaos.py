@@ -38,9 +38,9 @@ class TestDeepResearchPipeline:
     """Modeled after Hyperresearch: decompose→research→analyze→critique→synthesize."""
 
     def test_six_agent_research_pipeline(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.crew import Crew
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.crew import Crew
 
         topic = "2025年AI芯片市场"
 
@@ -120,8 +120,8 @@ class TestInterruptResume:
     """Interruption recovery: state must survive, no data loss."""
 
     def test_interrupt_during_multi_step_task(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.checkpoint import InMemoryStore
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.checkpoint import InMemoryStore
 
         store = InMemoryStore()
         tid = f"interrupt-test-{int(time.time())}"
@@ -170,7 +170,7 @@ class TestConcurrentFlood:
     """Extreme concurrency: 10 threads, 3 runs each, shared API key."""
 
     def test_concurrent_flood(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         NUM_THREADS = 8
         RUNS = 3
@@ -223,7 +223,7 @@ class TestToolFailureStorm:
     """Tools fail randomly at 50% rate. Agent must adapt and complete."""
 
     def test_tool_failure_storm(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         fail_count = [0]
         call_count = [0]
@@ -270,7 +270,7 @@ class TestMemoryChaos:
     """Memory under concurrent read/write stress."""
 
     def test_memory_chaos(self):
-        from deepseek_toolkit.agent.memory import AgentMemory
+        from seekflow.agent.memory import AgentMemory
         import random as _random
 
         mem = AgentMemory(long_term_max=200)
@@ -318,7 +318,7 @@ class TestContextExhaustion:
     """Fill context, trigger compression, verify continued function."""
 
     def test_context_exhaustion_and_recovery(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="档案管理员",

@@ -13,7 +13,7 @@ class TestDeepSeekAgentCreation:
     """Agent can be instantiated with three core fields."""
 
     def test_agent_creation_with_role_goal_backstory(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="财务分析师",
@@ -26,7 +26,7 @@ class TestDeepSeekAgentCreation:
         assert agent.backstory == "CPA持证人，10年经验"
 
     def test_agent_missing_role_raises_error(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
         import pytest
 
         with pytest.raises(TypeError):
@@ -34,7 +34,7 @@ class TestDeepSeekAgentCreation:
 
     def test_agent_api_key_from_env(self, monkeypatch):
         monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-env-test")
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师",
@@ -44,7 +44,7 @@ class TestDeepSeekAgentCreation:
         assert agent._api_key == "sk-env-test"
 
     def test_agent_default_values(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师",
@@ -62,7 +62,7 @@ class TestDeepSeekAgentRun:
     """Agent.run() executes tasks end-to-end."""
 
     def test_run_returns_agent_result_with_final_output(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -77,7 +77,7 @@ class TestDeepSeekAgentRun:
         assert "你好" in result.final_output or "测试" in result.final_output
 
     def test_run_returns_structured_agent_result(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -99,7 +99,7 @@ class TestDeepSeekAgentRun:
         assert isinstance(result.cost, float)
 
     def test_run_with_thinking_produces_reasoning_content(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -116,7 +116,7 @@ class TestDeepSeekAgentRun:
         assert len(result.reasoning_content) > 0
 
     def test_run_tracks_cost(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -139,7 +139,7 @@ class TestTaskDefinition:
     """Task is a Pydantic model with description and expected_output."""
 
     def test_task_creation(self):
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.task import Task
 
         task = Task(
             description="分析数据",
@@ -151,8 +151,8 @@ class TestTaskDefinition:
         assert task.context is None
 
     def test_task_with_agent_binding(self):
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师",
@@ -168,8 +168,8 @@ class TestTaskDefinition:
         assert task.agent is agent
 
     def test_task_run_executes_bound_agent(self):
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -190,8 +190,8 @@ class TestTaskDefinition:
         assert result.agent_result is not None
 
     def test_task_context_passing(self):
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -210,7 +210,7 @@ class TestTaskDefinition:
         assert len(result.output) > 0  # context was passed; output non-empty
 
     def test_task_without_agent_raises_on_run(self):
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.task import Task
 
         task = Task(
             description="分析数据",
@@ -228,7 +228,7 @@ class TestAgentTools:
     """Agent can register and use custom tools."""
 
     def test_add_single_tool(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -242,7 +242,7 @@ class TestAgentTools:
         assert len(agent.tools) == 1
 
     def test_add_multiple_tools(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -258,7 +258,7 @@ class TestAgentTools:
         assert len(agent.tools) == 2
 
     def test_duplicate_tool_warns(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -272,7 +272,7 @@ class TestAgentTools:
         assert len(agent.tools) == 1
 
     def test_agent_uses_registered_tool(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -292,7 +292,7 @@ class TestAgentTools:
         assert "2025" in result.final_output or "14:30" in result.final_output
 
     def test_tools_property_is_readonly(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -305,7 +305,7 @@ class TestAgentTools:
         assert len(agent.tools) == 1
 
     def test_with_default_tools_loads_builtins(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -314,7 +314,7 @@ class TestAgentTools:
         assert len(agent.tools) >= 3  # read_file, calculate, save_result
 
     def test_default_tools_are_callable_by_agent(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -334,7 +334,7 @@ class TestAgentTools:
         import pytest
         pytest.importorskip("asyncio")
         import asyncio
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -357,10 +357,10 @@ class TestAgentTools:
 class TestAgentFileInput:
     """Agent can process files passed via .run(files=[...])."""
 
-    DATA_DIR = "benchmarks/agents_comparison/data"
+    DATA_DIR = "_archive/benchmarks/agents_comparison/data"
 
     def test_run_with_csv_file(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="数据分析师",
@@ -379,7 +379,7 @@ class TestAgentFileInput:
         )
 
     def test_run_with_json_file(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师",
@@ -396,7 +396,7 @@ class TestAgentFileInput:
         assert "字节" in result.final_output or "ByteDance" in result.final_output
 
     def test_nonexistent_file_raises_error(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师",
@@ -416,8 +416,8 @@ class TestCrewSequential:
     """Crew executes Tasks in sequential order."""
 
     def test_crew_creation(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
 
         crew = Crew(
             tasks=[
@@ -430,16 +430,16 @@ class TestCrewSequential:
         assert crew.process == Process.SEQUENTIAL
 
     def test_crew_default_process_is_sequential(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
 
         crew = Crew(tasks=[Task(description="t1", expected_output="r1")])
         assert crew.process == Process.SEQUENTIAL
 
     def test_sequential_crew_executes_all_tasks(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -461,9 +461,9 @@ class TestCrewSequential:
         assert result.total_latency_ms > 0
 
     def test_sequential_crew_passes_context(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手",
@@ -490,9 +490,9 @@ class TestCrewSequential:
         assert "苹果" in result.outputs[1].output
 
     def test_task_failure_stops_sequential_crew(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         good_agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -519,9 +519,9 @@ class TestCrewParallel:
     """Crew executes independent Tasks in parallel."""
 
     def test_parallel_crew_executes_all_tasks(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -539,9 +539,9 @@ class TestCrewParallel:
         assert all("完成" in r.output for r in result.outputs)
 
     def test_parallel_one_failure_does_not_block_others(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -568,7 +568,7 @@ class TestDocumentProtocol:
     """Accept Documents via duck typing, not hard LangChain dependency."""
 
     def test_validate_langchain_document(self):
-        from deepseek_toolkit.compat.documents import validate_document
+        from seekflow.compat.documents import validate_document
 
         class LCDoc:
             page_content = "hello"
@@ -577,7 +577,7 @@ class TestDocumentProtocol:
         assert validate_document(LCDoc()) is True
 
     def test_validate_dict_as_document(self):
-        from deepseek_toolkit.compat.documents import to_agent_text
+        from seekflow.compat.documents import to_agent_text
 
         docs = [{"page_content": "hello", "metadata": {"source": "test"}}]
         text = to_agent_text(docs)
@@ -585,13 +585,13 @@ class TestDocumentProtocol:
         assert "test" in text
 
     def test_validate_str_as_document(self):
-        from deepseek_toolkit.compat.documents import to_agent_text
+        from seekflow.compat.documents import to_agent_text
 
         text = to_agent_text(["plain text"])
         assert "plain text" in text
 
     def test_invalid_type_raises(self):
-        from deepseek_toolkit.compat.documents import to_agent_text
+        from seekflow.compat.documents import to_agent_text
 
         import pytest
         with pytest.raises(TypeError, match="Unsupported document type"):
@@ -606,7 +606,7 @@ class TestCheckpointStore:
     """Checkpoint save/load/delete/list works."""
 
     def test_inmemory_save_and_load(self):
-        from deepseek_toolkit.agent.checkpoint import (
+        from seekflow.agent.checkpoint import (
             AgentCheckpoint, InMemoryStore,
         )
 
@@ -622,13 +622,13 @@ class TestCheckpointStore:
         assert loaded.messages[0]["content"] == "hi"
 
     def test_inmemory_load_missing_returns_none(self):
-        from deepseek_toolkit.agent.checkpoint import InMemoryStore
+        from seekflow.agent.checkpoint import InMemoryStore
 
         store = InMemoryStore()
         assert store.load("nonexistent") is None
 
     def test_inmemory_list_sorted_by_timestamp(self):
-        from deepseek_toolkit.agent.checkpoint import (
+        from seekflow.agent.checkpoint import (
             AgentCheckpoint, InMemoryStore,
         )
 
@@ -639,7 +639,7 @@ class TestCheckpointStore:
         assert results[0].thread_id == "b"  # newest first
 
     def test_sqlite_save_and_load(self, tmp_path):
-        from deepseek_toolkit.agent.checkpoint import (
+        from seekflow.agent.checkpoint import (
             AgentCheckpoint, SqliteStore,
         )
 
@@ -654,7 +654,7 @@ class TestCheckpointStore:
         assert loaded.step == 5
 
     def test_sqlite_delete(self, tmp_path):
-        from deepseek_toolkit.agent.checkpoint import (
+        from seekflow.agent.checkpoint import (
             AgentCheckpoint, SqliteStore,
         )
 
@@ -673,9 +673,9 @@ class TestCrewLifecycle:
     """CrewContext and progress callback."""
 
     def test_crew_progress_callback_is_called(self):
-        from deepseek_toolkit.agent.crew import Crew, CrewProgress
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew, CrewProgress
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -697,9 +697,9 @@ class TestCrewLifecycle:
         assert len(progress_calls) >= 2  # at least start + end for each task
 
     def test_crew_result_summary(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -724,9 +724,9 @@ class TestCrewHierarchical:
     """Manager Agent decomposes and delegates to Worker Agents."""
 
     def test_hierarchical_crew_has_manager_and_workers(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         manager = DeepSeekAgent(
             role="项目经理",
@@ -752,8 +752,8 @@ class TestCrewHierarchical:
         assert crew.process == Process.HIERARCHICAL
 
     def test_hierarchical_without_manager_raises(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
 
         with pytest.raises(ValueError, match="manager_agent"):
             Crew(
@@ -762,9 +762,9 @@ class TestCrewHierarchical:
             ).kickoff()
 
     def test_delegate_tool_dispatches_to_worker(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         worker = DeepSeekAgent(
             role="数据分析师",
@@ -803,7 +803,7 @@ class TestMCPIntegration:
     """Agent can register MCP server configs."""
 
     def test_add_mcp_server_stores_config(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -813,7 +813,7 @@ class TestMCPIntegration:
         assert agent._mcp_servers[0].name == "my-server"
 
     def test_add_mcp_server_without_args(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -830,10 +830,10 @@ class TestCrewCheckpointResume:
     """Crew can save/restore state and resume from interrupt."""
 
     def test_crew_saves_checkpoint_per_task(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.checkpoint import InMemoryStore
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.checkpoint import InMemoryStore
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -854,10 +854,10 @@ class TestCrewCheckpointResume:
         assert result.thread_id is not None
 
     def test_crew_resume_from_checkpoint(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.checkpoint import InMemoryStore
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.checkpoint import InMemoryStore
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -887,7 +887,7 @@ class TestAgentStream:
     """Agent.stream() yields StreamEvents in real time."""
 
     def test_stream_yields_content_and_done(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -902,7 +902,7 @@ class TestAgentStream:
         assert "done" in types
 
     def test_stream_with_thinking_yields_reasoning(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="擅长逻辑推理",
@@ -914,7 +914,7 @@ class TestAgentStream:
         assert "reasoning" in types, f"Expected reasoning events, got types: {types}"
 
     def test_stream_with_tools(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         def get_time() -> str:
             """Return current time."""
@@ -931,7 +931,7 @@ class TestAgentStream:
         assert "tool_call_start" in types or "tool_call_result" in types
 
     def test_stream_done_event_has_usage(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -952,7 +952,7 @@ class TestAgentStructuredOutput:
     """Agent can constrain output format."""
 
     def test_response_format_json_object(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="返回JSON", backstory="总是返回JSON",
@@ -966,7 +966,7 @@ class TestAgentStructuredOutput:
         assert "{" in result.final_output or "name" in result.final_output
 
     def test_response_format_default_is_none(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -983,7 +983,7 @@ class TestAgent1MContext:
     """Agent uses 1M context window by default."""
 
     def test_default_max_context_is_900k(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -994,7 +994,7 @@ class TestAgent1MContext:
         )
 
     def test_custom_max_context(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -1012,7 +1012,7 @@ class TestAgentVectorStore:
     """Vector store + embedding wiring works."""
 
     def test_use_embedding_stores_function(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -1025,7 +1025,7 @@ class TestAgentVectorStore:
         assert agent._embedding_fn is not None
 
     def test_vector_store_retrieval_injects_into_messages(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         class FakeStore:
             def search(self, query, top_k=5):
@@ -1047,7 +1047,7 @@ class TestTokenAccuracy:
     """Token counting uses tiktoken when available, not char/4 fallback."""
 
     def test_count_tokens_uses_tiktoken_for_messages(self):
-        from deepseek_toolkit.token_counter import count_tokens
+        from seekflow.token_counter import count_tokens
 
         tokens = count_tokens([
             {"role": "user", "content": "你好世界"}
@@ -1056,7 +1056,7 @@ class TestTokenAccuracy:
         assert 2 < tokens < 20, f"Expected 2-20 tokens, got {tokens}"
 
     def test_count_tokens_includes_reasoning_content(self):
-        from deepseek_toolkit.token_counter import count_tokens
+        from seekflow.token_counter import count_tokens
 
         tokens = count_tokens([
             {"role": "assistant", "content": "ok", "reasoning_content": "let me think about this carefully"}
@@ -1067,7 +1067,7 @@ class TestTokenAccuracy:
         assert tokens > tokens_no_reasoning, "reasoning_content should add tokens"
 
     def test_context_compressor_uses_token_counter(self):
-        from deepseek_toolkit.compat.compressor import ContextCompressor
+        from seekflow.compat.compressor import ContextCompressor
 
         cc = ContextCompressor(max_tokens=100, keep_last=2)
         msgs = [
@@ -1085,7 +1085,7 @@ class TestA2AProtocol:
     """A2A bridge: register agents, discover, send tasks."""
 
     def test_agent_card_creation(self):
-        from deepseek_toolkit.compat.a2a import AgentCard
+        from seekflow.compat.a2a import AgentCard
 
         card = AgentCard(
             name="analyst",
@@ -1096,8 +1096,8 @@ class TestA2AProtocol:
         assert "analysis" in card.capabilities
 
     def test_bridge_register_and_discover(self):
-        from deepseek_toolkit.compat.a2a import AgentCard, A2ABridge
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.compat.a2a import AgentCard, A2ABridge
+        from seekflow.agent.agent import DeepSeekAgent
 
         bridge = A2ABridge()
         agent = DeepSeekAgent(
@@ -1109,7 +1109,7 @@ class TestA2AProtocol:
         assert len(cards) == 1
 
     def test_bridge_send_task_to_unknown_agent(self):
-        from deepseek_toolkit.compat.a2a import A2ABridge
+        from seekflow.compat.a2a import A2ABridge
 
         bridge = A2ABridge()
         task = bridge.send_task("nonexistent", "do something")
@@ -1125,7 +1125,7 @@ class TestConditionalRouting:
     """Tasks can be conditionally skipped, looped, or branched."""
 
     def test_task_with_skip_condition(self):
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.task import Task
 
         task = Task(
             description="should skip",
@@ -1135,7 +1135,7 @@ class TestConditionalRouting:
         assert task.should_skip({}) is True
 
     def test_task_with_loop_condition(self):
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.task import Task
 
         count = [0]
 
@@ -1155,9 +1155,9 @@ class TestConditionalRouting:
         assert task.should_loop({}) is False  # count[0] now 3
 
     def test_sequential_crew_skips_conditionally(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用",
@@ -1188,7 +1188,7 @@ class TestAgentMemory:
     """AgentMemory: short-term + long-term, zero external deps."""
 
     def test_short_term_memory_stores_interactions(self):
-        from deepseek_toolkit.agent.memory import AgentMemory
+        from seekflow.agent.memory import AgentMemory
 
         mem = AgentMemory(short_term_size=5)
         mem.add_interaction("user", "hello")
@@ -1196,7 +1196,7 @@ class TestAgentMemory:
         assert len(mem.recent()) == 2
 
     def test_long_term_recall_finds_relevant(self):
-        from deepseek_toolkit.agent.memory import AgentMemory
+        from seekflow.agent.memory import AgentMemory
 
         mem = AgentMemory()
         mem.remember("用户喜欢简短的回答", importance=0.9)
@@ -1207,7 +1207,7 @@ class TestAgentMemory:
         assert any("Python" in r for r in results)
 
     def test_memory_forgets_by_content(self):
-        from deepseek_toolkit.agent.memory import AgentMemory
+        from seekflow.agent.memory import AgentMemory
 
         mem = AgentMemory()
         mem.remember("temporary fact")
@@ -1215,7 +1215,7 @@ class TestAgentMemory:
         assert mem.forget("nonexistent") is False
 
     def test_agent_enable_memory(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="助手", goal="帮助", backstory="通用", api_key="sk-test",
@@ -1233,7 +1233,7 @@ class TestAgentMCP:
     """MCP server configs are properly wired to runtime."""
 
     def test_mcp_server_creates_valid_config(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -1246,7 +1246,7 @@ class TestAgentMCP:
         assert cfg.transport == "stdio"
 
     def test_mcp_servers_passed_to_runtime(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -1260,7 +1260,7 @@ class TestAgentDocuments:
     """add_documents injects content into Agent context."""
 
     def test_add_documents_sets_internal_state(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -1269,7 +1269,7 @@ class TestAgentDocuments:
         assert "test content" in agent._documents_text
 
     def test_add_documents_includes_in_messages(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
@@ -1283,20 +1283,20 @@ class TestAgentPresets:
     """Preset templates produce valid Agents."""
 
     def test_analyst_preset(self):
-        from deepseek_toolkit.agent.presets import analyst
+        from seekflow.agent.presets import analyst
 
         agent = analyst(api_key="sk-test")
         assert agent.role == "数据分析师"
         assert agent._thinking is True
 
     def test_coder_preset(self):
-        from deepseek_toolkit.agent.presets import coder
+        from seekflow.agent.presets import coder
 
         agent = coder(api_key="sk-test")
         assert agent.role == "软件工程师"
 
     def test_researcher_preset(self):
-        from deepseek_toolkit.agent.presets import researcher
+        from seekflow.agent.presets import researcher
 
         agent = researcher(api_key="sk-test")
         assert agent.role == "研究员"

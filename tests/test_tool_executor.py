@@ -1,8 +1,8 @@
 """Tests for ToolExecutor."""
 import pytest
-from deepseek_toolkit.tools import tool, ToolRegistry
-from deepseek_toolkit.tools.executor import ToolExecutor
-from deepseek_toolkit.types import ToolCall
+from seekflow.tools import tool, ToolRegistry
+from seekflow.tools.executor import ToolExecutor
+from seekflow.types import ToolCall
 
 
 class TestToolExecutor:

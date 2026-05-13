@@ -34,7 +34,7 @@
 
 - [ ] 12 个 agent 全部运行成功，无报错
 - [ ] DTK 的 4 个 agent cost 全部 > 0
-- [ ] `output/runtime_dumps/DeepSeekToolkit/` 下有 4 个子目录，每个含 3 个 JSON
+- [ ] `output/runtime_dumps/SeekFlow/` 下有 4 个子目录，每个含 3 个 JSON
 - [ ] `runtime_comparison.json` 中 `total_runs` 为 12
 - [ ] `comparison_report.md` 生成成功，包含完整的 3 框架 × 4 agent 对比
 - [ ] `thinking_mode` 相关测试通过（显式传 enabled/disabled 均正常）

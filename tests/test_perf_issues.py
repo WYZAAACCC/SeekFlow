@@ -11,7 +11,7 @@ class TestEventBus:
     """EventBus: publish-subscribe for Agent lifecycle events."""
 
     def test_subscribe_and_emit(self):
-        from deepseek_toolkit.agent.events import EventBus, Event
+        from seekflow.agent.events import EventBus, Event
 
         bus = EventBus()
         received = []
@@ -25,7 +25,7 @@ class TestEventBus:
         assert received[0].data["key"] == "value"
 
     def test_unsubscribe(self):
-        from deepseek_toolkit.agent.events import EventBus, Event
+        from seekflow.agent.events import EventBus, Event
 
         bus = EventBus()
         received = []
@@ -39,7 +39,7 @@ class TestEventBus:
         assert len(received) == 0
 
     def test_multiple_handlers_same_event(self):
-        from deepseek_toolkit.agent.events import EventBus, Event
+        from seekflow.agent.events import EventBus, Event
 
         bus = EventBus()
         results = set()
@@ -53,7 +53,7 @@ class TestEventBus:
         assert results == {"a", "b"}
 
     def test_handler_exception_does_not_block_others(self):
-        from deepseek_toolkit.agent.events import EventBus, Event
+        from seekflow.agent.events import EventBus, Event
 
         bus = EventBus()
         ok = []
@@ -70,7 +70,7 @@ class TestEventBus:
         assert ok == ["ok"]  # good handler still called
 
     def test_wildcard_subscription(self):
-        from deepseek_toolkit.agent.events import EventBus, Event
+        from seekflow.agent.events import EventBus, Event
 
         bus = EventBus()
         received = []
@@ -85,7 +85,7 @@ class TestEventBus:
         assert "tool.end" in received
 
     def test_global_bus_singleton(self):
-        from deepseek_toolkit.agent.events import get_event_bus
+        from seekflow.agent.events import get_event_bus
 
         bus1 = get_event_bus()
         bus2 = get_event_bus()
@@ -100,7 +100,7 @@ class TestStateGraph:
     """StateGraph: state channels, conditional edges, interrupt/resume."""
 
     def test_simple_linear_graph(self):
-        from deepseek_toolkit.agent.stategraph import StateGraph
+        from seekflow.agent.stategraph import StateGraph
 
         class TestState(dict):
             pass
@@ -117,7 +117,7 @@ class TestStateGraph:
         assert result["b"] == 2
 
     def test_channel_with_append_reducer(self):
-        from deepseek_toolkit.agent.stategraph import StateGraph
+        from seekflow.agent.stategraph import StateGraph
 
         class TestState(dict):
             pass
@@ -134,7 +134,7 @@ class TestStateGraph:
         assert result["items"] == ["a", "b"]
 
     def test_conditional_edge_routes_correctly(self):
-        from deepseek_toolkit.agent.stategraph import StateGraph
+        from seekflow.agent.stategraph import StateGraph
 
         class TestState(dict):
             pass
@@ -157,7 +157,7 @@ class TestStateGraph:
         assert result["path"] == "high"
 
     def test_interrupt_and_resume(self):
-        from deepseek_toolkit.agent.stategraph import StateGraph, Interrupt, Command
+        from seekflow.agent.stategraph import StateGraph, Interrupt, Command
 
         class TestState(dict):
             pass
@@ -189,7 +189,7 @@ class TestSessionManagement:
     """Session: auto-compress, fork, rollback, persist."""
 
     def test_agent_has_session_methods(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="test", goal="test", backstory="test", api_key="sk-test",
@@ -201,7 +201,7 @@ class TestSessionManagement:
         assert callable(agent.rollback)
 
     def test_rollback_restores_previous_state(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="test", goal="test", backstory="test",
@@ -225,7 +225,7 @@ class TestBuiltinTools:
     """Builtin tools library with 20+ tools."""
 
     def test_with_default_tools_has_20_tools(self):
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
+        from seekflow.agent.agent import DeepSeekAgent
 
         agent = DeepSeekAgent(
             role="test", goal="test", backstory="test", api_key="sk-test",
@@ -234,7 +234,7 @@ class TestBuiltinTools:
         assert len(agent.tools) >= 10, f"Expected >=10 tools, got {len(agent.tools)}"
 
     def test_builtin_tools_are_callable(self):
-        from deepseek_toolkit.agent.builtins import fetch_url, run_python, parse_csv_str
+        from seekflow.agent.builtins import fetch_url, run_python, parse_csv_str
 
         csv_result = parse_csv_str("name,age\nAlice,30\nBob,25")
         assert "Alice" in csv_result
@@ -249,7 +249,7 @@ class TestMemoryUpgrade:
     """Memory with optional TF-IDF support."""
 
     def test_memory_recall_still_works(self):
-        from deepseek_toolkit.agent.memory import AgentMemory
+        from seekflow.agent.memory import AgentMemory
 
         mem = AgentMemory()
         mem.remember("用户是Python开发者", importance=1.0)
@@ -258,7 +258,7 @@ class TestMemoryUpgrade:
         assert any("Python" in r for r in results)
 
     def test_memory_consolidation_merges_similar(self):
-        from deepseek_toolkit.agent.memory import AgentMemory
+        from seekflow.agent.memory import AgentMemory
 
         mem = AgentMemory()
         mem.remember("API key is sk-abc123", importance=0.9)
@@ -275,8 +275,8 @@ class TestCrewGraphMode:
     """Crew can switch to StateGraph-based orchestration."""
 
     def test_crew_graph_mode_property(self):
-        from deepseek_toolkit.agent.crew import Crew, Process
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.crew import Crew, Process
+        from seekflow.agent.task import Task
 
         crew = Crew(
             tasks=[Task(description="test", expected_output="ok")],
@@ -285,8 +285,8 @@ class TestCrewGraphMode:
         assert crew.graph_mode is True
 
     def test_crew_graph_mode_default_is_false(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
 
         crew = Crew(tasks=[Task(description="test", expected_output="ok")])
         assert crew.graph_mode is False
@@ -296,10 +296,10 @@ class TestCrewEventBus:
     """Crew.kickoff() emits events via EventBus."""
 
     def test_crew_emits_events_during_kickoff(self):
-        from deepseek_toolkit.agent.crew import Crew
-        from deepseek_toolkit.agent.task import Task
-        from deepseek_toolkit.agent.agent import DeepSeekAgent
-        from deepseek_toolkit.agent.events import get_event_bus
+        from seekflow.agent.crew import Crew
+        from seekflow.agent.task import Task
+        from seekflow.agent.agent import DeepSeekAgent
+        from seekflow.agent.events import get_event_bus
 
         events = []
         get_event_bus().subscribe("*", lambda e: events.append(e.type))

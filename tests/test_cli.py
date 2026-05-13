@@ -1,9 +1,9 @@
-"""Tests for deepseek_toolkit.cli."""
+"""Tests for seekflow.cli."""
 from unittest import mock
 
 from typer.testing import CliRunner
 
-from deepseek_toolkit.cli import app
+from seekflow.cli import app
 
 runner = CliRunner()
 
@@ -11,7 +11,7 @@ runner = CliRunner()
 def test_cli_help():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "DeepSeek Toolkit" in result.stdout or "deepseek" in result.stdout.lower()
+    assert "SeekFlow" in result.stdout or "deepseek" in result.stdout.lower()
 
 
 def test_cli_no_args_shows_help():
@@ -51,7 +51,7 @@ def test_trace_view_help():
 
 
 class TestEvalRunBatch:
-    """Tests for dstk eval run --batch."""
+    """Tests for seekflow eval run --batch."""
 
     def test_non_batch_mode_calls_chat(self):
         """Without --batch, runtime.chat() is used per case (unchanged behavior)."""
@@ -70,7 +70,7 @@ class TestEvalRunBatch:
             bench_path = Path(tmpdir) / "test.yaml"
             bench_path.write_text(yaml_content)
 
-            with mock.patch("deepseek_toolkit.runtime.ToolRuntime") as MockRuntime:
+            with mock.patch("seekflow.runtime.ToolRuntime") as MockRuntime:
                 mock_rt = mock.MagicMock()
                 mock_rt.chat.return_value = mock.MagicMock(
                     final="hello back",
@@ -113,7 +113,7 @@ class TestEvalRunBatch:
             bench_path = Path(tmpdir) / "test.yaml"
             bench_path.write_text(yaml_content)
 
-            with mock.patch("deepseek_toolkit.runtime.ToolRuntime") as MockRuntime:
+            with mock.patch("seekflow.runtime.ToolRuntime") as MockRuntime:
                 mock_rt = mock.MagicMock()
                 mock_rt.chat_batch.return_value = [
                     mock.MagicMock(
@@ -166,7 +166,7 @@ class TestEvalRunBatch:
             bench_path = Path(tmpdir) / "test.yaml"
             bench_path.write_text(yaml_content)
 
-            with mock.patch("deepseek_toolkit.runtime.ToolRuntime") as MockRuntime:
+            with mock.patch("seekflow.runtime.ToolRuntime") as MockRuntime:
                 mock_rt = mock.MagicMock()
                 mock_rt.chat_batch.return_value = [
                     mock.MagicMock(

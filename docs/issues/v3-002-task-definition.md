@@ -15,7 +15,7 @@ CrewAI 的 Task 设计已被验证：`description` 告诉 Agent 做什么，`exp
 
 ## 任务
 
-1. 创建 `deepseek_toolkit/agent/task.py`，实现 `Task` 类（Pydantic BaseModel）
+1. 创建 `seekflow/agent/task.py`，实现 `Task` 类（Pydantic BaseModel）
 2. 字段：
    - `description: str` — 任务描述（必填）
    - `expected_output: str` — 期望输出格式描述（必填）

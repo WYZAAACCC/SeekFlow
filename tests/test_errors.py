@@ -1,7 +1,7 @@
-"""Tests for deepseek_toolkit.errors — verify error hierarchy."""
+"""Tests for seekflow.errors — verify error hierarchy."""
 import pytest
-from deepseek_toolkit.errors import (
-    DeepSeekToolkitError,
+from seekflow.errors import (
+    SeekFlowError,
     ToolSchemaError,
     StrictSchemaError,
     ToolNotFoundError,
@@ -21,39 +21,39 @@ from deepseek_toolkit.errors import (
 
 class TestErrorHierarchy:
     def test_base_error_is_exception(self):
-        with pytest.raises(DeepSeekToolkitError):
-            raise DeepSeekToolkitError("base error")
+        with pytest.raises(SeekFlowError):
+            raise SeekFlowError("base error")
 
     def test_tool_schema_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise ToolSchemaError("schema error")
 
     def test_strict_schema_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise StrictSchemaError("strict error")
 
     def test_tool_not_found_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise ToolNotFoundError("not found")
 
     def test_tool_argument_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise ToolArgumentError("bad arg")
 
     def test_tool_execution_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise ToolExecutionError("exec failed")
 
     def test_mcp_connection_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise MCPConnectionError("mcp conn failed")
 
     def test_mcp_tool_execution_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise MCPToolExecutionError("mcp exec failed")
 
     def test_eval_config_error_is_base_error(self):
-        with pytest.raises(DeepSeekToolkitError):
+        with pytest.raises(SeekFlowError):
             raise EvalConfigError("eval config error")
 
     def test_subclass_captured_by_specific_type(self):
@@ -109,7 +109,7 @@ class TestDeepSeekAPIErrors:
         for cls in [InsufficientBalanceError, AuthenticationError,
                      RateLimitError, ContextLengthExceededError,
                      ServiceUnavailableError, DeepSeekAPIError]:
-            assert issubclass(cls, DeepSeekToolkitError), f"{cls.__name__} should be DeepSeekToolkitError"
+            assert issubclass(cls, SeekFlowError), f"{cls.__name__} should be SeekFlowError"
 
     def test_api_errors_preserve_message(self):
         error = InsufficientBalanceError("余额不足，请充值")
@@ -120,18 +120,18 @@ class TestMapHttpError:
     """Mapping HTTP status codes to DeepSeek-specific errors."""
 
     def test_402_maps_to_insufficient_balance(self):
-        from deepseek_toolkit.errors import map_http_error
+        from seekflow.errors import map_http_error
         error = map_http_error(402, "Insufficient balance")
         assert isinstance(error, InsufficientBalanceError)
         assert "Insufficient balance" in str(error)
 
     def test_401_maps_to_authentication(self):
-        from deepseek_toolkit.errors import map_http_error
+        from seekflow.errors import map_http_error
         error = map_http_error(401, "Invalid API key")
         assert isinstance(error, AuthenticationError)
 
     def test_429_maps_to_rate_limit_with_headers(self):
-        from deepseek_toolkit.errors import map_http_error
+        from seekflow.errors import map_http_error
         error = map_http_error(429, "Too many requests",
                                headers={"X-RateLimit-Remaining": "0",
                                         "X-RateLimit-Reset": "1700000000"})
@@ -140,23 +140,23 @@ class TestMapHttpError:
         assert error.reset == 1700000000.0
 
     def test_400_context_length_maps_when_message_indicates(self):
-        from deepseek_toolkit.errors import map_http_error
+        from seekflow.errors import map_http_error
         error = map_http_error(400, "context length exceeded maximum")
         assert isinstance(error, ContextLengthExceededError)
 
     def test_503_maps_to_service_unavailable(self):
-        from deepseek_toolkit.errors import map_http_error
+        from seekflow.errors import map_http_error
         error = map_http_error(503, "Service unavailable")
         assert isinstance(error, ServiceUnavailableError)
 
     def test_unknown_status_returns_generic_api_error(self):
-        from deepseek_toolkit.errors import map_http_error
+        from seekflow.errors import map_http_error
         error = map_http_error(418, "I'm a teapot")
         assert isinstance(error, DeepSeekAPIError)
         assert error.http_status == 418
 
     def test_rate_limit_headers_missing_uses_none(self):
-        from deepseek_toolkit.errors import map_http_error
+        from seekflow.errors import map_http_error
         error = map_http_error(429, "Rate limited")
         assert error.remaining is None
         assert error.reset is None
@@ -177,8 +177,8 @@ class TestClientErrorMapping:
     def test_402_raises_insufficient_balance_error(self):
         from unittest.mock import patch
         from openai import APIStatusError
-        from deepseek_toolkit.client import DeepSeekClient
-        from deepseek_toolkit.errors import InsufficientBalanceError
+        from seekflow.client import DeepSeekClient
+        from seekflow.errors import InsufficientBalanceError
 
         client = DeepSeekClient(api_key="sk-test")
         fake_resp = self._make_fake_response(402, text="Insufficient balance")
@@ -191,8 +191,8 @@ class TestClientErrorMapping:
     def test_401_raises_authentication_error(self):
         from unittest.mock import patch
         from openai import AuthenticationError as OpenAIAuthError
-        from deepseek_toolkit.client import DeepSeekClient
-        from deepseek_toolkit.errors import AuthenticationError
+        from seekflow.client import DeepSeekClient
+        from seekflow.errors import AuthenticationError
 
         client = DeepSeekClient(api_key="sk-test")
         fake_resp = self._make_fake_response(401, text="Invalid API key")
@@ -205,8 +205,8 @@ class TestClientErrorMapping:
     def test_429_raises_rate_limit_error_with_remaining(self):
         from unittest.mock import patch
         from openai import APIStatusError
-        from deepseek_toolkit.client import DeepSeekClient
-        from deepseek_toolkit.errors import RateLimitError
+        from seekflow.client import DeepSeekClient
+        from seekflow.errors import RateLimitError
 
         client = DeepSeekClient(api_key="sk-test")
         fake_resp = self._make_fake_response(429,
@@ -222,7 +222,7 @@ class TestClientErrorMapping:
 
     def test_non_http_error_passes_through(self):
         from unittest.mock import patch
-        from deepseek_toolkit.client import DeepSeekClient
+        from seekflow.client import DeepSeekClient
 
         client = DeepSeekClient(api_key="sk-test")
 

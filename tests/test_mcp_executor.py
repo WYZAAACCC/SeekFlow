@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from deepseek_toolkit.errors import MCPConnectionError
-from deepseek_toolkit.mcp.config import MCPServerConfig
-from deepseek_toolkit.types import ToolCall, ToolExecutionResult
+from seekflow.errors import MCPConnectionError
+from seekflow.mcp.config import MCPServerConfig
+from seekflow.types import ToolCall, ToolExecutionResult
 
 
 class TestMCPToolExecutor:
@@ -40,7 +40,7 @@ class TestMCPToolExecutor:
 
     def test_execute_successful_mcp_tool(self, configs, mock_mcp_session):
         """Execute an MCP tool and get a successful result."""
-        from deepseek_toolkit.mcp.executor import MCPToolExecutor
+        from seekflow.mcp.executor import MCPToolExecutor
 
         executor = MCPToolExecutor(configs)
         executor._sessions = {"fs": mock_mcp_session}
@@ -55,7 +55,7 @@ class TestMCPToolExecutor:
 
     def test_execute_unknown_server(self, configs):
         """Tool call to an unknown server returns error result."""
-        from deepseek_toolkit.mcp.executor import MCPToolExecutor
+        from seekflow.mcp.executor import MCPToolExecutor
 
         executor = MCPToolExecutor(configs)
 
@@ -68,7 +68,7 @@ class TestMCPToolExecutor:
 
     def test_execute_unknown_tool(self, configs, mock_mcp_session):
         """Tool call to a known server but unknown tool returns error."""
-        from deepseek_toolkit.mcp.executor import MCPToolExecutor
+        from seekflow.mcp.executor import MCPToolExecutor
 
         mock_mcp_session.call_tool.side_effect = Exception("Tool not found")
         executor = MCPToolExecutor(configs)
@@ -83,7 +83,7 @@ class TestMCPToolExecutor:
 
     def test_execute_with_error_response(self, configs, mock_mcp_session):
         """MCP server returns isError=True."""
-        from deepseek_toolkit.mcp.executor import MCPToolExecutor
+        from seekflow.mcp.executor import MCPToolExecutor
 
         call_result = MagicMock()
         call_result.content = []
@@ -102,7 +102,7 @@ class TestMCPToolExecutor:
 
     def test_executor_stores_last_error(self, configs, mock_mcp_session):
         """Connection errors should be captured."""
-        from deepseek_toolkit.mcp.executor import MCPToolExecutor
+        from seekflow.mcp.executor import MCPToolExecutor
 
         mock_mcp_session.call_tool.side_effect = MCPConnectionError("Connection lost")
         executor = MCPToolExecutor(configs)

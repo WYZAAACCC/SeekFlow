@@ -14,7 +14,7 @@
 
 ## 任务
 
-1. 创建 `deepseek_toolkit/agent/agent.py`，实现 `DeepSeekAgent` 类
+1. 创建 `seekflow/agent/agent.py`，实现 `DeepSeekAgent` 类
 2. 支持 `role`、`goal`、`backstory` 三个核心参数（均为必填 str）
 3. 实现 `.run(task: str, files: list[str] | None = None) -> AgentResult` 方法
 4. `.run()` 内部自动完成：构建 system prompt → 创建 Session → 配置 ToolRuntime → 流式执行 → 返回结构化结果

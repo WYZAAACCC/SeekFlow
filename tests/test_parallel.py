@@ -6,8 +6,8 @@ import pytest
 
 class TestParallelExecution:
     def test_parallel_execution_faster_than_serial(self):
-        from deepseek_toolkit.tools.executor import ToolExecutor
-        from deepseek_toolkit.tools.registry import ToolRegistry
+        from seekflow.tools.executor import ToolExecutor
+        from seekflow.tools.registry import ToolRegistry
 
         def slow_tool_a() -> str:
             time.sleep(0.1)
@@ -23,10 +23,10 @@ class TestParallelExecution:
 
         executor = ToolExecutor(reg, max_parallel=5)
 
-        from deepseek_toolkit.types import ToolCall
+        from seekflow.types import ToolCall
         calls = [
-            ToolCall(id="1", name="slow_tool_a", arguments="{}"),
-            ToolCall(id="2", name="slow_tool_b", arguments="{}"),
+            ToolCall(id="1", name="slow_tool_a", arguments={}),
+            ToolCall(id="2", name="slow_tool_b", arguments={}),
         ]
 
         start = time.time()
@@ -38,8 +38,8 @@ class TestParallelExecution:
         assert elapsed < 0.18
 
     def test_single_tool_call_no_overhead(self):
-        from deepseek_toolkit.tools.executor import ToolExecutor
-        from deepseek_toolkit.tools.registry import ToolRegistry
+        from seekflow.tools.executor import ToolExecutor
+        from seekflow.tools.registry import ToolRegistry
 
         def quick():
             return "ok"
@@ -48,7 +48,7 @@ class TestParallelExecution:
         reg.register(quick)
         executor = ToolExecutor(reg)
 
-        from deepseek_toolkit.types import ToolCall
-        results = executor.execute_batch([ToolCall(id="1", name="quick", arguments="{}")])
+        from seekflow.types import ToolCall
+        results = executor.execute_batch([ToolCall(id="1", name="quick", arguments={})])
         assert len(results) == 1
         assert results[0].ok

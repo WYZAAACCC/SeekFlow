@@ -1,6 +1,6 @@
 """Security tests for safe_calculate — verifies AST whitelist blocks attacks."""
 import pytest
-from deepseek_toolkit.agent.agent import safe_calculate
+from seekflow.agent.agent import safe_calculate
 
 
 class TestSafeCalculate:

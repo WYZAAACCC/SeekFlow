@@ -2,7 +2,7 @@
 import json
 import tempfile
 import os
-from deepseek_toolkit.trace.recorder import TraceRecorder
+from seekflow.trace.recorder import TraceRecorder
 
 
 class TestTraceRecorder:

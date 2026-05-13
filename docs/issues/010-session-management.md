@@ -30,7 +30,7 @@ while True:
 
 ## 任务
 
-1. 新建 `deepseek_toolkit/session.py`
+1. 新建 `seekflow/session.py`
 2. 实现 `Session` 类：
    - `add_message(role, content)` — 追加消息
    - `messages` 属性 — 返回完整消息列表（含 reasoning_content）
@@ -59,4 +59,4 @@ while True:
 - 测试 load 不存在的文件
 - 测试 load 损坏的 JSON
 - 测试与 #7 压缩的集成
-- 参考现有消息管理：[src/deepseek_toolkit/runtime.py](../../src/deepseek_toolkit/runtime.py)
+- 参考现有消息管理：[src/seekflow/runtime.py](../../src/seekflow/runtime.py)

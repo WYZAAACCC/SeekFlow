@@ -15,11 +15,11 @@
 
 ## 任务
 
-1. 创建 `deepseek_toolkit/compat/embeddings.py`：
+1. 创建 `seekflow/compat/embeddings.py`：
    - 定义 `EmbeddingFunction = Callable[[str], list[float]]` 类型别名
    - `DeepSeekAgent.use_embedding(fn: EmbeddingFunction)` 配置 embedding 函数
 
-2. 创建 `deepseek_toolkit/compat/vector_stores.py`：
+2. 创建 `seekflow/compat/vector_stores.py`：
    - 定义 `VectorStoreLike` Protocol：
      - `search(query: str | list[float], top_k: int = 5) -> list[DocumentLike]`
    - `DeepSeekAgent.use_vector_store(store: VectorStoreLike)` 配置 vector store

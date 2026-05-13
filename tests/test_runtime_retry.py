@@ -1,12 +1,12 @@
 """Tests for ToolRuntime retry integration (P0-3)."""
 import pytest
 
-from deepseek_toolkit.retry import (
+from seekflow.retry import (
     CircuitBreaker,
     RetryPolicy,
 )
-from deepseek_toolkit.tools.registry import ToolRegistry
-from deepseek_toolkit.types import ToolRuntimeResult
+from seekflow.tools.registry import ToolRegistry
+from seekflow.types import ToolRuntimeResult
 
 
 # --- Fake client for injecting failures ---
@@ -34,7 +34,7 @@ class FakeFailingClient:
             self._call += 1
             raise err
         self._call += 1
-        from deepseek_toolkit.types import ChatResponse
+        from seekflow.types import ChatResponse
         return ChatResponse(content=self._final, finish_reason="stop")
 
     def chat_stream(self, *, model, messages, tools=None, **kwargs):
@@ -43,7 +43,7 @@ class FakeFailingClient:
             self._call += 1
             raise err
         self._call += 1
-        from deepseek_toolkit.types import StreamChunk
+        from seekflow.types import StreamChunk
         yield StreamChunk(type="content", content=self._final)
 
 
@@ -52,8 +52,8 @@ class TestRuntimeRetry:
 
     def test_retry_attempt_events_in_trace(self):
         """When a 503 triggers retry, the request eventually succeeds."""
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.retry_executor import RetryExecutor
+        from seekflow.runtime import ToolRuntime
+        from seekflow.retry_executor import RetryExecutor
 
         rt = ToolRuntime(
             tools=[],
@@ -74,9 +74,9 @@ class TestRuntimeRetry:
 
     def test_circuit_breaker_open_returns_result_not_exception(self):
         """When circuit breaker is open, chat returns a result with error, not an exception."""
-        from deepseek_toolkit.runtime import ToolRuntime
-        from deepseek_toolkit.retry import CircuitBreakerState
-        from deepseek_toolkit.retry_executor import RetryExecutor
+        from seekflow.runtime import ToolRuntime
+        from seekflow.retry import CircuitBreakerState
+        from seekflow.retry_executor import RetryExecutor
 
         rt = ToolRuntime(
             tools=[],
@@ -101,14 +101,14 @@ class TestRuntimeRetry:
 
     def test_circuit_breaker_state_property(self):
         """runtime.circuit_breaker_state returns current state as string."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
         rt = ToolRuntime(tools=[], retry_policy=RetryPolicy.default())
         assert rt.circuit_breaker_state == "closed"
 
     def test_default_retry_policy_is_applied(self):
         """ToolRuntime uses RetryPolicy.default() when retry_policy not passed."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
         rt = ToolRuntime(tools=[])
         assert rt._retry_policy is not None
@@ -116,7 +116,7 @@ class TestRuntimeRetry:
 
     def test_no_retry_policy_works_like_before(self):
         """Without retry_policy, behavior is backward compatible."""
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
         # Uses default retry — calls should still work
         fake = FakeFailingClient([])
@@ -134,7 +134,7 @@ class TestCacheStats:
     """P1-3: cache stats on ToolRuntimeResult."""
 
     def test_result_includes_cache_stats(self):
-        from deepseek_toolkit.runtime import ToolRuntime
+        from seekflow.runtime import ToolRuntime
 
         def dummy(x: int) -> int:
             return x * 2
@@ -150,7 +150,7 @@ class TestCacheStats:
         call_count = [0]
 
         def fake_chat(**kwargs):
-            from deepseek_toolkit.types import ChatResponse, ToolCall
+            from seekflow.types import ChatResponse, ToolCall
             if call_count[0] == 0:
                 call_count[0] += 1
                 return ChatResponse(

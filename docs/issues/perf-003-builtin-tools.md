@@ -10,7 +10,7 @@
 
 ## 任务
 
-创建 `deepseek_toolkit/tools/builtin/` 包，包含 20 个工具：
+创建 `seekflow/tools/builtin/` 包，包含 20 个工具：
 
 ### 网络与数据
 1. `web_search(query)` — Bing 搜索（已有，移至 builtin）

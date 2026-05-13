@@ -1,12 +1,12 @@
 [project]
-name = "deepseek-toolkit"
+name = "seekflow"
 version = "0.1.0"
 description = "Production-grade reliability layer for DeepSeek tool calling — JSON repair, error recovery, type coercion, strict mode, streaming, and trace."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "DeepSeek Toolkit Contributors"},
+    {name = "SeekFlow Contributors"},
 ]
 keywords = [
     "deepseek",
@@ -44,9 +44,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/user/deepseek-toolkit"
-Repository = "https://github.com/user/deepseek-toolkit"
-Issues = "https://github.com/user/deepseek-toolkit/issues"
+Homepage = "https://github.com/user/seekflow"
+Repository = "https://github.com/user/seekflow"
+Issues = "https://github.com/user/seekflow/issues"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.0.0"]
@@ -58,8 +58,8 @@ dev = [
 ]
 
 [project.scripts]
-deepseek-toolkit = "deepseek_toolkit.cli:app"
-dstk = "deepseek_toolkit.cli:app"
+seekflow = "seekflow.cli:app"
+sf = "seekflow.cli:app"
 
 [build-system]
 requires = ["setuptools>=75.0", "wheel"]
@@ -88,21 +88,21 @@ exclude = [
 # Modules that still need type fixes (progressive rollout)
 [[tool.mypy.overrides]]
 module = [
-    "deepseek_toolkit.runtime",
-    "deepseek_toolkit.async_runtime",
-    "deepseek_toolkit.agent.*",
-    "deepseek_toolkit.mcp.*",
-    "deepseek_toolkit.compat.*",
-    "deepseek_toolkit.retry_executor",
-    "deepseek_toolkit.batch_client",
-    "deepseek_toolkit.search",
-    "deepseek_toolkit.eval.*",
-    "deepseek_toolkit.cli",
-    "deepseek_toolkit.files",
-    "deepseek_toolkit.fim",
-    "deepseek_toolkit.structured",
-    "deepseek_toolkit.balance",
-    "deepseek_toolkit.cost",
-    "deepseek_toolkit.truncation",
+    "seekflow.runtime",
+    "seekflow.async_runtime",
+    "seekflow.agent.*",
+    "seekflow.mcp.*",
+    "seekflow.compat.*",
+    "seekflow.retry_executor",
+    "seekflow.batch_client",
+    "seekflow.search",
+    "seekflow.eval.*",
+    "seekflow.cli",
+    "seekflow.files",
+    "seekflow.fim",
+    "seekflow.structured",
+    "seekflow.balance",
+    "seekflow.cost",
+    "seekflow.truncation",
 ]
 ignore_errors = true

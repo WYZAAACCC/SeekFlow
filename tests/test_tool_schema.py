@@ -3,8 +3,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
-from deepseek_toolkit.tools.decorator import tool
-from deepseek_toolkit.types import ToolDefinition
+from seekflow.tools.decorator import tool
+from seekflow.types import ToolDefinition
 
 
 class TestToolDecorator:
