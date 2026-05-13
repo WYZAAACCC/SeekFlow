@@ -1,13 +1,13 @@
 # SeekFlow
 
-**🔥 DeepSeek-native &nbsp;|&nbsp; ⚡ Lightweight (6 deps) &nbsp;|&nbsp; 🛡️ Production-grade reliability**
+**DeepSeek-native &nbsp;|&nbsp; Lightweight (6 deps) &nbsp;|&nbsp; Production-grade reliability**
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-418%20passed-brightgreen.svg)](tests/)
-[![DeepSeek](https://img.shields.io/badge/DeepSeek-Native-536DFE.svg)](https://platform.deepseek.com/)
+[![PyPI](https://img.shields.io/pypi/v/seekflow.svg)](https://pypi.org/project/seekflow/)
 
-SeekFlow is the only agent framework architected around DeepSeek's actual behavior — thinking mode, prompt caching, JSON repair, FIM. Not a generic OpenAI wrapper with DeepSeek as an afterthought.
+SeekFlow is a DeepSeek-native agent framework — purpose-built around DeepSeek's thinking mode, prompt caching, JSON repair, and FIM. Not a generic OpenAI wrapper.
 
 **Why SeekFlow over LangChain or CrewAI for DeepSeek?**
 
@@ -32,12 +32,12 @@ SeekFlow is the only agent framework architected around DeepSeek's actual behavi
 
 SeekFlow Fast: **15% fewer tokens, 10% lower cost** than LangChain. SeekFlow Stable: **tied for #1 quality** with deep reasoning throughout.
 
-| Scenario | SeekFlow Fast | SeekFlow Stable | LangChain | SeekFlow优势 |
+| Scenario | SeekFlow Fast | SeekFlow Stable | LangChain | Advantage |
 |------|:--:|:--:|:--:|------|
-| 金融分析 | 8.4 | 8.5 | 8.8 | LangChain微弱领先 |
-| 供应链 | 8.4 | 8.7 | 9.1 | LangChain web_search优势 |
-| **代码审计** | **9.1** | 8.9 | 8.7 | **SeekFlow 2x token效率** |
-| **研究综合** | 8.9 | **9.2** | 8.6 | **SeekFlow Stable显著领先** |
+| Financial Analysis | 8.4 | 8.5 | 8.8 | LangChain by 0.3 |
+| Supply Chain | 8.4 | 8.7 | 9.1 | LangChain (web_search) |
+| **Code Audit** | **9.1** | 8.9 | 8.7 | **SeekFlow 2x token efficiency** |
+| **Research** | 8.9 | **9.2** | 8.6 | **SeekFlow Stable leads by 0.6** |
 
 ---
 
@@ -46,9 +46,6 @@ SeekFlow Fast: **15% fewer tokens, 10% lower cost** than LangChain. SeekFlow Sta
 ```bash
 pip install seekflow
 export DEEPSEEK_API_KEY="sk-..."
-
-# Or install from GitHub directly:
-pip install git+https://github.com/WYZAAACCC/SeekFlow.git
 ```
 
 ```python
@@ -67,7 +64,7 @@ def calculate(expression: str) -> str:
 runtime = ToolRuntime(tools=[get_weather, calculate])
 result = runtime.chat(
     model="deepseek-chat",
-    messages=[{"role": "user", "content": "北京天气？算一下 (8630-3120)/8630"}],
+    messages=[{"role": "user", "content": "What is the weather in Beijing? Also calculate (8630-3120)/8630"}],
 )
 print(result.final)
 ```
@@ -80,8 +77,8 @@ from seekflow.agent.presets import financial_analyst
 
 agent = financial_analyst(api_key="sk-...")
 agent.add_tool(get_weather)
-result = agent.run("分析北京天气对投资的影响")
-print(result.final_output)  # structured investment memo
+result = agent.run("Analyze market conditions for Q3 investment")
+print(result.final_output)
 ```
 
 ---
@@ -94,7 +91,7 @@ print(result.final_output)  # structured investment memo
 │                  Presets / Memory / Checkpoint   │
 ├─────────────────────────────────────────────────┤
 │  Runtime         chat() / chat_stream()          │
-│                  Hybrid thinking / Cache         │
+│                  Thinking mode / Cache           │
 ├─────────────────────────────────────────────────┤
 │  Reliability     Retry + CircuitBreaker          │
 │                  ToolCache (LRU+TTL)             │
@@ -122,7 +119,7 @@ print(result.final_output)  # structured investment memo
 Thinking stays enabled throughout the conversation for deep reasoning. `budget_tokens=2048` caps per-step cost. Reasoning content is compressed for efficient passback. Stable mode achieves top quality (8.8) across all scenarios.
 
 ```python
-agent = DeepSeekAgent(thinking=True, mode="stable")  # thinking throughout + budget control
+agent = DeepSeekAgent(thinking=True, mode="stable")
 ```
 
 ### JSON Repair Pipeline
@@ -144,7 +141,6 @@ DeepSeek caches from byte 0. SeekFlow freezes the system prompt prefix and uses 
 from seekflow import CacheStabilizer
 stabilizer = CacheStabilizer()
 stabilizer.freeze(system_prompt, tool_schemas=tools)
-# Every API call: stabilizer.ensure_stable_prefix(messages)
 ```
 
 ### R1 Thought Harvesting
@@ -207,7 +203,7 @@ python examples/multi_round_benchmark.py --rounds 3
 
 | Feature | SeekFlow | LangChain | CrewAI |
 |---------|:--:|:--:|:--:|
-| Thinking mode | Auto-hybrid | Manual config | Not supported |
+| Thinking mode | Auto-detect + budget | Manual config | Not supported |
 | JSON repair | 8-rule pipeline | None | None |
 | Cache stabilization | CacheStabilizer | None | None |
 | Circuit breaker | 3-state | None | None |
