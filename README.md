@@ -32,12 +32,12 @@ SeekFlow is the only agent framework architected around DeepSeek's actual behavi
 
 SeekFlow Fast: **15% fewer tokens, 10% lower cost** than LangChain. SeekFlow Stable: **tied for #1 quality** with deep reasoning throughout.
 
-| Scenario | DTK Fast | DTK Stable | LangChain | DTK优势 |
+| Scenario | SeekFlow Fast | SeekFlow Stable | LangChain | SeekFlow优势 |
 |------|:--:|:--:|:--:|------|
 | 金融分析 | 8.4 | 8.5 | 8.8 | LangChain微弱领先 |
 | 供应链 | 8.4 | 8.7 | 9.1 | LangChain web_search优势 |
-| **代码审计** | **9.1** | 8.9 | 8.7 | **DTK 2x token效率** |
-| **研究综合** | 8.9 | **9.2** | 8.6 | **DTK Stable显著领先** |
+| **代码审计** | **9.1** | 8.9 | 8.7 | **SeekFlow 2x token效率** |
+| **研究综合** | 8.9 | **9.2** | 8.6 | **SeekFlow Stable显著领先** |
 
 ---
 

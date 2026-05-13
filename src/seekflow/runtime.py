@@ -211,19 +211,6 @@ class ToolRuntime:
             "prompt_tokens_details": {"cached_tokens": 0},
         }
 
-        # Hybrid thinking mode: Step 1 uses thinking for planning,
-        # subsequent steps disable thinking to avoid token bloat.
-        # DeepSeek V3.1+ supports per-request thinking toggle via extra_body.
-        # Track whether thinking was EVER used in this conversation.
-        # Required for API contract: if any assistant message has reasoning_content,
-        # ALL subsequent assistant messages must have it too.
-        _thinking_was_used = (
-            kwargs.get("extra_body", {}).get("thinking", {}).get("type") == "enabled"
-        )
-        _hybrid_thinking = _thinking_was_used
-        _tool_call_rounds = 0
-        _compressed_placeholder = "→thinking"
-
         for step in range(self._max_steps):
             # Trim context window before each API call
             working_messages = self._trim_messages(working_messages)
@@ -286,9 +273,6 @@ class ToolRuntime:
                             "actual_calls": result.actual_calls,
                             "reasoning_snippet": response.reasoning_content[:200],
                         })
-                    # Save compressed reasoning as placeholder for subsequent steps
-                    # where thinking is disabled but API requires reasoning_content.
-                    _compressed_placeholder = _compress_reasoning(response.reasoning_content)
                     # Harvest structured thoughts for injection into next prompt.
                     # Only active when reasoning_content is present (thinking mode).
                     # Appended at END of message list — does not break cache prefix.
@@ -323,10 +307,6 @@ class ToolRuntime:
                     assistant_msg["reasoning_content"] = _compress_reasoning(
                         response.reasoning_content
                     )
-                elif _thinking_was_used:
-                    # API contract: if thinking was used earlier, every assistant
-                    # message must have reasoning_content. DeepSeek strict check.
-                    assistant_msg["reasoning_content"] = _compressed_placeholder
                 working_messages.append(assistant_msg)
                 recorder.finish()
                 self._last_messages = working_messages
@@ -361,10 +341,6 @@ class ToolRuntime:
                 assistant_msg["reasoning_content"] = _compress_reasoning(
                     response.reasoning_content
                 )
-            elif _thinking_was_used:
-                # API contract: if thinking was ever used, every assistant
-                # message must have reasoning_content for DeepSeek compliance.
-                assistant_msg["reasoning_content"] = _compressed_placeholder
             working_messages.append(assistant_msg)
 
             # Execute ALL tools in batch (MCP wrappers are now functional)
@@ -391,15 +367,6 @@ class ToolRuntime:
                          "ok": exec_result.ok, "elapsed_ms": exec_result.elapsed_ms,
                          "repaired": exec_result.repaired, "error": exec_result.error},
                     )
-
-            # Hybrid thinking: after first tool-call round, switch thinking OFF.
-            # DeepSeek V3.1+ V3.2 keeps reasoning context across tool calls,
-            # so the model retains its plan without re-thinking every step.
-            if _hybrid_thinking and _tool_call_rounds >= 1:
-                extra = dict(kwargs.get("extra_body", {}))
-                extra["thinking"] = {"type": "disabled"}
-                kwargs["extra_body"] = extra
-                _hybrid_thinking = False  # Only toggle once
 
             # Early-stop signal: inject reminder when approaching max_steps.
             steps_remaining = self._max_steps - step - 1
@@ -837,13 +804,13 @@ def _apply_thinking_mode(
     # Cap reasoning budget: 512 tokens is enough for planning, keeps cost minimal.
     # At ¥0.28/1M output, 512 reasoning tokens cost ~¥0.00014 per step.
     if thinking_mode == "enabled":
-        think_config["budget_tokens"] = 512
+        think_config["budget_tokens"] = 2048
     extra_body["thinking"] = think_config
     kwargs["extra_body"] = extra_body
     return kwargs
 
 
-def _compress_reasoning(reasoning: str, max_chars: int = 80) -> str:
+def _compress_reasoning(reasoning: str, max_chars: int = 200) -> str:
     """Ultra-compact reasoning summary — target ~20-40 tokens.
 
     DeepSeek requires reasoning_content in every assistant message during

@@ -97,14 +97,14 @@ TASK = """请审查以下Python代码文件的安全性和代码质量:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# DTK
+# SeekFlow
 # ═══════════════════════════════════════════════════════════════════════════
 
 def run_dtk(mode: str) -> RunResult:
     from seekflow.agent.agent import DeepSeekAgent
     from seekflow.client import DeepSeekClient
     thinking = mode == "stable"
-    rr = RunResult(framework=f"DTK {mode.title()}", scenario="code_auditor")
+    rr = RunResult(framework=f"SeekFlow {mode.title()}", scenario="code_auditor")
     api_log = []
     original = DeepSeekClient.chat
     def logged(self, **kw):
@@ -198,11 +198,11 @@ def run_crewai() -> RunResult:
 if __name__ == "__main__":
     print("=" * 70)
     print("SeekFlow Demo — Code Review & Security Audit")
-    print("DTK Fast vs DTK Stable vs LangChain vs CrewAI")
+    print("SeekFlow Fast vs SeekFlow Stable vs LangChain vs CrewAI")
     print(f"Model: {MODEL} | Judge: deepseek-v4-pro")
     print("=" * 70)
     results = []
-    for fn, label in [(lambda: run_dtk("fast"), "DTK Fast"), (lambda: run_dtk("stable"), "DTK Stable"),
+    for fn, label in [(lambda: run_dtk("fast"), "SeekFlow Fast"), (lambda: run_dtk("stable"), "SeekFlow Stable"),
                        (run_langchain, "LangChain"), (run_crewai, "CrewAI")]:
         print(f"\n>>> Running {label}...")
         r = fn(); print_result(label, r); results.append(r)

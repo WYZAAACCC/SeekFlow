@@ -2,7 +2,7 @@
 
 One-click: python examples/demo_financial.py
 
-Compares DTK Fast, DTK Stable, LangChain, and CrewAI on a professional
+Compares SeekFlow Fast, SeekFlow Stable, LangChain, and CrewAI on a professional
 investment analysis task. All frameworks use identical tools, prompts,
 and model. Judge scores outputs blindly on 6 quality dimensions.
 """
@@ -85,7 +85,7 @@ TASK = """分析三家公司的投资价值,生成完整投资备忘录:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# DTK Fast & Stable
+# SeekFlow Fast & Stable
 # ═══════════════════════════════════════════════════════════════════════════
 
 def run_dtk(mode: str) -> RunResult:
@@ -93,7 +93,7 @@ def run_dtk(mode: str) -> RunResult:
     from seekflow.client import DeepSeekClient
 
     thinking = mode == "stable"
-    rr = RunResult(framework=f"DTK {mode.title()}", scenario="financial")
+    rr = RunResult(framework=f"SeekFlow {mode.title()}", scenario="financial")
     api_log = []
 
     original = DeepSeekClient.chat
@@ -227,13 +227,13 @@ def run_crewai() -> RunResult:
 if __name__ == "__main__":
     print("=" * 70)
     print("SeekFlow Demo — Financial Portfolio Analysis")
-    print("DTK Fast vs DTK Stable vs LangChain vs CrewAI")
+    print("SeekFlow Fast vs SeekFlow Stable vs LangChain vs CrewAI")
     print(f"Model: {MODEL} | Judge: deepseek-v4-pro")
     print("=" * 70)
 
     results = []
-    for fn, label in [(lambda: run_dtk("fast"), "DTK Fast"),
-                       (lambda: run_dtk("stable"), "DTK Stable"),
+    for fn, label in [(lambda: run_dtk("fast"), "SeekFlow Fast"),
+                       (lambda: run_dtk("stable"), "SeekFlow Stable"),
                        (run_langchain, "LangChain"),
                        (run_crewai, "CrewAI")]:
         print(f"\n>>> Running {label}...")

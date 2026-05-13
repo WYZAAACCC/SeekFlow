@@ -98,14 +98,14 @@ TASK = """研究以下三个主题并生成综合分析报告:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# DTK
+# SeekFlow
 # ═══════════════════════════════════════════════════════════════════════════
 
 def run_dtk(mode: str) -> RunResult:
     from seekflow.agent.agent import DeepSeekAgent
     from seekflow.client import DeepSeekClient
     thinking = mode == "stable"
-    rr = RunResult(framework=f"DTK {mode.title()}", scenario="research")
+    rr = RunResult(framework=f"SeekFlow {mode.title()}", scenario="research")
     api_log = []
     original = DeepSeekClient.chat
     def logged(self, **kw):
@@ -199,11 +199,11 @@ def run_crewai() -> RunResult:
 if __name__ == "__main__":
     print("=" * 70)
     print("SeekFlow Demo — Multi-Topic Research Synthesis")
-    print("DTK Fast vs DTK Stable vs LangChain vs CrewAI")
+    print("SeekFlow Fast vs SeekFlow Stable vs LangChain vs CrewAI")
     print(f"Model: {MODEL} | Judge: deepseek-v4-pro")
     print("=" * 70)
     results = []
-    for fn, label in [(lambda: run_dtk("fast"), "DTK Fast"), (lambda: run_dtk("stable"), "DTK Stable"),
+    for fn, label in [(lambda: run_dtk("fast"), "SeekFlow Fast"), (lambda: run_dtk("stable"), "SeekFlow Stable"),
                        (run_langchain, "LangChain"), (run_crewai, "CrewAI")]:
         print(f"\n>>> Running {label}...")
         r = fn(); print_result(label, r); results.append(r)

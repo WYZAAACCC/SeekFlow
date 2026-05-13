@@ -1,7 +1,7 @@
 """Multi-Round Benchmark — statistically reliable framework comparison.
 
-Runs each demo scenario N times across all 4 frameworks (DTK Fast,
-DTK Stable, LangChain, CrewAI). Collects per-round data including
+Runs each demo scenario N times across all 4 frameworks (SeekFlow Fast,
+SeekFlow Stable, LangChain, CrewAI). Collects per-round data including
 token counts, cache hits, costs, latency, and quality scores.
 
 Outputs:
@@ -34,8 +34,8 @@ def run_demo(scenario: str) -> list[RunResult]:
 
     results = []
     configs = [
-        ("DTK Fast", lambda: mod.run_dtk("fast")),
-        ("DTK Stable", lambda: mod.run_dtk("stable")),
+        ("SeekFlow Fast", lambda: mod.run_dtk("fast")),
+        ("SeekFlow Stable", lambda: mod.run_dtk("stable")),
         ("LangChain", mod.run_langchain),
         ("CrewAI", mod.run_crewai),
     ]
@@ -112,7 +112,7 @@ def main():
         print("-" * 72)
 
         scenario_data = []
-        for fw in ["DTK Fast", "DTK Stable", "LangChain", "CrewAI"]:
+        for fw in ["SeekFlow Fast", "SeekFlow Stable", "LangChain", "CrewAI"]:
             key = f"{scenario}|{fw}"
             records = all_data.get(key, [])
             if len(records) < 1:
@@ -174,7 +174,7 @@ def main():
 
     print(f"{'Framework':<20} {'Score':>6} {'±std':>6} {'AvgTok':>7} {'AvgCost':>10} {'AvgTime':>7} {'Cache':>6} {'Rounds':>7}")
     print("-" * 75)
-    for fw in ["DTK Fast", "DTK Stable", "LangChain", "CrewAI"]:
+    for fw in ["SeekFlow Fast", "SeekFlow Stable", "LangChain", "CrewAI"]:
         agg = fw_agg[fw]
         s_mean = sum(agg["scores"])/len(agg["scores"]) if agg["scores"] else 0
         s_std = (sum((v-s_mean)**2 for v in agg["scores"])/len(agg["scores"]))**0.5 if agg["scores"] else 0
@@ -194,7 +194,7 @@ def main():
     }
     for scenario in args.scenarios:
         analysis["per_scenario"][scenario] = []
-        for fw in ["DTK Fast", "DTK Stable", "LangChain", "CrewAI"]:
+        for fw in ["SeekFlow Fast", "SeekFlow Stable", "LangChain", "CrewAI"]:
             key = f"{scenario}|{fw}"
             records = all_data.get(key, [])
             if not records: continue
