@@ -46,6 +46,9 @@ SeekFlow Fast: **15% fewer tokens, 10% lower cost** than LangChain. SeekFlow Sta
 ```bash
 pip install seekflow
 export DEEPSEEK_API_KEY="sk-..."
+
+# Or install from GitHub directly:
+pip install git+https://github.com/WYZAAACCC/SeekFlow.git
 ```
 
 ```python
