@@ -29,6 +29,8 @@ class ToolPolicy(BaseModel):
     requires_approval: bool = False
     allowed_domains: set[str] = Field(default_factory=set)
     workspace_root: Path | None = None
+    path_params: frozenset[str] = Field(default_factory=frozenset)
+    url_params: frozenset[str] = Field(default_factory=frozenset)
 
 
 class ToolDefinition(BaseModel):
