@@ -35,9 +35,10 @@ PRICING: dict[str, dict] = {
 }
 
 LEGACY_MODEL_MAP: dict[str, str] = {
+    # Per DeepSeek official docs: deepseek-chat → v4-flash, deepseek-reasoner → v4-flash
     "deepseek-chat": "deepseek-v4-flash",
     "deepseek-v3": "deepseek-v4-pro",
-    "deepseek-reasoner": "deepseek-v4-pro",
+    "deepseek-reasoner": "deepseek-v4-flash",
 }
 
 # Model-specific defaults
