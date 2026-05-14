@@ -107,7 +107,7 @@ class ToolExecutor:
         if repaired and repair_level == 1:
             td = self.registry.get(tool_call.name) if self.registry.has(tool_call.name) else None
             if td and td.policy and td.policy.risk in ("write", "network", "code_exec", "destructive"):
-                if repair_confidence < 0.85:
+                if repair_confidence < 0.95:
                     elapsed = int((time.time() - start) * 1000)
                     return ToolExecutionResult(
                         tool_call_id=tool_call.id, name=tool_call.name,
@@ -133,6 +133,51 @@ class ToolExecutor:
             )
 
         tool_def = self.registry.get(tool_call.name)
+
+        # ── Policy gate: enforce authorization before execution ──────
+        policy_decision = "allowed"
+        policy_reason = ""
+        if tool_def.policy is not None:
+            from seekflow.policy import PolicyEngine
+            engine = PolicyEngine()
+            decision = engine.authorize(
+                tool_def,
+                arguments if isinstance(arguments, dict) else {},
+                run_context=getattr(self, '_run_context', None),
+            )
+            if not decision.allowed:
+                elapsed = int((time.time() - start) * 1000)
+                self._record_audit(
+                    tool_def, tool_call.id or "", arguments if isinstance(arguments, dict) else {},
+                    result=None, latency_ms=elapsed, ok=False,
+                    error=decision.reason,
+                    policy_decision="denied", policy_reason=decision.reason,
+                    risk=tool_def.policy.risk,
+                )
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                    ok=False, error=f"Policy denied: {decision.reason}",
+                    elapsed_ms=elapsed,
+                )
+            if decision.requires_approval:
+                elapsed = int((time.time() - start) * 1000)
+                self._record_audit(
+                    tool_def, tool_call.id or "", arguments if isinstance(arguments, dict) else {},
+                    result=None, latency_ms=elapsed, ok=False,
+                    error="Human approval required",
+                    policy_decision="approval_required", policy_reason=decision.reason,
+                    risk=tool_def.policy.risk,
+                )
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                    ok=False, error=f"Approval required: {decision.reason}",
+                    elapsed_ms=elapsed,
+                )
+            policy_decision = "allowed"
+            policy_reason = decision.reason
+        # ── End policy gate ──────────────────────────────────────────
 
         # Coerce argument types
         if self.repair:
@@ -230,7 +275,7 @@ class ToolExecutor:
                 result=str(exec_result.result)[:500] if exec_result.result else None,
                 latency_ms=elapsed, ok=exec_result.ok,
                 error=exec_result.error,
-                policy_decision="allowed", policy_reason="",
+                policy_decision=policy_decision, policy_reason=policy_reason,
                 repair_attempted=repaired, repair_confidence=repair_confidence,
                 risk=(tool_def.policy.risk if tool_def.policy else "read"),
             )

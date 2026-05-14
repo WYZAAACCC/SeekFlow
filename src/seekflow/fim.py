@@ -2,8 +2,8 @@
 
 POST https://api.deepseek.com/beta/completions
 
-Uses the OpenAI Completions API format with FIM tokens:
-    <|fim_begin|>prefix<|fim_hole|>suffix<|fim_end|>
+Uses the official DeepSeek FIM API: prompt=prefix, suffix=suffix.
+No manual special-token assembly.
 """
 from __future__ import annotations
 
@@ -67,9 +67,8 @@ def fim_complete(
         raise ValueError("DeepSeek FIM max_tokens must be <= 4096")
 
     client = _make_fim_client(api_key, timeout)
-    prompt = _build_fim_prompt(prefix, suffix)
 
-    params: dict = {"model": model, "prompt": prompt, **kwargs}
+    params: dict = {"model": model, "prompt": prefix, "suffix": suffix, **kwargs}
     if max_tokens is not None:
         params["max_tokens"] = min(max_tokens, 4096)
     if temperature is not None:
@@ -135,9 +134,8 @@ def fim_complete_stream(
         raise ValueError("DeepSeek FIM max_tokens must be <= 4096")
 
     client = _make_fim_client(api_key, timeout)
-    prompt = _build_fim_prompt(prefix, suffix)
 
-    params: dict = {"model": model, "prompt": prompt, "stream": True, **kwargs}
+    params: dict = {"model": model, "prompt": prefix, "suffix": suffix, "stream": True, **kwargs}
     if max_tokens is not None:
         params["max_tokens"] = min(max_tokens, 4096)
     if temperature is not None:
@@ -156,8 +154,3 @@ def fim_complete_stream(
             text=choice.text or "",
             finish_reason=choice.finish_reason,
         )
-
-
-def _build_fim_prompt(prefix: str, suffix: str) -> str:
-    """Build the FIM prompt with special tokens."""
-    return f"<|fim_begin|>{prefix}<|fim_hole|>{suffix}<|fim_end|>"

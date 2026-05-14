@@ -31,7 +31,7 @@ class TestThinkingModeParameter:
             thinking_mode="enabled",
         )
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled", "budget_tokens": 2048}}
+        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
 
     def test_thinking_mode_max_maps_to_extra_body(self):
         from seekflow.runtime import ToolRuntime
@@ -59,7 +59,7 @@ class TestThinkingModeParameter:
             messages=[{"role": "user", "content": "hi"}],
         )
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
 
     def test_thinking_mode_overrides_extra_body_thinking(self):
         from seekflow.runtime import ToolRuntime
@@ -74,7 +74,7 @@ class TestThinkingModeParameter:
             extra_body={"thinking": {"type": "max"}, "temperature": 0.5},
         )
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
         assert call_kwargs["extra_body"]["temperature"] == 0.5
 
     def test_chat_stream_supports_thinking_mode(self):
@@ -96,7 +96,7 @@ class TestThinkingModeParameter:
             thinking_mode="enabled",
         ))
         call_kwargs = client.chat_stream.call_args.kwargs
-        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled", "budget_tokens": 2048}}
+        assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
 
 
 class TestThinkingModeSmartDefault:
@@ -129,7 +129,7 @@ class TestThinkingModeSmartDefault:
 
         rt.chat(model="deepseek-v4-pro", messages=self.SINGLE_TURN)
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
 
     def test_multi_turn_default_disables_thinking_and_warns(self):
         """thinking_mode=None on multi-turn → extra_body["thinking"]="disabled" + UserWarning."""
@@ -161,7 +161,7 @@ class TestThinkingModeSmartDefault:
             rt.chat(model="deepseek-v4-pro", messages=self.MULTI_TURN, thinking_mode="enabled")
 
         call_kwargs = client.chat.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
         # No auto-downgrade warning
         warning_msgs = [str(x.message) for x in w]
         assert not any("automatically" in msg for msg in warning_msgs)
@@ -212,7 +212,7 @@ class TestThinkingModeSmartDefault:
 
         list(rt.chat_stream(model="deepseek-v4-pro", messages=self.SINGLE_TURN))
         call_kwargs = client.chat_stream.call_args.kwargs
-        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled", "budget_tokens": 2048}
+        assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
 
     def test_streaming_default_multi_turn_disables_thinking(self):
         """chat_stream with thinking_mode=None on multi-turn disables thinking."""

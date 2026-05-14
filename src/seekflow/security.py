@@ -121,17 +121,35 @@ _DEFAULT_ALLOWED_SCHEMES: set[str] = {"https", "http"}
 
 
 def _is_private_ip(host: str) -> bool:
-    """Return True if *host* resolves to a private / loopback / link-local IP."""
+    """Return True if *host* resolves to a private / loopback / link-local IP.
+
+    Checks ALL DNS resolution results to prevent DNS rebinding attacks.
+    DNS resolution failure returns False (best-effort: caller's risk).
+    For strict SSRF, wrap with your own DNS failure handling.
+    """
     try:
         addr = ipaddress.ip_address(host)
+        for net in _PRIVATE_IP_RANGES:
+            if addr in net:
+                return True
+        return False
     except ValueError:
+        pass
+
+    # Hostname — resolve and check ALL addresses (not just first)
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False  # DNS failure → best-effort, caller's risk
+
+    for info in infos:
         try:
-            addr = ipaddress.ip_address(socket.getaddrinfo(host, None)[0][4][0])
-        except (OSError, IndexError, ValueError):
-            return False  # can't resolve — allow (caller's risk)
-    for net in _PRIVATE_IP_RANGES:
-        if addr in net:
-            return True
+            addr = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            continue
+        for net in _PRIVATE_IP_RANGES:
+            if addr in net:
+                return True
     return False
 
 

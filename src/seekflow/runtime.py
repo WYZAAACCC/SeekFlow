@@ -283,20 +283,16 @@ class ToolRuntime:
                             "actual_calls": result.actual_calls,
                             "reasoning_snippet": response.reasoning_content[:200],
                         })
-                    # Harvest structured thoughts for injection into next prompt.
-                    # Only active when reasoning_content is present (thinking mode).
-                    # Appended at END of message list — does not break cache prefix.
-                    # Token cost: ~30-50 tokens per step, offset by better model guidance.
+                    # Harvest reasoning insights for trace/observability only.
+                    # NEVER inject into messages — would break DeepSeek protocol
+                    # (messages must follow assistant(tool_calls)→tool→tool order).
                     from seekflow.reasoning import harvest_thoughts
                     harvested = harvest_thoughts(response.reasoning_content)
-                    if (not harvested.is_empty and step < self._max_steps - 1
-                            and len(harvested.format_for_prompt()) > 20):
-                        insight = harvested.format_for_prompt()
-                        if insight:
-                            working_messages.append({
-                                "role": "user",
-                                "content": f"[Reasoning Insights]\n{insight}",
-                            })
+                    if not harvested.is_empty:
+                        recorder.record("reasoning_insight", {
+                            "step": step,
+                            "insight": harvested.format_for_prompt()[:500],
+                        })
 
             # No tool calls → done (with empty-content recovery)
             if not response.tool_calls:
@@ -589,7 +585,7 @@ class ToolRuntime:
                     try:
                         parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
                     except json.JSONDecodeError:
-                        parsed_args = {}
+                        parsed_args = raw_args  # preserve for repair pipeline
                     tool_call = ToolCall(
                         id=tc_data["id"], name=tc_data["name"],
                         arguments=parsed_args,
@@ -748,7 +744,7 @@ class ToolRuntime:
                     try:
                         parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
                     except json.JSONDecodeError:
-                        parsed_args = {}
+                        parsed_args = raw_args  # preserve for repair pipeline
                     tool_call = ToolCall(
                         id=tc_data.get("id"),
                         name=func_info.get("name", ""),
@@ -813,8 +809,6 @@ def _apply_thinking_mode(
 
     think_config: dict[str, Any] = {"type": thinking_mode}
     if thinking_mode == "enabled":
-        think_config["budget_tokens"] = 2048
-
         # Warn about sampling params that have no effect in thinking mode
         ignored = []
         for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):

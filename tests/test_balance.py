@@ -6,17 +6,18 @@ import pytest
 class TestBalanceInfo:
     def test_balance_info_holds_all_fields(self):
         from seekflow.balance import BalanceInfo
+        from decimal import Decimal
         info = BalanceInfo(
-            total_balance="100.00",
-            topped_up_balance="80.00",
-            granted_balance="20.00",
+            total_balance=Decimal("100.00"),
+            topped_up_balance=Decimal("80.00"),
+            granted_balance=Decimal("20.00"),
             currency="CNY",
             is_available=True,
             queried_at=1700000000.0,
         )
-        assert info.total_balance == "100.00"
-        assert info.topped_up_balance == "80.00"
-        assert info.granted_balance == "20.00"
+        assert info.total_balance == Decimal("100.00")
+        assert info.topped_up_balance == Decimal("80.00")
+        assert info.granted_balance == Decimal("20.00")
         assert info.currency == "CNY"
         assert info.is_available is True
         assert info.queried_at == 1700000000.0
@@ -24,7 +25,8 @@ class TestBalanceInfo:
     def test_balance_info_default_values(self):
         from seekflow.balance import BalanceInfo
         info = BalanceInfo()
-        assert info.total_balance == "0.00"
+        from decimal import Decimal
+        assert info.total_balance == Decimal("0.00")
         assert info.currency == "CNY"
         assert info.is_available is False
 
@@ -48,7 +50,8 @@ class TestGetBalance:
         with patch("seekflow.balance.requests.get", return_value=mock_resp):
             info = get_balance(api_key="sk-test")
             assert isinstance(info, BalanceInfo)
-            assert info.total_balance == "100.00"
+            from decimal import Decimal
+            assert info.total_balance == Decimal("100.00")
             assert info.is_available is True
             assert info.currency == "CNY"
 
