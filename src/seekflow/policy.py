@@ -47,8 +47,12 @@ class PolicyEngine:
         "read": 0, "network": 1, "write": 2, "code_exec": 3, "destructive": 4,
     }
 
-    def __init__(self, allow_no_policy: bool = False):
+    def __init__(
+        self, allow_no_policy: bool = False,
+        mode: Literal["strict", "compat"] = "strict",
+    ):
         self._allow_no_policy = allow_no_policy
+        self._mode = mode
 
     def authorize_with_context(
         self, policy: ToolPolicy, context: ToolPolicyContext,
@@ -92,9 +96,15 @@ class PolicyEngine:
 
         # Support both ToolExecutionContext (object) and dict (legacy)
         if context is not None and isinstance(context, dict):
-            dangerous_enabled = context.get("dangerous_tools_enabled", True)  # dict → permissive
-            allowed_caps = context.get("allowed_capabilities", set())
-            max_risk = context.get("max_risk", "destructive")
+            if self._mode == "compat":
+                dangerous_enabled = context.get("dangerous_tools_enabled", True)
+                allowed_caps = context.get("allowed_capabilities", set())
+                max_risk = context.get("max_risk", "destructive")
+            else:
+                # strict: dict context must be explicit
+                dangerous_enabled = context.get("dangerous_tools_enabled", False)
+                allowed_caps = context.get("allowed_capabilities", {"read"})
+                max_risk = context.get("max_risk", "read")
             has_context = True
         elif context is not None and hasattr(context, "dangerous_tools_enabled"):
             dangerous_enabled = context.dangerous_tools_enabled
@@ -102,9 +112,14 @@ class PolicyEngine:
             max_risk = context.max_risk
             has_context = True
         else:
-            dangerous_enabled = True  # No context → permissive (backward compat)
-            allowed_caps = set()
-            max_risk = "destructive"
+            if self._mode == "compat":
+                dangerous_enabled = True
+                allowed_caps = set()
+                max_risk = "destructive"
+            else:
+                dangerous_enabled = False
+                allowed_caps = {"read"}
+                max_risk = "read"
             has_context = False
 
         # 0. No-policy tools: deny unless explicitly allowed

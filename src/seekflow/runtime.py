@@ -151,6 +151,19 @@ class ToolRuntime:
         from seekflow._runtime_base import trim_messages
         return trim_messages(messages, self._max_context_tokens)
 
+    def _workspace_root_or_error(self, files: list[str] | None) -> str | None:
+        """Require workspace_root when files are attached."""
+        if not files:
+            return None
+        root = getattr(self._policy_context, "workspace_root", None)
+        if root is None:
+            raise PermissionError(
+                "File attachments require a workspace_root. "
+                "Use DeepSeekAgent.allow_filesystem(root=...) or pass "
+                "ToolExecutionContext(workspace_root=...)."
+            )
+        return root
+
     def chat(
         self,
         *,
@@ -179,9 +192,12 @@ class ToolRuntime:
             kwargs["response_format"] = {"type": response_format}
         # Embed file content into messages
         if files:
+            workspace_root = self._workspace_root_or_error(files)
             for i in range(len(messages) - 1, -1, -1):
                 if messages[i].get("role") == "user":
-                    messages[i] = embed_files_into_message(messages[i], files)
+                    messages[i] = embed_files_into_message(
+                        messages[i], files, workspace_root=workspace_root,
+                    )
                     break
 
         self._connect_mcp_servers()
@@ -356,9 +372,10 @@ class ToolRuntime:
                 )
 
             # Build assistant message with tool_calls
+            # DeepSeek requires non-None content for tool-call assistant messages
             assistant_msg: dict[str, Any] = {
                 "role": "assistant",
-                "content": response.content,
+                "content": response.content or "",
                 "tool_calls": [
                     {
                         "id": tc.id,
@@ -463,9 +480,12 @@ class ToolRuntime:
         if response_format:
             kwargs["response_format"] = {"type": response_format}
         if files:
+            workspace_root = self._workspace_root_or_error(files)
             for i in range(len(messages) - 1, -1, -1):
                 if messages[i].get("role") == "user":
-                    messages[i] = embed_files_into_message(messages[i], files)
+                    messages[i] = embed_files_into_message(
+                        messages[i], files, workspace_root=workspace_root,
+                    )
                     break
 
         self._connect_mcp_servers()
@@ -592,9 +612,10 @@ class ToolRuntime:
                 return
 
             # Build assistant message with tool calls
+            # DeepSeek requires non-None content for tool-call assistant messages
             assistant_msg: dict[str, Any] = {
                 "role": "assistant",
-                "content": "".join(current_content) if current_content else None,
+                "content": "".join(current_content) if current_content else "",
                 "tool_calls": [
                     {
                         "id": tc["id"],

@@ -13,13 +13,18 @@ BLOCKED_HOSTS: frozenset[str] = frozenset({
 PRIVATE_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
     ipaddress.IPv4Network("0.0.0.0/8"),
     ipaddress.IPv4Network("10.0.0.0/8"),
+    ipaddress.IPv4Network("100.64.0.0/10"),
     ipaddress.IPv4Network("127.0.0.0/8"),
     ipaddress.IPv4Network("169.254.0.0/16"),
     ipaddress.IPv4Network("172.16.0.0/12"),
+    ipaddress.IPv4Network("192.0.0.0/24"),
     ipaddress.IPv4Network("192.168.0.0/16"),
+    ipaddress.IPv4Network("198.18.0.0/15"),
     ipaddress.IPv4Network("224.0.0.0/4"),
     ipaddress.IPv4Network("240.0.0.0/4"),
     ipaddress.IPv6Network("::1/128"),
+    ipaddress.IPv6Network("::/128"),
+    ipaddress.IPv6Network("2001:db8::/32"),
     ipaddress.IPv6Network("fc00::/7"),
     ipaddress.IPv6Network("fe80::/10"),
 ]
@@ -140,7 +145,9 @@ def fetch_url_hardened(url: str, policy: NetworkPolicy) -> str:
     from urllib.parse import urljoin
 
     current = url
-    with httpx.Client(follow_redirects=False, timeout=policy.timeout_s) as client:
+    with httpx.Client(
+        follow_redirects=False, timeout=policy.timeout_s, trust_env=False,
+    ) as client:
         for _ in range(policy.max_redirects + 1):
             validate_url_strict(current, policy)
 
