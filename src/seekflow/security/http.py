@@ -114,8 +114,9 @@ def validate_url_strict(url: str, policy: NetworkPolicy) -> None:
     if hostname in BLOCKED_HOSTS:
         raise SSRFError(f"Hostname '{hostname}' is blocked")
 
-    if policy.allowed_ports and parsed.port not in policy.allowed_ports:
-        raise SSRFError(f"Port {parsed.port} not allowed")
+    effective_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    if policy.allowed_ports and effective_port not in policy.allowed_ports:
+        raise SSRFError(f"Port {effective_port} not allowed")
 
     if not domain_allowed(hostname, policy.allowed_domains):
         raise SSRFError(f"Domain '{hostname}' not in allowed_domains")

@@ -173,7 +173,7 @@ class ToolExecutor:
                     result=None, latency_ms=elapsed, ok=False,
                     error=decision.reason,
                     policy_decision="denied", policy_reason=decision.reason,
-                    risk=tool_def.policy.risk,
+                    risk=tool_def.policy.risk if tool_def.policy else "destructive",
                 )
                 return ToolExecutionResult(
                     tool_call_id=tool_call.id, name=tool_call.name,
@@ -188,7 +188,7 @@ class ToolExecutor:
                     result=None, latency_ms=elapsed, ok=False,
                     error="Human approval required",
                     policy_decision="approval_required", policy_reason=decision.reason,
-                    risk=tool_def.policy.risk,
+                    risk=tool_def.policy.risk if tool_def.policy else "destructive",
                 )
                 return ToolExecutionResult(
                     tool_call_id=tool_call.id, name=tool_call.name,

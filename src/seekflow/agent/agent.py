@@ -141,6 +141,13 @@ class DeepSeekAgent:
         self._mode = mode  # "fast" | "stable"
         self._dangerous_tools = dangerous_tools
 
+        # Capability profile (mutable, populated by allow_* methods)
+        self._allowed_capabilities: set[str] = set()
+        self._allowed_domains: set[str] = set()
+        self._workspace_root: str | None = None
+        self._max_risk: str = "read"
+        self._sandbox: Any = None
+
         # Apply model-specific defaults if not explicitly overridden
         md = MODEL_DEFAULTS.get(model, MODEL_DEFAULTS["__default__"])
         self._temperature = temperature  # User override always wins
@@ -515,6 +522,51 @@ class DeepSeekAgent:
             return []
         return [os.path.splitext(os.path.basename(f))[0]
                 for f in glob.glob(os.path.join(path, "*.json"))]
+
+    def allow_filesystem(
+        self, *, root: str,
+        read: bool = True, write: bool = False,
+        allowed_extensions: set[str] | None = None,
+        max_file_bytes: int = 5_000_000,
+    ) -> "DeepSeekAgent":
+        """Enable filesystem capabilities within a workspace root."""
+        self._workspace_root = root
+        self._allowed_capabilities.add("filesystem.read")
+        if write:
+            self._allowed_capabilities.add("filesystem.write")
+        return self
+
+    def allow_network(
+        self, *, domains: set[str],
+        https_only: bool = True,
+        max_response_bytes: int = 1_000_000,
+    ) -> "DeepSeekAgent":
+        """Enable network fetch for specified domains."""
+        self._allowed_capabilities.add("network.public_http")
+        self._allowed_domains.update(domains)
+        self._max_risk = "network"
+        return self
+
+    def allow_python(
+        self, *, sandbox, timeout_s: float = 10.0,
+    ) -> "DeepSeekAgent":
+        """Enable Python code execution with a configured sandbox."""
+        from seekflow.sandbox import NoSandbox
+        if isinstance(sandbox, NoSandbox):
+            raise ValueError("Python execution requires a real sandbox, not NoSandbox")
+        self._allowed_capabilities.add("code.exec")
+        self._sandbox = sandbox
+        self._max_risk = "code_exec"
+        return self
+
+    def allow_sqlite(
+        self, *, root: str, readonly: bool = True,
+        max_rows: int = 1000,
+    ) -> "DeepSeekAgent":
+        """Enable read-only SQLite queries within a workspace root."""
+        self._allowed_capabilities.add("data.sqlite")
+        self._workspace_root = root
+        return self
 
     def cleanup(self) -> None:
         """Clean up resources: MCP sessions, runtime cache, open connections."""
