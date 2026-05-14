@@ -130,7 +130,7 @@ class ToolExecutor:
                         arguments={}, ok=False,
                         error=(
                             f"Repaired arguments confidence ({repair_confidence:.2f}) "
-                            f"below threshold (0.85) for dangerous tool '{tool_call.name}'"
+                            f"below threshold ({DANGEROUS_REPAIR_CONFIDENCE_THRESHOLD}) for dangerous tool '{tool_call.name}'"
                         ),
                         elapsed_ms=elapsed, repaired=True,
                         repair_notes=repair_notes + ["repair_denied_for_dangerous_tool"],

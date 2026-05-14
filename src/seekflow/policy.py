@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import urlparse
 
 from seekflow.types import ToolDefinition, ToolPolicy
 
@@ -183,17 +181,36 @@ class PolicyEngine:
                     return PolicyDecision(allowed=False,
                         reason=f"SSRF blocked: {e}")
 
-        # 8. Path validation via workspace_root
-        if policy.workspace_root is not None:
+        # 8. Path validation via path_params + workspace_root
+        effective_root = policy.workspace_root or (
+            getattr(context, "workspace_root", None) if has_context and not isinstance(context, dict) else None
+        )
+        if effective_root is not None and policy.path_params:
             from seekflow.security import safe_join
-            for key, val in args.items():
-                if isinstance(val, str) and ("/" in val or "\\" in val):
+            for name in policy.path_params:
+                val = args.get(name)
+                if isinstance(val, str):
                     try:
-                        safe_join(policy.workspace_root, val)
+                        safe_join(effective_root, val)
                     except PermissionError as e:
                         return PolicyDecision(allowed=False, reason=str(e))
 
-        # 9. Approval requirement
+        # 9. URL validation via url_params + allowed_domains
+        effective_domains = policy.allowed_domains or (
+            getattr(context, "allowed_domains", set()) if has_context and not isinstance(context, dict) else set()
+        )
+        if policy.url_params and effective_domains:
+            for name in policy.url_params:
+                val = args.get(name)
+                if isinstance(val, str) and val:
+                    from seekflow.security.http import NetworkPolicy, validate_url_strict
+                    try:
+                        validate_url_strict(val, NetworkPolicy(allowed_domains=effective_domains))
+                    except ValueError as e:
+                        return PolicyDecision(allowed=False,
+                            reason=f"URL validation blocked: {e}")
+
+        # 10. Approval requirement
         if policy.requires_approval:
             return PolicyDecision(allowed=True, requires_approval=True,
                                   reason="Tool requires human approval")
