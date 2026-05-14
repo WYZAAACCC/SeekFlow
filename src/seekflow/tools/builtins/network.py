@@ -41,4 +41,5 @@ def make_fetch_url(
         timeout_s=timeout,
         max_output_bytes=max_response_bytes,
         parallel_safe=True,
+        url_params=frozenset({"url"}),
     ))
