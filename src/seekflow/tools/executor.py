@@ -43,8 +43,15 @@ if TYPE_CHECKING:
     pass
 
 
+DANGEROUS_REPAIR_CONFIDENCE_THRESHOLD = 0.95
+
+
 class ToolExecutor:
-    """Executes tool calls with repair, coercion, and error handling."""
+    """Executes tool calls with policy-enforced security gate.
+
+    Execution order: parse → repair → lookup → coerce → policy →
+    approval → sandbox → execute → sanitize → truncate → audit.
+    """
 
     def __init__(
         self,
@@ -54,6 +61,10 @@ class ToolExecutor:
         cache: ToolCallCache | None = None,
         truncation_strategy: TruncationStrategy = TruncationStrategy.JSON_AWARE,
         max_parallel: int = 5,
+        policy_engine: Any | None = None,
+        context: Any | None = None,
+        approval_handler: Any | None = None,
+        sandbox: Any | None = None,
     ):
         self.registry = registry
         self.repair = repair
@@ -61,6 +72,10 @@ class ToolExecutor:
         self._cache = cache
         self.truncation_strategy = truncation_strategy
         self.max_parallel = max_parallel
+        self.policy_engine = policy_engine
+        self.context = context
+        self.approval_handler = approval_handler
+        self.sandbox = sandbox
         self.audit_trail: list[ToolAuditRecord] = []
 
     def execute(self, tool_call: ToolCall, timeout: float | None = 30.0) -> ToolExecutionResult:
@@ -107,7 +122,7 @@ class ToolExecutor:
         if repaired and repair_level == 1:
             td = self.registry.get(tool_call.name) if self.registry.has(tool_call.name) else None
             if td and td.policy and td.policy.risk in ("write", "network", "code_exec", "destructive"):
-                if repair_confidence < 0.95:
+                if repair_confidence < DANGEROUS_REPAIR_CONFIDENCE_THRESHOLD:
                     elapsed = int((time.time() - start) * 1000)
                     return ToolExecutionResult(
                         tool_call_id=tool_call.id, name=tool_call.name,
@@ -137,13 +152,19 @@ class ToolExecutor:
         # ── Policy gate: enforce authorization before execution ──────
         policy_decision = "allowed"
         policy_reason = ""
-        if tool_def.policy is not None:
-            from seekflow.policy import PolicyEngine
-            engine = PolicyEngine()
-            decision = engine.authorize(
+        if self.policy_engine is not None:
+            decision = self.policy_engine.authorize(
                 tool_def,
                 arguments if isinstance(arguments, dict) else {},
-                run_context=getattr(self, '_run_context', None),
+                run_context={
+                    "dangerous_tools_enabled": getattr(
+                        self.context, "dangerous_tools_enabled", False
+                    ) if self.context else False,
+                    "sandbox": self.sandbox,
+                    "workspace_root": (
+                        self.context.workspace_root if self.context else None
+                    ),
+                },
             )
             if not decision.allowed:
                 elapsed = int((time.time() - start) * 1000)
@@ -330,9 +351,10 @@ class ToolExecutor:
         for idx, tc in enumerate(tool_calls):
             td = self.registry.get(tc.name) if self.registry.has(tc.name) else None
             policy = td.policy if td else None
+            # No policy → NOT parallel safe, requires explicit policy
             is_parallel_safe = (
                 policy.parallel_safe and policy.risk == "read"
-            ) if policy else True  # no policy → assume safe read
+            ) if policy is not None else False
             if is_parallel_safe:
                 parallel_indices.append(idx)
             else:

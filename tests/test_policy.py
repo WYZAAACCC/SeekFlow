@@ -70,8 +70,9 @@ class TestPolicyEngine:
             # policy=None → restrictive default
         )
         decision = engine.authorize(td, {}, run_context={})
-        # Default policy denies network and code_exec; basic read-like allowed
-        assert decision.allowed is True  # no risky capabilities claimed
+        # No-policy tools are denied by default (must have explicit ToolPolicy)
+        assert decision.allowed is False
+        assert decision.requires_approval is True
 
     def test_network_tool_with_allowed_domain_passes(self):
         from seekflow.policy import PolicyEngine

@@ -23,7 +23,13 @@ class TestParallelExecution:
 
         executor = ToolExecutor(reg, max_parallel=5)
 
-        from seekflow.types import ToolCall
+        from seekflow.types import ToolCall, ToolPolicy
+
+        # Give tools parallel-safe read policy
+        for name in ("slow_tool_a", "slow_tool_b"):
+            td = reg.get(name)
+            td.policy = ToolPolicy(risk="read", parallel_safe=True)
+
         calls = [
             ToolCall(id="1", name="slow_tool_a", arguments={}),
             ToolCall(id="2", name="slow_tool_b", arguments={}),

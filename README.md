@@ -1,4 +1,4 @@
-# SeekFlow v0.2.0
+# SeekFlow v0.2.5
 
 **DeepSeek-native &nbsp;|&nbsp; Production-grade security &nbsp;|&nbsp; 620+ tests**
 

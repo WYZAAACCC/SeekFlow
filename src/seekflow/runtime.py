@@ -52,6 +52,10 @@ class ToolRuntime:
         cache_size: int = 128,
         cache_ttl: float | None = None,
         truncation_strategy: TruncationStrategy = TruncationStrategy.JSON_AWARE,
+        policy_engine: Any | None = None,
+        policy_context: Any | None = None,
+        approval_handler: Any | None = None,
+        sandbox: Any | None = None,
     ):
         self._api_key = api_key
         self._base_url = base_url
@@ -71,6 +75,10 @@ class ToolRuntime:
         self._cache_size = cache_size
         self._cache_ttl = cache_ttl
         self._truncation_strategy = truncation_strategy
+        self._policy_engine = policy_engine
+        self._policy_context = policy_context
+        self._approval_handler = approval_handler
+        self._sandbox = sandbox
         self._last_messages: list[dict[str, Any]] = []
 
         # Build tool registry
@@ -187,6 +195,10 @@ class ToolRuntime:
             max_result_chars=self._max_result_chars,
             cache=self._active_cache,
             truncation_strategy=self._truncation_strategy,
+            policy_engine=self._policy_engine,
+            context=self._policy_context,
+            approval_handler=self._approval_handler,
+            sandbox=self._sandbox,
         )
 
         # Generate tools schema

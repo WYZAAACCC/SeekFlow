@@ -231,18 +231,23 @@ def append_only_compress(
 
     result = []
     if system_msg:
-        # Append summary AFTER the frozen system prefix (preserves cache)
-        enhanced_system = dict(system_msg)
-        original_content = system_msg.get("content", "")
-        enhanced_system["content"] = (
-            f"{original_content}\n\n"
-            f"[Compressed Context — {len(older)} older messages summarized]\n"
-            f"{summary}"
-        )
-        result.append(enhanced_system)
+        # Original system message preserved exactly — cache prefix intact
+        result.append(dict(system_msg))
+        # Compressed context as a SEPARATE user message — never alters system
+        result.append({
+            "role": "user",
+            "content": (
+                f"[Compressed Context — {len(older)} older messages summarized]\n"
+                f"{summary}"
+            ),
+        })
     else:
         result.append({
             "role": "system",
+            "content": "You are a helpful assistant.",
+        })
+        result.append({
+            "role": "user",
             "content": f"[Compressed Context]\n{summary}",
         })
     result.extend(recent)

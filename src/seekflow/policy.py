@@ -29,7 +29,12 @@ class PolicyDecision:
     sanitized_args: dict | None = None
 
 
-_DEFAULT_RESTRICTIVE_POLICY = ToolPolicy()
+_DEFAULT_UNTRUSTED_POLICY = ToolPolicy(
+    capabilities=set(),
+    risk="destructive",
+    parallel_safe=False,
+    requires_approval=True,
+)
 
 
 class PolicyEngine:
@@ -37,12 +42,15 @@ class PolicyEngine:
 
     Every tool call passes through ``authorize()`` before execution.
     Checks capabilities, workspace boundaries, URL domains, risk gating,
-    and human-approval requirements.
+    sandbox requirements, and human-approval requirements.
     """
 
     RISK_ORDER: dict[str, int] = {
         "read": 0, "network": 1, "write": 2, "code_exec": 3, "destructive": 4,
     }
+
+    def __init__(self, allow_no_policy: bool = False):
+        self._allow_no_policy = allow_no_policy
 
     def authorize_with_context(
         self, policy: ToolPolicy, context: ToolPolicyContext,
@@ -78,7 +86,15 @@ class PolicyEngine:
     ) -> PolicyDecision:
         """Check whether *tool_def* may execute with *args*."""
         run_context = run_context or {}
-        policy = tool_def.policy or _DEFAULT_RESTRICTIVE_POLICY
+        policy = tool_def.policy or _DEFAULT_UNTRUSTED_POLICY
+
+        # 0. No-policy tools: deny unless explicitly allowed
+        if tool_def.policy is None and not self._allow_no_policy:
+            return PolicyDecision(
+                allowed=False,
+                reason="Tool has no policy configured. All tools require an explicit ToolPolicy.",
+                requires_approval=True,
+            )
 
         # 1. Destructive always requires approval
         if policy.risk == "destructive":
@@ -88,13 +104,19 @@ class PolicyEngine:
                 reason="Destructive tool requires human approval",
             )
 
-        # 2. Code execution requires sandbox
+        # 2. Code execution requires sandbox (not NoSandbox)
         if "code.exec" in policy.capabilities:
             sandbox = run_context.get("sandbox")
-            if sandbox is None or getattr(sandbox, "name", "") == "no_sandbox":
+            if sandbox is None:
                 return PolicyDecision(
                     allowed=False,
-                    reason="code_exec capability requires a configured sandbox",
+                    reason="code_exec capability requires a configured sandbox (not None)",
+                )
+            sandbox_name = getattr(sandbox, "name", "")
+            if sandbox_name in ("no_sandbox", "abstract"):
+                return PolicyDecision(
+                    allowed=False,
+                    reason=f"code_exec denied: sandbox '{sandbox_name}' is not a real sandbox",
                 )
 
         # 3. Write requires workspace root
