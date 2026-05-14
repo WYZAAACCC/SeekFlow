@@ -748,13 +748,14 @@ class DeepSeekAgent:
             from seekflow.policy import PolicyEngine
             from seekflow.execution.context import ToolExecutionContext
 
+            from pathlib import Path as _Path
             ctx = ToolExecutionContext(
                 run_id=getattr(self, '_cost_tag', '') or 'agent',
                 dangerous_tools_enabled=self._dangerous_tools,
                 allowed_capabilities=self._allowed_capabilities,
                 max_risk=self._max_risk,
                 workspace_root=(
-                    self._workspace_root if self._workspace_root else None
+                    _Path(self._workspace_root) if self._workspace_root else None
                 ),
                 allowed_domains=self._allowed_domains,
                 sandbox=self._sandbox,

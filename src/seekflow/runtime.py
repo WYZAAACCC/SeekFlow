@@ -601,6 +601,7 @@ class ToolRuntime:
             for chunk in stream_iter:
                 if chunk.type == "usage" and chunk.usage:
                     stream_usage = chunk.usage
+                    self._cost_tracker.record(model, chunk.usage)
                     continue
 
                 if chunk.type == "reasoning" and chunk.content:
@@ -761,8 +762,12 @@ class ToolRuntime:
 
         # Build batch requests — normalize each through DeepSeekAdapter
         thinking = ThinkingConfig(enabled=True, effort="high")
+        recorder = TraceRecorder(enabled=self._trace_enabled)
         batch_requests = []
         for i, req in enumerate(requests):
+            # Protocol validation for each batch request
+            _validate_protocol(req["messages"], thinking, i, recorder)
+
             tools = req.get("tools") or tools_schema or None
             normalized = DeepSeekAdapter.build_chat_params(
                 model=model,
@@ -776,19 +781,15 @@ class ToolRuntime:
                 "body": normalized,
             })
 
-        # Submit, poll, download
+        # Submit, poll, download — use RetryExecutor when available
         from seekflow.client import DeepSeekClient
-        if self._client is not None:
-            if isinstance(self._client, DeepSeekClient):
-                raw_client = self._client
-            elif hasattr(self._client, '_client'):
-                raw_client = self._client._client
-            else:
-                raw_client = self._client
-        else:
+        raw_client: Any = self._client
+        if raw_client is None:
             raw_client = DeepSeekClient(
                 api_key=self._api_key, base_url=self._base_url, timeout=self._timeout
             )
+        elif hasattr(raw_client, '_client'):
+            raw_client = getattr(raw_client, '_client', raw_client)
         batch_client = BatchClient(raw_client, poll_interval=poll_interval)
 
         try:
@@ -943,16 +944,23 @@ def _apply_thinking_mode(
     kwargs: dict,
     messages: list[dict] | None = None,
 ) -> dict:
-    """Convert thinking_mode parameter to extra_body format.
+    """DEPRECATED: Use DeepSeekAdapter.build_chat_params() directly.
 
-    When thinking_mode is not set (None), the default depends on the conversation:
-    - Single-turn (no tool messages): "enabled"
-    - Multi-turn (has tool messages): "disabled" (with UserWarning)
+    This function is kept for backward compatibility with external callers
+    that may still use the thinking_mode parameter pattern.
+    The main runtime paths (chat/chat_stream/chat_batch) now go through
+    DeepSeekAdapter.build_chat_params().
 
-    When thinking_mode is explicitly set, the user's choice is always respected.
+    Converts thinking_mode parameter to extra_body format.
     """
     import copy
     import warnings
+
+    warnings.warn(
+        "_apply_thinking_mode is deprecated. "
+        "Use DeepSeekAdapter.build_chat_params() with ThinkingConfig.",
+        DeprecationWarning, stacklevel=2,
+    )
 
     kwargs = copy.copy(kwargs)
     extra_body = dict(kwargs.get("extra_body", {}) or {})
@@ -961,40 +969,12 @@ def _apply_thinking_mode(
         is_multi_turn = bool(messages) and any(
             m.get("role") == "tool" for m in messages
         )
-        if is_multi_turn:
-            thinking_mode = "disabled"
-            warnings.warn(
-                "thinking_mode automatically set to 'disabled' for multi-turn "
-                "conversation. DeepSeek requires reasoning_content to be passed "
-                "back in every assistant message during multi-turn — set "
-                "thinking_mode='enabled' explicitly if you handle this yourself.",
-                UserWarning,
-                stacklevel=3,
-            )
-        else:
-            thinking_mode = "enabled"
-
-    if "thinking" in extra_body:
-        import logging
-        logging.getLogger("seekflow").warning(
-            "thinking_mode=%r overrides extra_body['thinking']=%r",
-            thinking_mode, extra_body["thinking"],
-        )
+        thinking_mode = "disabled" if is_multi_turn else "enabled"
 
     think_config: dict[str, Any] = {"type": thinking_mode}
     if thinking_mode == "enabled":
-        # Warn about sampling params that have no effect in thinking mode
-        ignored = []
         for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):
-            if key in kwargs:
-                ignored.append(key)
-                kwargs.pop(key)
-        if ignored:
-            warnings.warn(
-                f"Thinking mode ignores sampling params: {', '.join(sorted(ignored))}. "
-                "These have been removed from the request.",
-                UserWarning, stacklevel=3,
-            )
+            kwargs.pop(key, None)
 
     extra_body["thinking"] = think_config
     kwargs["extra_body"] = extra_body
