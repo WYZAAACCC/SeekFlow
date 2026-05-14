@@ -769,6 +769,7 @@ class DeepSeekAgent:
                 policy_engine=PolicyEngine(),
                 policy_context=ctx,
                 approval_handler=self._approval_handler,
+                sandbox=self._sandbox,
             )
         # FREEZE the cacheable prefix now that tools are finalized
         if self._mode == "stable":
