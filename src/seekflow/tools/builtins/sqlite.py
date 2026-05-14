@@ -48,6 +48,7 @@ def make_sqlite_query(
         if ";" in query.rstrip(";"):
             return "SQL query blocked: multiple statements not allowed"
 
+        conn = None
         try:
             uri = f"file:{safe_path.as_posix()}?mode=ro"
             conn = sqlite3.connect(uri, uri=True, timeout=timeout_s)
@@ -66,7 +67,6 @@ def make_sqlite_query(
                 dict(zip([c[0] for c in cur.description], row))
                 for row in cur.fetchmany(max_rows + 1)
             ]
-            conn.close()
 
             if len(rows) > max_rows:
                 rows = rows[:max_rows]
@@ -75,6 +75,12 @@ def make_sqlite_query(
             return _json.dumps(rows, ensure_ascii=False, indent=2)[:8000]
         except Exception as e:
             return f"SQL query failed: {e}"
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     return query_sql.with_policy(ToolPolicy(
         capabilities={"filesystem.read", "data.sqlite"},
