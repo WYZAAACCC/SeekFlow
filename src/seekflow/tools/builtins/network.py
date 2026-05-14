@@ -17,6 +17,8 @@ def make_fetch_url(
     Uses ``fetch_url_hardened()`` from ``security.http`` which enforces:
     DNS fail-closed, all-IP checking, per-redirect validation, userinfo rejection.
     """
+    if not allowed_domains:
+        raise ValueError("make_fetch_url requires non-empty allowed_domains")
 
     @tool(trusted=False)
     def fetch_url(url: str) -> str:
@@ -38,8 +40,9 @@ def make_fetch_url(
         capabilities={"network.public_http"},
         risk="network",
         allowed_domains=allowed_domains,
+        url_params=frozenset({"url"}),
         timeout_s=timeout,
+        max_input_bytes=20_000,
         max_output_bytes=max_response_bytes,
         parallel_safe=True,
-        url_params=frozenset({"url"}),
     ))
