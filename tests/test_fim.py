@@ -125,3 +125,24 @@ class TestFIMCompleteStream:
             assert chunks[-1].finish_reason == "stop"
             combined = "".join(c.text for c in chunks)
             assert combined == "print('hello')"
+
+
+class TestFIMConstraints:
+    def test_max_tokens_exceeds_4096_raises(self):
+        from seekflow.fim import fim_complete
+        with pytest.raises(ValueError, match="max_tokens"):
+            fim_complete(prefix="def f():", suffix="", model="deepseek-v4-pro",
+                         api_key="sk-test", max_tokens=5000)
+
+    def test_stream_max_tokens_exceeds_4096_raises(self):
+        from seekflow.fim import fim_complete_stream
+        with pytest.raises(ValueError, match="max_tokens"):
+            next(fim_complete_stream(prefix="def f():", suffix="",
+                                     model="deepseek-v4-pro", api_key="sk-test",
+                                     max_tokens=5000))
+
+    def test_max_tokens_5000_raises_valueerror(self):
+        from seekflow.fim import fim_complete
+        with pytest.raises(ValueError, match="max_tokens"):
+            fim_complete(prefix="a", suffix="b", model="deepseek-v4-pro",
+                         api_key="sk-test", max_tokens=5000)
