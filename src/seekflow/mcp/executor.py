@@ -115,7 +115,7 @@ class MCPToolExecutor:
     async def _discover_via_sdk(self, cfg: MCPServerConfig) -> list:
         from mcp.client.stdio import stdio_client, StdioServerParameters
         from mcp import ClientSession
-        params = StdioServerParameters(command=cfg.command, args=cfg.args)
+        params = cfg.to_stdio_params()
         read, write = await stdio_client(params).__aenter__()
         session = ClientSession(read, write)
         await session.__aenter__()
@@ -125,11 +125,40 @@ class MCPToolExecutor:
         return [(t.name, t.description, t.inputSchema) for t in result.tools]
 
     def _discover_via_manual(self, cfg: MCPServerConfig) -> list:
+        # Build minimal env from allowlist
+        import os as _os
+        mcp_env: dict[str, str] = {}
+        if cfg.env_allowlist:
+            for key in cfg.env_allowlist:
+                if key in _os.environ:
+                    mcp_env[key] = _os.environ[key]
+        # Apply explicit env overrides from config
+        mcp_env.update(cfg.env or {})
+
         proc = subprocess.Popen(
             [cfg.command] + cfg.args,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, shell=False,
+            env=mcp_env if mcp_env else None,
+            cwd=str(cfg.cwd) if cfg.cwd else None,
         )
+
+        # Drain stderr in background to prevent deadlock
+        import threading
+
+        def _drain_stderr():
+            try:
+                while True:
+                    chunk = proc.stderr.read(4096)
+                    if not chunk:
+                        break
+                    logger.debug("MCP stderr [%s]: %s", cfg.name,
+                                 chunk.decode(errors="replace")[:500])
+            except Exception:
+                pass
+
+        stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+        stderr_thread.start()
 
         def _rpc(method, params=None, rid=1):
             req = {"jsonrpc": "2.0", "id": rid, "method": method,

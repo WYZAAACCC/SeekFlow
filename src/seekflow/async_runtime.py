@@ -58,6 +58,8 @@ class AsyncToolRuntime:
         timeout: float = 120.0,
         max_context_tokens: int | None = None,
         retry_policy: RetryPolicy | None = None,
+        policy_engine: Any | None = None,
+        policy_context: Any | None = None,
         cache_size: int = 128,
         cache_ttl: float | None = None,
         truncation_strategy: TruncationStrategy = TruncationStrategy.JSON_AWARE,
@@ -80,6 +82,10 @@ class AsyncToolRuntime:
             threshold=self._retry_policy.circuit_breaker_threshold,
             cooldown=self._retry_policy.cooldown,
         )
+        from seekflow.policy import PolicyEngine
+        from seekflow.execution.context import ToolExecutionContext
+        self._policy_engine = policy_engine or PolicyEngine()
+        self._policy_context = policy_context or ToolExecutionContext.conservative()
         self._cache_size = cache_size
         self._cache_ttl = cache_ttl
         self._active_cache: ToolCallCache | None = None
@@ -178,6 +184,8 @@ class AsyncToolRuntime:
             max_result_chars=self._max_result_chars,
             cache=self._active_cache,
             truncation_strategy=self._truncation_strategy,
+            policy_engine=self._policy_engine,
+            context=self._policy_context,
         )
 
         tools_schema = self._registry.to_deepseek_tools(strict=self._strict)
@@ -386,6 +394,8 @@ class AsyncToolRuntime:
             self._registry, repair=self._repair,
             max_result_chars=self._max_result_chars,
             truncation_strategy=self._truncation_strategy,
+            policy_engine=self._policy_engine,
+            context=self._policy_context,
         )
 
         tools_schema = self._registry.to_deepseek_tools(strict=self._strict)
