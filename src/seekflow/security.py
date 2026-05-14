@@ -101,6 +101,11 @@ def validate_file_access(
 # URL / SSRF validation
 # ═══════════════════════════════════════════════════════════════════════════
 
+BLOCKED_HOSTS: frozenset[str] = frozenset({
+    "localhost",
+    "metadata.google.internal",
+})
+
 _PRIVATE_IP_RANGES = [
     ipaddress.IPv4Network("127.0.0.0/8"),
     ipaddress.IPv4Network("10.0.0.0/8"),
@@ -152,6 +157,9 @@ def validate_url(
 
     hostname = parsed.hostname
     if hostname is None:
+        return False
+
+    if hostname.lower() in BLOCKED_HOSTS:
         return False
 
     if allow_domains is not None and hostname not in allow_domains:

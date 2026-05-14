@@ -1,4 +1,4 @@
-"""OpenTelemetry integration — spans, metrics, structured logging.
+"""OpenTelemetry integration — spans, metrics, structured logging, trace records.
 
 Gracefully degrades when the OTel SDK is not installed: all functions
 become no-ops so the framework works without OTel as a dependency.
@@ -6,8 +6,13 @@ become no-ops so the framework works without OTel as a dependency.
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
+
+from seekflow.security import redact_secrets
 
 logger = logging.getLogger("seekflow")
 
@@ -110,3 +115,71 @@ def log_circuit_breaker_change(old_state: str, new_state: str) -> None:
 
 def log_security_violation(violation_type: str, detail: str = "") -> None:
     logger.error("security.violation type=%r detail=%r", violation_type, detail[:200])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Trace records — structured execution timeline
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class StepTrace:
+    """A single step in a run trace."""
+    step: int
+    kind: str  # "model_call", "tool_execute", "finalize", etc.
+    started_at: float = 0.0
+    ended_at: float | None = None
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass
+class RunTrace:
+    """Full trace of a single agent run — all steps, usage, cost, errors."""
+
+    run_id: str = field(default_factory=lambda: str(uuid4()))
+    started_at: float = field(default_factory=time.time)
+    ended_at: float | None = None
+    model: str | None = None
+    steps: list[StepTrace] = field(default_factory=list)
+    usage: dict = field(default_factory=dict)
+    cost: dict = field(default_factory=dict)
+    cache: dict = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+
+    def add_step(self, kind: str, **metadata: Any) -> StepTrace:
+        safe_metadata = {
+            key: redact_secrets(str(value)) if isinstance(value, str) else value
+            for key, value in metadata.items()
+        }
+        step = StepTrace(
+            step=len(self.steps) + 1,
+            kind=kind,
+            started_at=time.time(),
+            metadata=safe_metadata,
+        )
+        self.steps.append(step)
+        return step
+
+    def finish(self) -> None:
+        self.ended_at = time.time()
+
+    def to_dict(self) -> dict:
+        return {
+            "run_id": self.run_id,
+            "started_at": self.started_at,
+            "ended_at": self.ended_at,
+            "model": self.model,
+            "steps": [
+                {
+                    "step": s.step,
+                    "kind": s.kind,
+                    "started_at": s.started_at,
+                    "ended_at": s.ended_at,
+                    "metadata": s.metadata,
+                }
+                for s in self.steps
+            ],
+            "usage": self.usage,
+            "cost": self.cost,
+            "cache": self.cache,
+            "errors": self.errors,
+        }

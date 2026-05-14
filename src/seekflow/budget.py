@@ -63,6 +63,46 @@ _PRICING: dict[str, dict[str, float]] = {
 }
 
 
+class BudgetGuard:
+    """Enforce a CostBudget during agent execution.
+
+    Raises BudgetExceeded when token/cost limits are hit.
+    """
+
+    def __init__(self, budget: CostBudget):
+        self.budget = budget
+        self._prompt_tokens_used = 0
+        self._completion_tokens_used = 0
+        self._tool_calls_used = 0
+
+    def check_tokens(self, *, prompt_tokens: int = 0, completion_tokens: int = 0) -> None:
+        if self.budget.max_prompt_tokens is not None:
+            if self._prompt_tokens_used + prompt_tokens > self.budget.max_prompt_tokens:
+                raise BudgetExceeded(
+                    self.budget.max_prompt_tokens,
+                    self._prompt_tokens_used + prompt_tokens,
+                )
+        if self.budget.max_completion_tokens is not None:
+            if self._completion_tokens_used + completion_tokens > self.budget.max_completion_tokens:
+                raise BudgetExceeded(
+                    self.budget.max_completion_tokens,
+                    self._completion_tokens_used + completion_tokens,
+                )
+
+    def record_usage(self, prompt_tokens: int = 0, completion_tokens: int = 0) -> None:
+        self._prompt_tokens_used += prompt_tokens
+        self._completion_tokens_used += completion_tokens
+
+    def check_tool_call(self) -> None:
+        if self.budget.max_tool_calls is not None:
+            if self._tool_calls_used >= self.budget.max_tool_calls:
+                raise BudgetExceeded(
+                    self.budget.max_tool_calls,
+                    self._tool_calls_used,
+                )
+            self._tool_calls_used += 1
+
+
 class CostEstimator:
     """Estimate token consumption and cost BEFORE making API calls."""
 

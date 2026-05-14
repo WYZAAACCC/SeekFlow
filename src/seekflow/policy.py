@@ -3,10 +3,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from seekflow.types import ToolDefinition, ToolPolicy
+
+
+@dataclass
+class ToolPolicyContext:
+    """Runtime context for policy authorization decisions."""
+
+    dangerous_tools_enabled: bool = False
+    allowed_capabilities: set[str] = field(default_factory=set)
+    max_risk: Literal["read", "write", "network", "code_exec", "destructive"] = "read"
 
 
 @dataclass
@@ -30,6 +39,36 @@ class PolicyEngine:
     Checks capabilities, workspace boundaries, URL domains, risk gating,
     and human-approval requirements.
     """
+
+    RISK_ORDER: dict[str, int] = {
+        "read": 0, "network": 1, "write": 2, "code_exec": 3, "destructive": 4,
+    }
+
+    def authorize_with_context(
+        self, policy: ToolPolicy, context: ToolPolicyContext,
+    ) -> PolicyDecision:
+        """Authorize using ToolPolicyContext (simpler, context-based check)."""
+        if policy.risk != "read" and not context.dangerous_tools_enabled:
+            return PolicyDecision(False, "Dangerous tools are disabled by default.")
+
+        if self.RISK_ORDER.get(policy.risk, 0) > self.RISK_ORDER.get(context.max_risk, 0):
+            return PolicyDecision(
+                False,
+                f"Tool risk {policy.risk} exceeds allowed risk {context.max_risk}.",
+            )
+
+        missing = policy.capabilities - context.allowed_capabilities
+        if missing:
+            return PolicyDecision(
+                False, f"Missing capabilities: {sorted(missing)}",
+            )
+
+        if policy.requires_approval:
+            return PolicyDecision(
+                True, "requires human approval", requires_approval=True,
+            )
+
+        return PolicyDecision(True, "allowed")
 
     def authorize(
         self,
