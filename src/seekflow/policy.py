@@ -166,17 +166,22 @@ class PolicyEngine:
                 return PolicyDecision(allowed=False,
                     reason="filesystem capability requires workspace_root")
 
-        # 7. Network requires allowed_domains
+        # 7. Network requires allowed_domains + strict SSRF validation
         if "network.public_http" in policy.capabilities:
-            domains = policy.allowed_domains or (getattr(context, "allowed_domains", set()) if has_context else set())
+            domains = policy.allowed_domains or (
+                getattr(context, "allowed_domains", set()) if has_context and not isinstance(context, dict) else set()
+            )
             url = args.get("url", "")
-            if url:
-                parsed = urlparse(url)
-                hostname = parsed.hostname or ""
-                if domains and hostname and hostname not in domains:
+            if not url:
+                return PolicyDecision(allowed=False,
+                    reason="network.public_http requires a URL argument")
+            if domains:
+                from seekflow.security.http import NetworkPolicy, validate_url_strict
+                try:
+                    validate_url_strict(url, NetworkPolicy(allowed_domains=domains))
+                except ValueError as e:
                     return PolicyDecision(allowed=False,
-                        reason=f"Domain '{hostname}' not in allowed_domains",
-                    )
+                        reason=f"SSRF blocked: {e}")
 
         # 8. Path validation via workspace_root
         if policy.workspace_root is not None:

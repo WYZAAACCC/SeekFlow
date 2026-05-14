@@ -90,6 +90,8 @@ class TestPolicyEngine:
         decision = engine.authorize(
             td, {"url": "https://docs.deepseek.com/api"}, context={},
         )
+        if not decision.allowed and "DNS" in decision.reason:
+            pytest.skip("DNS resolution not available")
         assert decision.allowed is True
 
     def test_network_tool_with_blocked_domain_denied(self):

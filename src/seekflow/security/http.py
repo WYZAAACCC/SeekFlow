@@ -131,44 +131,45 @@ def validate_url_strict(url: str, policy: NetworkPolicy) -> None:
 def fetch_url_hardened(url: str, policy: NetworkPolicy) -> str:
     """Fetch a URL with SSRF protection and redirect validation.
 
-    Uses urllib but adds post-fetch URL validation to catch redirect-based
-    SSRF (urllib auto-follows redirects, so we verify the final URL too).
+    Uses httpx with follow_redirects=False — each redirect is independently
+    validated through validate_url_strict before being followed.
+    Stream-reads response body with max_response_bytes enforcement.
     """
-    import urllib.request as _ur
     import re as _re
+    import httpx
+    from urllib.parse import urljoin
 
-    validate_url_strict(url, policy)
+    current = url
+    with httpx.Client(follow_redirects=False, timeout=policy.timeout_s) as client:
+        for _ in range(policy.max_redirects + 1):
+            validate_url_strict(current, policy)
 
-    try:
-        req = _ur.Request(url, headers={"User-Agent": "SeekFlow/1.0"})
-        with _ur.urlopen(req, timeout=policy.timeout_s) as resp:
-            # Post-redirect: validate final URL (urllib follows redirects)
-            final_url = resp.geturl() if hasattr(resp, 'geturl') else url
-            if final_url != url:
-                validate_url_strict(final_url, policy)
+            with client.stream("GET", current, headers={"User-Agent": "SeekFlow/1.0"}) as resp:
+                if resp.is_redirect:
+                    location = resp.headers.get("location")
+                    if not location:
+                        raise SSRFError("Redirect without Location header")
+                    current = urljoin(current, location)
+                    continue
 
-            # Stream-read with size limit to prevent DoS
-            chunks: list[bytes] = []
-            total = 0
-            while True:
-                chunk = resp.read(8192)
-                if not chunk:
-                    break
-                total += len(chunk)
-                if total > policy.max_response_bytes:
-                    break
-                chunks.append(chunk)
+                resp.raise_for_status()
 
-            raw = b"".join(chunks)
-            if len(raw) > policy.max_response_bytes:
-                raw = raw[:policy.max_response_bytes]
-            text = raw.decode("utf-8", errors="replace")
-            text = _re.sub(r"<script[^>]*>.*?</script>", "", text, flags=_re.DOTALL)
-            text = _re.sub(r"<style[^>]*>.*?</style>", "", text, flags=_re.DOTALL)
-            text = _re.sub(r"<[^>]+>", " ", text)
-            text = _re.sub(r"\s+", " ", text).strip()
-            return text
-    except SSRFError:
-        raise
-    except Exception as e:
-        raise SSRFError(f"Fetch failed for {url}: {e}") from e
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in resp.iter_bytes():
+                    total += len(chunk)
+                    if total > policy.max_response_bytes:
+                        raise SSRFError(
+                            f"Response exceeds max_response_bytes ({policy.max_response_bytes})"
+                        )
+                    chunks.append(chunk)
+
+                raw = b"".join(chunks)
+                text = raw.decode("utf-8", errors="replace")
+                text = _re.sub(r"<script[^>]*>.*?</script>", "", text, flags=_re.DOTALL)
+                text = _re.sub(r"<style[^>]*>.*?</style>", "", text, flags=_re.DOTALL)
+                text = _re.sub(r"<[^>]+>", " ", text)
+                text = _re.sub(r"\s+", " ", text).strip()
+                return text
+
+    raise SSRFError(f"Too many redirects ({policy.max_redirects})")
