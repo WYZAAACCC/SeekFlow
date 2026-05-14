@@ -41,17 +41,27 @@ from seekflow.types import (
 from seekflow.errors import (
     SeekFlowError,
     DeepSeekAPIError,
+    BadRequestError,
     AuthenticationError,
+    PaymentRequiredError,
     RateLimitError,
     InsufficientBalanceError,
     ContextLengthExceededError,
     ServiceUnavailableError,
+    PermissionDeniedError,
     ToolSchemaError,
     ToolNotFoundError,
     ToolExecutionError,
     MCPConnectionError,
     map_http_error,
 )
+from seekflow.deepseek.adapter import (
+    DeepSeekAdapter,
+    DeepSeekCapabilities,
+    ThinkingConfig,
+    NormalizedUsage,
+)
+from seekflow.deepseek.models import ModelRegistry, ModelSpec, Pricing
 
 # ── Agent Layer (v3) ──
 from seekflow.agent.agent import DeepSeekAgent, AgentResult
@@ -72,6 +82,19 @@ from seekflow.cache import CacheStabilizer, CacheSentinel, append_only_compress
 from seekflow.retry import RetryPolicy, CircuitBreaker
 from seekflow.cost import CostTracker
 from seekflow.trace.recorder import TraceRecorder
+from seekflow.trace.events import (
+    EVENT_DEEPSEEK_REQUEST_BUILT,
+    EVENT_DEEPSEEK_PROTOCOL_VALIDATED,
+    EVENT_DEEPSEEK_RESPONSE_RECEIVED,
+    EVENT_TOOL_POLICY_CHECKED,
+    EVENT_TOOL_APPROVAL_REQUESTED,
+    EVENT_TOOL_EXECUTION_STARTED,
+    EVENT_TOOL_EXECUTION_FINISHED,
+    EVENT_RETRY_SCHEDULED,
+    EVENT_CIRCUIT_OPENED,
+    EVENT_BUDGET_PREFLIGHT_CHECKED,
+    EVENT_CACHE_PREFIX_COMPILED,
+)
 from seekflow.reasoning import check_consistency, harvest_thoughts, HarvestedThoughts
 from seekflow.consistency import run_branched, BranchResult
 from seekflow.token_counter import count_tokens, count_text
@@ -95,14 +118,26 @@ __all__ = [
     "StreamEvent",
     "ToolRuntimeResult",
     "ToolChoice",
+    # Model registry
+    "ModelRegistry",
+    "ModelSpec",
+    "Pricing",
+    # Adapter
+    "DeepSeekAdapter",
+    "DeepSeekCapabilities",
+    "ThinkingConfig",
+    "NormalizedUsage",
     # Errors
     "SeekFlowError",
     "DeepSeekAPIError",
+    "BadRequestError",
     "AuthenticationError",
+    "PaymentRequiredError",
     "RateLimitError",
     "InsufficientBalanceError",
     "ContextLengthExceededError",
     "ServiceUnavailableError",
+    "PermissionDeniedError",
     "ToolSchemaError",
     "ToolNotFoundError",
     "ToolExecutionError",
@@ -125,6 +160,18 @@ __all__ = [
     "repair_json_arguments",
     "JsonRepairResult",
     "coerce_arguments",
+    # Trace events
+    "EVENT_DEEPSEEK_REQUEST_BUILT",
+    "EVENT_DEEPSEEK_PROTOCOL_VALIDATED",
+    "EVENT_DEEPSEEK_RESPONSE_RECEIVED",
+    "EVENT_TOOL_POLICY_CHECKED",
+    "EVENT_TOOL_APPROVAL_REQUESTED",
+    "EVENT_TOOL_EXECUTION_STARTED",
+    "EVENT_TOOL_EXECUTION_FINISHED",
+    "EVENT_RETRY_SCHEDULED",
+    "EVENT_CIRCUIT_OPENED",
+    "EVENT_BUDGET_PREFLIGHT_CHECKED",
+    "EVENT_CACHE_PREFIX_COMPILED",
     # Advanced
     "CacheStabilizer",
     "CacheSentinel",
