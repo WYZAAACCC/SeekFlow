@@ -89,12 +89,24 @@ class MCPToolExecutor:
                     "inputSchema": schema or {},
                 })()
                 ds_tool = mcp_tool_to_deepseek_tool(cfg.name, mt_obj)
+                # Derive ToolPolicy from MCP server config
+                from seekflow.types import ToolPolicy
+                policy = ToolPolicy(
+                    capabilities=cfg.allowed_capabilities or set(),
+                    risk=cfg.max_risk,
+                    allowed_domains=cfg.allowed_domains,
+                    workspace_root=cfg.workspace_root,
+                    requires_approval=cfg.requires_approval,
+                    parallel_safe=(cfg.max_risk == "read"),
+                )
+
                 td = ToolDefinition(
                     name=full_name,
                     description=desc or "",
                     parameters=ds_tool["function"]["parameters"],
                     func=wrapper,
-                    source=cfg.name,  # MCP server name as source
+                    source=cfg.name,
+                    policy=policy,
                 )
                 registry.register(td)
                 all_tools.append(full_name)
