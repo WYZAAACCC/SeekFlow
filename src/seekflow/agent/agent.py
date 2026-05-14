@@ -16,21 +16,39 @@ from seekflow.runtime import ToolRuntime
 
 # Model pricing: (input, cached_input, output) CNY per 1M tokens, max_context
 PRICING: dict[str, dict] = {
-    "deepseek-chat":    {"input": 0.14, "cached_input": 0.014, "output": 0.28, "max_context": 128_000},
-    "deepseek-v3":      {"input": 0.28, "cached_input": 0.028, "output": 1.12, "max_context": 128_000},
-    "deepseek-v4-pro":  {"input": 1.74, "cached_input": 0.028, "output": 3.48, "max_context": 1_000_000},
+    "deepseek-v4-pro":   {"input": 1.74, "cached_input": 0.028, "output": 3.48, "max_context": 1_000_000},
     "deepseek-v4-flash": {"input": 0.14, "cached_input": 0.014, "output": 0.28, "max_context": 1_000_000},
-    "__default__":      {"input": 1.74, "cached_input": 0.028, "output": 3.48, "max_context": 1_000_000},
+    # Legacy model names — deprecated, will be removed after 2026-07-24
+    "deepseek-chat":     {"input": 0.14, "cached_input": 0.014, "output": 0.28, "max_context": 128_000,
+                          "_deprecated": True, "_replacement": "deepseek-v4-flash"},
+    "deepseek-v3":       {"input": 0.28, "cached_input": 0.028, "output": 1.12, "max_context": 128_000,
+                          "_deprecated": True, "_replacement": "deepseek-v4-pro"},
+    "deepseek-reasoner": {"input": 1.74, "cached_input": 0.028, "output": 3.48, "max_context": 1_000_000,
+                          "_deprecated": True, "_replacement": "deepseek-v4-pro"},
+    "__default__":       {"input": 1.74, "cached_input": 0.028, "output": 3.48, "max_context": 1_000_000},
 }
 
-# Model-specific defaults: DeepSeek recommends different settings per model
+LEGACY_MODEL_MAP: dict[str, str] = {
+    "deepseek-chat": "deepseek-v4-flash",
+    "deepseek-v3": "deepseek-v4-pro",
+    "deepseek-reasoner": "deepseek-v4-pro",
+}
+
+# Model-specific defaults
 MODEL_DEFAULTS: dict[str, dict] = {
-    "deepseek-chat":     {"temperature": 0.0, "max_tokens": 4096},
-    "deepseek-v3":       {"temperature": 0.0, "max_tokens": 4096},
     "deepseek-v4-pro":   {"temperature": 0.0, "max_tokens": 8192},
     "deepseek-v4-flash": {"temperature": 0.0, "max_tokens": 4096},
+    # Legacy
+    "deepseek-chat":     {"temperature": 0.0, "max_tokens": 4096},
+    "deepseek-v3":       {"temperature": 0.0, "max_tokens": 4096},
+    "deepseek-reasoner": {"temperature": 0.0, "max_tokens": 8192},
     "__default__":       {"temperature": 0.0, "max_tokens": 4096},
 }
+
+# Thinking mode: sampling params that have no effect and should be warned
+_THINKING_IGNORED_PARAMS = frozenset({
+    "temperature", "top_p", "presence_penalty", "frequency_penalty",
+})
 
 
 def update_pricing(model: str, input_price: float, output_price: float,
@@ -151,6 +169,17 @@ class DeepSeekAgent:
         self._max_cost: float = float("inf")
         self._session_messages: list[dict[str, Any]] = []
         self._api_key_validated: bool = False
+
+        # Deprecation warning for legacy model names
+        if model in LEGACY_MODEL_MAP:
+            replacement = LEGACY_MODEL_MAP[model]
+            import warnings
+            warnings.warn(
+                f"Model '{model}' is deprecated and will be removed after 2026-07-24. "
+                f"Use '{replacement}' instead.",
+                FutureWarning, stacklevel=2,
+            )
+
         from seekflow.cache import CacheSentinel, CacheStabilizer
         self._cache_sentinel = CacheSentinel()
         self._cache_stabilizer = CacheStabilizer(warn_on_drift=self._mode == "stable")

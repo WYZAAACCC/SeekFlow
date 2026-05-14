@@ -121,8 +121,18 @@ class DeepSeekClient:
             # Preserve prompt_tokens_details for cache token tracking
             details = getattr(response.usage, "prompt_tokens_details", None)
             if details is not None:
-                cached = getattr(details, "cached_tokens", 0)
-                usage_dict["prompt_tokens_details"] = {"cached_tokens": cached}
+                # DeepSeek returns prompt_cache_hit_tokens / prompt_cache_miss_tokens
+                hit = getattr(details, "prompt_cache_hit_tokens", None)
+                miss = getattr(details, "prompt_cache_miss_tokens", None)
+                if hit is not None or miss is not None:
+                    usage_dict["prompt_tokens_details"] = {
+                        "prompt_cache_hit_tokens": hit or 0,
+                        "prompt_cache_miss_tokens": miss or 0,
+                    }
+                else:
+                    # Fallback: legacy cached_tokens field
+                    cached = getattr(details, "cached_tokens", 0)
+                    usage_dict["prompt_tokens_details"] = {"cached_tokens": cached}
 
         return ChatResponse(
             content=choice.message.content,

@@ -344,10 +344,11 @@ class ToolRuntime:
                     for tc in response.tool_calls
                 ],
             }
+            # DeepSeek protocol: when tool_calls are present, reasoning_content
+            # MUST be preserved exactly and passed back in all subsequent requests.
+            # Compression is only safe for plain text (non-tool) responses.
             if response.reasoning_content:
-                assistant_msg["reasoning_content"] = _compress_reasoning(
-                    response.reasoning_content
-                )
+                assistant_msg["reasoning_content"] = response.reasoning_content
             working_messages.append(assistant_msg)
 
             # Execute ALL tools in batch (MCP wrappers are now functional)
@@ -808,27 +809,36 @@ def _apply_thinking_mode(
         )
 
     think_config: dict[str, Any] = {"type": thinking_mode}
-    # Cap reasoning budget: 512 tokens is enough for planning, keeps cost minimal.
-    # At ¥0.28/1M output, 512 reasoning tokens cost ~¥0.00014 per step.
     if thinking_mode == "enabled":
         think_config["budget_tokens"] = 2048
+
+        # Warn about sampling params that have no effect in thinking mode
+        ignored = []
+        for key in ("temperature", "top_p", "presence_penalty", "frequency_penalty"):
+            if key in kwargs:
+                ignored.append(key)
+                kwargs.pop(key)
+        if ignored:
+            warnings.warn(
+                f"Thinking mode ignores sampling params: {', '.join(sorted(ignored))}. "
+                "These have been removed from the request.",
+                UserWarning, stacklevel=3,
+            )
+
     extra_body["thinking"] = think_config
     kwargs["extra_body"] = extra_body
     return kwargs
 
 
 def _compress_reasoning(reasoning: str, max_chars: int = 200) -> str:
-    """Ultra-compact reasoning summary — target ~20-40 tokens.
+    """Compact reasoning summary for plain text (non-tool) responses only.
 
-    DeepSeek requires reasoning_content in every assistant message during
-    multi-turn conversations. But passing back the full 400-800 token
-    reasoning chain inflates prompt tokens and hurts cache hit rate
-    (non-deterministic content breaks byte-prefix matching).
+    WARNING: NEVER call this when the assistant message has tool_calls.
+    DeepSeek protocol requires exact reasoning_content preservation for
+    any assistant message with tool_calls. This function is only safe for
+    final text answers where reasoning won't be needed in subsequent turns.
 
-    This compressor extracts only the essential decision skeleton:
-    planned tools + 1 key insight. Output is ~20-40 tokens — small enough
-    to minimize prompt inflation and deterministic enough to preserve
-    cache stability across calls.
+    Target ~20-40 tokens — keeps prompt small and cache-stable.
     """
     if not reasoning:
         return ""

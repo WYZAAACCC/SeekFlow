@@ -54,7 +54,7 @@ agent = DeepSeekAgent(
     role="分析师",
     goal="分析数据并给出建议",
     backstory="经验丰富的数据分析师",
-    model="deepseek-chat",
+    model="deepseek-v4-pro",  # primary model for complex reasoning
 )
 agent.with_default_tools()  # only 'calculate' is loaded by default
 
