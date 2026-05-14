@@ -1,4 +1,4 @@
-"""DeepSeek protocol state machine — message ordering enforcement.
+"""DeepSeek protocol state machine — message ordering and validation.
 
 When DeepSeek thinking mode is active and the assistant returns tool_calls,
 the reasoning_content MUST be preserved exactly and the message ordering
@@ -6,13 +6,24 @@ MUST follow: assistant(tool_calls) → tool_result → tool_result → ...
 
 No user/system messages may be inserted between assistant tool_calls and
 their corresponding tool results.
+
+This module is mode-aware: non-thinking mode does NOT require reasoning_content.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from seekflow.runtime_errors import DeepSeekProtocolError
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    """A single protocol validation finding."""
+    code: str
+    message: str
+    index: int | None = None
+    severity: Literal["error", "warning"] = "error"
 
 
 @dataclass
@@ -23,11 +34,12 @@ class ConversationState:
     - assistant + tool_calls must be followed immediately by tool results
     - tool results must match pending tool_call_ids in order
     - no semantic messages inserted between calls and results
-    - reasoning_content must be present when tool_calls are present
+    - reasoning_content must be present when tool_calls are present (thinking mode only)
     """
 
     messages: list[dict[str, Any]] = field(default_factory=list)
     pending_tool_call_ids: list[str] = field(default_factory=list)
+    thinking_enabled: bool = True
 
     def add_system(self, content: str) -> None:
         self._assert_no_pending_tool_results()
@@ -46,7 +58,7 @@ class ConversationState:
     ) -> None:
         tool_calls = tool_calls or []
 
-        if tool_calls and reasoning_content is None:
+        if tool_calls and self.thinking_enabled and reasoning_content is None:
             raise DeepSeekProtocolError(
                 "Assistant messages with tool_calls in DeepSeek thinking mode "
                 "must preserve reasoning_content exactly. Do not compress or "
@@ -86,7 +98,12 @@ class ConversationState:
 
     def validate_before_model_request(self) -> None:
         self._assert_no_pending_tool_results()
-        validate_deepseek_messages(self.messages)
+        issues = validate_deepseek_messages(self.messages, thinking_enabled=self.thinking_enabled)
+        errors = [i for i in issues if i.severity == "error"]
+        if errors:
+            raise DeepSeekProtocolError(
+                f"Protocol validation failed: {'; '.join(i.message for i in errors)}"
+            )
 
     def _assert_no_pending_tool_results(self) -> None:
         if self.pending_tool_call_ids:
@@ -97,15 +114,38 @@ class ConversationState:
             )
 
 
-def validate_deepseek_messages(messages: list[dict[str, Any]]) -> None:
+def validate_deepseek_messages(
+    messages: list[dict[str, Any]],
+    *,
+    thinking_enabled: bool = True,
+    require_assistant_content_for_tool_calls: bool = True,
+    repair: bool = False,
+) -> list[ValidationIssue]:
     """Validate that a messages list follows DeepSeek protocol.
 
+    Mode-aware: non-thinking mode does NOT require reasoning_content.
+
     Checks:
-    - Assistant messages with tool_calls have reasoning_content
+    - Roles are system/user/assistant/tool only
+    - Assistant messages with tool_calls have reasoning_content (thinking mode only)
+    - Assistant messages with tool_calls must have content (repaired to "" if repair=True)
     - Tool results immediately follow their assistant tool_calls
     - Tool result IDs match the expected order
     - No user/system messages inserted between call and result
     """
+    issues: list[ValidationIssue] = []
+
+    valid_roles = {"system", "user", "assistant", "tool"}
+    for i, msg in enumerate(messages):
+        role = msg.get("role")
+        if role not in valid_roles:
+            # developer role must be handled in adapter layer
+            issues.append(ValidationIssue(
+                code="invalid_role",
+                message=f"Invalid role '{role}' at index {i}. Must be one of: {sorted(valid_roles)}.",
+                index=i,
+            ))
+
     for i, msg in enumerate(messages):
         if msg.get("role") != "assistant":
             continue
@@ -114,31 +154,95 @@ def validate_deepseek_messages(messages: list[dict[str, Any]]) -> None:
         if not tool_calls:
             continue
 
-        if "reasoning_content" not in msg or not msg["reasoning_content"]:
-            raise DeepSeekProtocolError(
-                "DeepSeek assistant message with tool_calls must contain "
-                "reasoning_content. Found at message index {i}."
-            )
+        # 1. reasoning_content: required in thinking mode, optional otherwise
+        has_reasoning = "reasoning_content" in msg and msg["reasoning_content"]
+        if thinking_enabled and not has_reasoning:
+            issues.append(ValidationIssue(
+                code="missing_reasoning_content",
+                message=f"DeepSeek thinking mode requires reasoning_content for assistant with tool_calls at index {i}.",
+                index=i,
+            ))
+        elif not thinking_enabled and not has_reasoning:
+            issues.append(ValidationIssue(
+                code="missing_reasoning_content_non_thinking",
+                message=f"Assistant with tool_calls at index {i} missing reasoning_content (not required in non-thinking mode).",
+                index=i,
+                severity="warning",
+            ))
 
+        # 2. content must not be None for assistant with tool_calls
+        if msg.get("content") is None:
+            if repair:
+                msg["content"] = ""
+            else:
+                issues.append(ValidationIssue(
+                    code="null_content_in_tool_call",
+                    message=f"Assistant message with tool_calls at index {i} has null content.",
+                    index=i,
+                ))
+
+        # 3. tool_call_id → tool result pairing
         expected_ids = [tc["id"] for tc in tool_calls]
         following = messages[i + 1 : i + 1 + len(expected_ids)]
 
         if len(following) != len(expected_ids):
+            issues.append(ValidationIssue(
+                code="missing_tool_results",
+                message=f"Missing tool result messages after assistant tool_calls at index {i}. "
+                        f"Expected {len(expected_ids)}, found {len(following)}.",
+                index=i,
+            ))
+            continue
+
+        for j, (expected_id, tool_msg) in enumerate(zip(expected_ids, following, strict=False)):
+            if tool_msg.get("role") != "tool":
+                issues.append(ValidationIssue(
+                    code="non_tool_after_tool_calls",
+                    message=f"Assistant tool_calls at index {i} must be followed immediately by "
+                            f"tool messages. Found role='{tool_msg.get('role')}' at index {i + 1 + j}.",
+                    index=i + 1 + j,
+                ))
+            if tool_msg.get("tool_call_id") != expected_id:
+                issues.append(ValidationIssue(
+                    code="tool_call_id_mismatch",
+                    message=f"Tool result id mismatch at index {i + 1 + j}. "
+                            f"Expected '{expected_id}', got '{tool_msg.get('tool_call_id')}'.",
+                    index=i + 1 + j,
+                ))
+
+    return issues
+
+
+def repair_deepseek_messages(
+    messages: list[dict[str, Any]],
+    *,
+    thinking_enabled: bool = True,
+) -> list[dict[str, Any]]:
+    """Repair protocol issues that are safe to fix mechanically.
+
+    Does NOT fabricate reasoning_content — if thinking tool-call turns miss
+    reasoning_content, it fails closed (returns original messages with a warning).
+    """
+    import copy
+    repaired = copy.deepcopy(messages)
+
+    for msg in repaired:
+        if msg.get("role") != "assistant":
+            continue
+        tool_calls = msg.get("tool_calls") or []
+        if not tool_calls:
+            continue
+
+        # Fix null content
+        if msg.get("content") is None:
+            msg["content"] = ""
+
+        # For thinking mode: reasoning_content must exist — fail closed
+        if thinking_enabled and not msg.get("reasoning_content"):
             raise DeepSeekProtocolError(
-                f"Missing tool result messages after assistant tool_calls. "
-                f"Expected {len(expected_ids)}, found {len(following)}."
+                f"Assistant message with tool_calls at index "
+                f"{repaired.index(msg)} missing reasoning_content. "
+                "Cannot repair — reasoning_content must be preserved from the model response."
             )
 
-        for expected_id, tool_msg in zip(expected_ids, following, strict=True):
-            if tool_msg.get("role") != "tool":
-                raise DeepSeekProtocolError(
-                    "Assistant tool_calls must be followed immediately by "
-                    "tool messages. Found role={tool_msg.get('role')} instead. "
-                    "No user or system messages may be inserted between "
-                    "assistant tool_calls and tool results."
-                )
-            if tool_msg.get("tool_call_id") != expected_id:
-                raise DeepSeekProtocolError(
-                    f"Tool result id mismatch. Expected {expected_id}, "
-                    f"got {tool_msg.get('tool_call_id')}."
-                )
+    return repaired
