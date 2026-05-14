@@ -88,4 +88,5 @@ def make_sqlite_query(
         workspace_root=root,
         timeout_s=timeout_s,
         parallel_safe=False,
+        path_params=frozenset({"db_path"}),
     ))
