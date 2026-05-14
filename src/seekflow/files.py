@@ -29,8 +29,26 @@ _TEXT_EXTENSIONS = {
     ".c", ".cpp", ".h", ".hpp", ".rs", ".go", ".java", ".scala", ".kt",
     ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat",
     ".sql", ".r", ".rb", ".lua", ".swift", ".php",
-    ".xml", ".csv", ".tsv", ".log", ".env",
+    ".xml", ".csv", ".tsv", ".log",
 }
+
+# Default deny globs — sensitive/credential files blocked from embedding
+DEFAULT_DENY_GLOBS: list[str] = [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "id_rsa",
+    "id_ed25519",
+    ".aws/*",
+    ".gcp/*",
+    ".azure/*",
+    ".git/*",
+    "node_modules/*",
+    ".venv/*",
+]
 
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tiff"}
 
@@ -76,19 +94,51 @@ def embed_files_into_message(
     message: dict[str, Any],
     files: list[str | FileAttachment],
     *,
-    max_file_bytes: int = 5_000_000,
-    max_total_bytes: int = 20_000_000,
+    workspace_root: str | Path | None = None,
+    max_file_bytes: int = 1_000_000,
+    max_total_bytes: int = 4_000_000,
     allow_binary_base64: bool = False,
     max_image_bytes: int = 2_000_000,
+    allowed_extensions: set[str] | None = None,
+    deny_extensions: set[str] | None = None,
+    deny_globs: list[str] | None = None,
 ) -> dict[str, Any]:
     """Embed file contents into a user message using the DeepSeek template.
 
     The original message content becomes the {question} part of the template.
     Multiple files are concatenated with separator lines.
+
+    When *workspace_root* is set, all file paths are validated against it.
+    Sensitive files (.env, keys, etc.) are blocked by default.
     """
     attachments = _resolve_files(files)
     if not attachments:
         return message
+
+    # Security: validate paths against workspace_root if provided
+    from fnmatch import fnmatch
+    effective_deny_globs = deny_globs or DEFAULT_DENY_GLOBS
+
+    if workspace_root is not None:
+        from seekflow.security import validate_file_access as _vfa
+        root = Path(workspace_root).resolve()
+        resolved_attachments: list[FileAttachment] = []
+        for att in attachments:
+            _vfa(
+                str(att.path), workspace_root=root,
+                allow_ext=allowed_extensions,
+                deny_ext=deny_extensions,
+                max_bytes=max_file_bytes,
+            )
+            # Check deny globs
+            relative = str(att.path.resolve().relative_to(root))
+            for pat in effective_deny_globs:
+                if fnmatch(att.path.name, pat) or fnmatch(relative, pat):
+                    raise PermissionError(
+                        f"File '{att.path.name}' matches deny pattern '{pat}'"
+                    )
+            resolved_attachments.append(att)
+        attachments = resolved_attachments
 
     # Total size check
     total_size = sum(att.path.stat().st_size for att in attachments)
