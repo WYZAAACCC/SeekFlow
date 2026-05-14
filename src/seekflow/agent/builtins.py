@@ -7,20 +7,11 @@ from pathlib import Path
 
 
 def fetch_url(url: str, timeout: int = 15) -> str:
-    """HTTP GET request. Returns response text (max 8000 chars)."""
-    import urllib.request as _ur
-    try:
-        from seekflow.security import validate_url
-        if not validate_url(url):
-            return f"Fetch blocked: URL '{url}' failed security validation"
-        req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with _ur.urlopen(req, timeout=timeout) as resp:
-            text = resp.read().decode("utf-8", errors="replace")
-            if len(text) > 8000:
-                text = text[:8000] + "\n...[truncated]"
-            return text
-    except Exception as e:
-        return f"Fetch failed: {e}"
+    """DEPRECATED. Use seekflow.tools.builtins.make_fetch_url() instead."""
+    raise RuntimeError(
+        "Unsafe legacy fetch_url is disabled. "
+        "Use seekflow.tools.builtins.make_fetch_url(allowed_domains={...})."
+    )
 
 
 def parse_csv_str(text: str) -> str:
@@ -35,29 +26,11 @@ def parse_csv_str(text: str) -> str:
 
 
 def run_python(code: str, timeout: int = 10) -> str:
-    """Execute Python code in a subprocess sandbox. Returns stdout."""
-    import subprocess, tempfile, os as _os
-    tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False)
-    try:
-        tmp.write(code)
-        tmp.close()
-        result = subprocess.run(
-            [_os.sys.executable, tmp.name], capture_output=True, text=True,
-            timeout=timeout, shell=False,
-        )
-        out = result.stdout[:4000]
-        if result.stderr:
-            out += f"\n[stderr]: {result.stderr[:1000]}"
-        return out or "[no output]"
-    except subprocess.TimeoutExpired:
-        return f"[timeout after {timeout}s]"
-    except Exception as e:
-        return f"Execution failed: {e}"
-    finally:
-        try:
-            _os.unlink(tmp.name)
-        except Exception:
-            pass
+    """DEPRECATED. Use seekflow.tools.builtins.make_python_exec(sandbox=...)."""
+    raise RuntimeError(
+        "Unsafe legacy run_python is disabled. "
+        "Use seekflow.tools.builtins.make_python_exec(sandbox=ProcessSandbox())."
+    )
 
 
 def extract_entities(text: str) -> str:
@@ -76,34 +49,11 @@ def extract_entities(text: str) -> str:
 
 
 def query_sql(db_path: str, query: str) -> str:
-    """Execute a SQLite query. Returns JSON array of rows.
-
-    The database path is validated against a workspace root (default: current
-    directory). Only read-only SELECT queries are permitted.
-    """
-    import sqlite3
-    from seekflow.security import safe_join
-
-    # Validate database path — block traversal
-    workspace = Path.cwd()
-    try:
-        safe_path = safe_join(workspace, db_path)
-    except PermissionError:
-        return f"SQL query blocked: database path '{db_path}' is outside workspace"
-
-    # Only allow SELECT (read-only)
-    stripped = query.strip().upper()
-    if not stripped.startswith("SELECT") and not stripped.startswith("PRAGMA"):
-        return "SQL query blocked: only SELECT queries are permitted"
-
-    try:
-        conn = sqlite3.connect(f"file:{safe_path}?mode=ro", uri=True)
-        cur = conn.execute(query)
-        rows = [dict(zip([c[0] for c in cur.description], row)) for row in cur.fetchall()]
-        conn.close()
-        return json.dumps(rows, ensure_ascii=False, indent=2)[:8000]
-    except Exception as e:
-        return f"SQL query failed: {e}"
+    """DEPRECATED. Use seekflow.tools.builtins.make_sqlite_query(workspace_root=...)."""
+    raise RuntimeError(
+        "Unsafe legacy query_sql is disabled. "
+        "Use seekflow.tools.builtins.make_sqlite_query(workspace_root=...)."
+    )
 
 
 def classify_text(text: str, labels: str) -> str:
@@ -117,5 +67,8 @@ def classify_text(text: str, labels: str) -> str:
     return json.dumps({"best_match": best, "scores": scores}, ensure_ascii=False)
 
 
-__all__ = ["fetch_url", "parse_csv_str", "run_python", "extract_entities",
-           "query_sql", "classify_text"]
+__all__ = [
+    "parse_csv_str", "extract_entities", "classify_text",
+    # Legacy unsafe — disabled, use seekflow.tools.builtins instead:
+    "fetch_url", "run_python", "query_sql",
+]

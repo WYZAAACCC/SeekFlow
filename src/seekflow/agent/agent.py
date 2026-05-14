@@ -279,29 +279,20 @@ class DeepSeekAgent:
             self.add_tool(t)
 
     def with_default_tools(self) -> None:
-        """Load built-in tools.
+        """Load safe default tools.
 
-        By default (``dangerous_tools=False``), only the AST-safe
-        ``calculate`` tool is registered.  Set ``dangerous_tools=True``
-        on the Agent to load all 11 built-in tools.
+        Always registers:
+        - calculate (AST-safe arithmetic)
+        - parse_csv_str
+        - extract_entities
+        - classify_text
+
+        Dangerous tools are NOT loaded here.
+        Use allow_filesystem/allow_network/allow_python/allow_sqlite explicitly.
         """
         calculate = safe_calculate  # standalone function below
         self.add_tool(calculate)
 
-        if not self._dangerous_tools:
-            return
-
-        import warnings
-        warnings.warn(
-            "dangerous_tools=True enables file read, web fetch, Python exec, "
-            "SQL query, and other tools that can access the host filesystem "
-            "and network. Only use in trusted/sandboxed environments.",
-            UserWarning,
-        )
-
-        # Safe builtin tools are registered by allow_filesystem / allow_network
-        # / allow_python / allow_sqlite (called before with_default_tools).
-        # Legacy text utils added for convenience.
         from seekflow.agent.builtins import (
             parse_csv_str, extract_entities, classify_text,
         )
@@ -482,20 +473,30 @@ class DeepSeekAgent:
     ) -> "DeepSeekAgent":
         """Enable filesystem capabilities within a workspace root.
 
-        Immediately registers the safe read_file tool bound to *root*.
+        ``read=True`` registers ``read_file`` and ``list_dir``.
+        ``write=True`` registers ``write_file`` (requires approval).
+
         Call BEFORE with_default_tools() to avoid order issues.
         """
+        if not read and not write:
+            raise ValueError("allow_filesystem requires read=True or write=True")
+
         self._workspace_root = root
-        self._allowed_capabilities.add("filesystem.read")
+        self._invalidate_runtime()
+
+        from seekflow.tools.builtins import make_list_dir, make_read_file, make_write_file
+        if read:
+            self._allowed_capabilities.add("filesystem.read")
+            self.add_tool(make_read_file(workspace_root=root,
+                          allowed_extensions=allowed_extensions,
+                          max_file_bytes=max_file_bytes))
+            self.add_tool(make_list_dir(workspace_root=root))
+
         if write:
             self._allowed_capabilities.add("filesystem.write")
             self._max_risk = _max_of_risk(self._max_risk, "write")
-        self._invalidate_runtime()
-        # Register safe factory immediately
-        from seekflow.tools.builtins import make_read_file
-        self.add_tool(make_read_file(workspace_root=root,
-                      allowed_extensions=allowed_extensions,
-                      max_file_bytes=max_file_bytes))
+            self.add_tool(make_write_file(workspace_root=root,
+                          max_file_bytes=max_file_bytes))
         return self
 
     def allow_network(
