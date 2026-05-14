@@ -112,6 +112,7 @@ class DeepSeekAgent:
         cost_tag: str | None = None,
         fallback_models: list[str] | None = None,
         mode: str = "stable",
+        dangerous_tools: bool = False,
     ):
         self.role = role
         self.goal = goal
@@ -120,6 +121,7 @@ class DeepSeekAgent:
         self._thinking = thinking
         self._model = model
         self._mode = mode  # "fast" | "stable"
+        self._dangerous_tools = dangerous_tools
 
         # Apply model-specific defaults if not explicitly overridden
         md = MODEL_DEFAULTS.get(model, MODEL_DEFAULTS["__default__"])
@@ -234,7 +236,26 @@ class DeepSeekAgent:
             self.add_tool(t)
 
     def with_default_tools(self) -> None:
-        """Load built-in tools: read_file, web_search, download_page, calculate, save_result."""
+        """Load built-in tools.
+
+        By default (``dangerous_tools=False``), only the AST-safe
+        ``calculate`` tool is registered.  Set ``dangerous_tools=True``
+        on the Agent to load all 11 built-in tools.
+        """
+        calculate = safe_calculate  # standalone function below
+        self.add_tool(calculate)
+
+        if not self._dangerous_tools:
+            return
+
+        import warnings
+        warnings.warn(
+            "dangerous_tools=True enables file read, web fetch, Python exec, "
+            "SQL query, and other tools that can access the host filesystem "
+            "and network. Only use in trusted/sandboxed environments.",
+            UserWarning,
+        )
+
         import urllib.request as _ur
         import urllib.parse as _up
         import re as _re
@@ -264,6 +285,9 @@ class DeepSeekAgent:
         def download_page(url: str) -> str:
             """Download and extract text from a web page."""
             try:
+                from seekflow.security import validate_url
+                if not validate_url(url):
+                    return f"Download blocked: URL '{url[:100]}' failed security validation"
                 req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
                 with _ur.urlopen(req, timeout=15) as resp:
                     raw = resp.read().decode("utf-8", errors="replace")
@@ -277,20 +301,22 @@ class DeepSeekAgent:
             except Exception as e:
                 return f"Download failed: {e}"
 
-        calculate = safe_calculate  # standalone function below
-
         def save_result(filename: str, content: str) -> str:
             """Save content to output directory."""
-            out = _Path("output")
+            from seekflow.security import safe_join
+            out = _Path("output").resolve()
             out.mkdir(exist_ok=True)
-            (out / filename).write_text(content, encoding="utf-8")
-            return f"Saved {len(content)} chars to output/{filename}"
+            try:
+                target = safe_join(out, filename)
+            except PermissionError:
+                return f"Save blocked: path '{filename}' is outside output directory"
+            target.write_text(content, encoding="utf-8")
+            return f"Saved {len(content)} chars to output/{target.name}"
 
-        # Add more builtins
         from seekflow.agent.builtins import (
             fetch_url, run_python, parse_csv_str, extract_entities, query_sql, classify_text,
         )
-        self.add_tools([read_file, web_search, download_page, calculate, save_result,
+        self.add_tools([read_file, web_search, download_page, save_result,
                         fetch_url, run_python, parse_csv_str, extract_entities,
                         query_sql, classify_text])
 
@@ -506,9 +532,10 @@ class DeepSeekAgent:
 
     @staticmethod
     def _sanitize_output(text: str) -> str:
-        """Filter prompt injection patterns from tool outputs."""
-        from seekflow.tools.executor import _sanitize_tool_output
-        return _sanitize_tool_output(text)
+        """Wrap tool output as untrusted data."""
+        from seekflow.security import wrap_untrusted
+        wrapped = wrap_untrusted("tool", text)
+        return wrapped.format_for_model()
 
     def run_batch(self, tasks: list[str], poll_interval: int = 30,
                   max_wait: int = 86400) -> list[AgentResult]:

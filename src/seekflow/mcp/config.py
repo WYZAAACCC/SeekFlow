@@ -1,7 +1,15 @@
 """Configuration for MCP server connections."""
 from __future__ import annotations
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+
+class MCPTrustLevel(str, Enum):
+    TRUSTED = "trusted"
+    SANDBOXED = "sandboxed"
+    UNTRUSTED = "untrusted"
 
 
 class MCPServerConfig(BaseModel):
@@ -12,6 +20,10 @@ class MCPServerConfig(BaseModel):
     command: str
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
+    trust_level: MCPTrustLevel = MCPTrustLevel.SANDBOXED
+    allowed_capabilities: set[str] | None = None
+    startup_timeout: float = 10.0
+    fail_fast: bool = False
 
     @classmethod
     def stdio(
@@ -20,6 +32,8 @@ class MCPServerConfig(BaseModel):
         command: str,
         args: list[str] | None = None,
         env: dict[str, str] | None = None,
+        trust_level: MCPTrustLevel = MCPTrustLevel.SANDBOXED,
+        startup_timeout: float = 10.0,
     ) -> "MCPServerConfig":
         """Create a stdio MCP server configuration."""
         return cls(
@@ -28,6 +42,8 @@ class MCPServerConfig(BaseModel):
             command=command,
             args=args or [],
             env=env or {},
+            trust_level=trust_level,
+            startup_timeout=startup_timeout,
         )
 
     def to_stdio_params(self):

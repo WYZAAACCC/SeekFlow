@@ -286,3 +286,77 @@ def extract_cached_tokens(usage: dict) -> int:
     """Extract cached token count from usage dict."""
     details = usage.get("prompt_tokens_details", {}) or {}
     return details.get("cached_tokens", 0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cache Compiler — proactive prefix analysis and optimization
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CacheCompiler:
+    """Compile system prompt + tools into a cache-optimized prefix.
+
+    Usage:
+        compiler = CacheCompiler()
+        compiled = compiler.compile(system_prompt, tools_schema)
+        # compiled.prefix_bytes, compiled.cacheable_byte_range
+    """
+
+    def compile(
+        self,
+        system_prompt: str,
+        tool_schemas: list[dict] | None = None,
+        strategy: str = "max_prefix_stability",
+    ) -> dict:
+        """Compile the cacheable prefix for a session."""
+        tools_json = ""
+        if tool_schemas:
+            tools_json = json.dumps(
+                tool_schemas, sort_keys=True, ensure_ascii=False,
+                separators=(",", ":"),
+            )
+
+        prefix = system_prompt.encode("utf-8")
+        prefix_hash = hashlib.sha256(prefix).hexdigest()[:16]
+
+        return {
+            "prefix_bytes": prefix,
+            "prefix_hash": prefix_hash,
+            "system_prompt_length": len(prefix),
+            "tools_schema_json": tools_json,
+            "tools_schema_hash": hashlib.sha256(
+                tools_json.encode("utf-8")
+            ).hexdigest()[:16] if tools_json else "",
+            "cacheable_byte_range": (0, len(prefix)),
+            "strategy": strategy,
+        }
+
+    def predict_cache_hit(
+        self, compiled: dict, messages: list[dict],
+    ) -> dict:
+        """Predict whether the first message matches the compiled prefix."""
+        if not messages:
+            return {"hit": False, "confidence": 0.0,
+                    "matched_bytes": 0, "total_prefix_bytes": len(compiled["prefix_bytes"])}
+
+        first = messages[0]
+        if first.get("role") != "system":
+            return {"hit": False, "confidence": 0.0,
+                    "matched_bytes": 0, "total_prefix_bytes": len(compiled["prefix_bytes"])}
+
+        current = first.get("content", "").encode("utf-8")
+        prefix = compiled["prefix_bytes"]
+        matched = 0
+        for a, b in zip(current, prefix):
+            if a == b:
+                matched += 1
+            else:
+                break
+
+        total = len(prefix)
+        confidence = matched / max(total, 1)
+        return {
+            "hit": matched == total,
+            "confidence": round(confidence, 4),
+            "matched_bytes": matched,
+            "total_prefix_bytes": total,
+        }

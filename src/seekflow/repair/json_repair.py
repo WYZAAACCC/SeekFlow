@@ -14,6 +14,8 @@ class JsonRepairResult(BaseModel):
     repaired: str | None = None
     error: str | None = None
     applied_rules: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    repair_level: int = 0  # 0=native, 1=syntactic, 2=needs re-emit, 3=fail
 
 
 def repair_json_arguments(raw: str) -> JsonRepairResult:
@@ -85,16 +87,15 @@ def repair_json_arguments(raw: str) -> JsonRepairResult:
     # Rule 7: Remove explanatory text before/after JSON
     # (already handled by extract_json_object if a JSON-like block was found)
 
+    # Compute confidence and level
+    rules_applied = len(applied)
+    needs_brace_close = "close_missing_braces" in applied
+    is_dict = False
+
     # Rule 8: Try json.loads
     try:
         value = json.loads(working)
-        return JsonRepairResult(
-            ok=True,
-            value=value,
-            original=raw,
-            repaired=working,
-            applied_rules=applied,
-        )
+        is_dict = isinstance(value, dict)
     except json.JSONDecodeError as e:
         return JsonRepairResult(
             ok=False,
@@ -103,7 +104,33 @@ def repair_json_arguments(raw: str) -> JsonRepairResult:
             repaired=working,
             error=str(e),
             applied_rules=applied,
+            confidence=0.0,
+            repair_level=3,
         )
+
+    if rules_applied == 0:
+        confidence = 1.0
+        level = 0
+    else:
+        # Base confidence from rule count
+        confidence = max(0.5, 1.0 - rules_applied * 0.15)
+        # Penalize missing brace closure (truncation = low confidence)
+        if needs_brace_close:
+            confidence = min(confidence, 0.75)
+        # Penalize non-dict results (tool calls expect dicts)
+        if not is_dict:
+            confidence = min(confidence, 0.6)
+        level = 1
+
+    return JsonRepairResult(
+        ok=True,
+        value=value,
+        original=raw,
+        repaired=working,
+        applied_rules=applied,
+        confidence=confidence,
+        repair_level=level,
+    )
 
 
 def _replace_single_quotes(text: str) -> str:

@@ -10,6 +10,9 @@ def fetch_url(url: str, timeout: int = 15) -> str:
     """HTTP GET request. Returns response text (max 8000 chars)."""
     import urllib.request as _ur
     try:
+        from seekflow.security import validate_url
+        if not validate_url(url):
+            return f"Fetch blocked: URL '{url}' failed security validation"
         req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with _ur.urlopen(req, timeout=timeout) as resp:
             text = resp.read().decode("utf-8", errors="replace")
@@ -39,8 +42,8 @@ def run_python(code: str, timeout: int = 10) -> str:
         tmp.write(code)
         tmp.close()
         result = subprocess.run(
-            ["python", tmp.name], capture_output=True, text=True,
-            timeout=timeout,
+            [_os.sys.executable, tmp.name], capture_output=True, text=True,
+            timeout=timeout, shell=False,
         )
         out = result.stdout[:4000]
         if result.stderr:
@@ -73,10 +76,28 @@ def extract_entities(text: str) -> str:
 
 
 def query_sql(db_path: str, query: str) -> str:
-    """Execute a SQLite query. Returns JSON array of rows."""
+    """Execute a SQLite query. Returns JSON array of rows.
+
+    The database path is validated against a workspace root (default: current
+    directory). Only read-only SELECT queries are permitted.
+    """
     import sqlite3
+    from seekflow.security import safe_join
+
+    # Validate database path — block traversal
+    workspace = Path.cwd()
     try:
-        conn = sqlite3.connect(db_path)
+        safe_path = safe_join(workspace, db_path)
+    except PermissionError:
+        return f"SQL query blocked: database path '{db_path}' is outside workspace"
+
+    # Only allow SELECT (read-only)
+    stripped = query.strip().upper()
+    if not stripped.startswith("SELECT") and not stripped.startswith("PRAGMA"):
+        return "SQL query blocked: only SELECT queries are permitted"
+
+    try:
+        conn = sqlite3.connect(f"file:{safe_path}?mode=ro", uri=True)
         cur = conn.execute(query)
         rows = [dict(zip([c[0] for c in cur.description], row)) for row in cur.fetchall()]
         conn.close()

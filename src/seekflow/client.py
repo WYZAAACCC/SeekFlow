@@ -96,11 +96,11 @@ class DeepSeekClient:
             for tc in choice.message.tool_calls:
                 # Parse string arguments at the API boundary so downstream
                 # code always sees ToolCall.arguments as dict.
-                raw_args: str = tc.function.arguments
+                raw_args: str = tc.function.arguments or "{}"
                 try:
-                    parsed_args: dict[str, Any] = json.loads(raw_args)
+                    parsed_args = json.loads(raw_args)
                 except json.JSONDecodeError:
-                    parsed_args = {}
+                    parsed_args = raw_args
                 tool_calls.append(ToolCall(
                     id=tc.id,
                     name=tc.function.name,

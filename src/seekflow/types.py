@@ -1,4 +1,7 @@
 """Core data types for SeekFlow."""
+from __future__ import annotations
+
+from pathlib import Path
 from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
@@ -6,6 +9,26 @@ from pydantic import BaseModel, Field
 # ── Type aliases ─────────────────────────────────────────────────
 ToolChoice = Literal["auto", "none", "required"] | dict[str, Any]
 """Valid tool_choice values for DeepSeek API."""
+
+RiskLevel = Literal["read", "write", "network", "code_exec", "destructive"]
+
+
+class ToolPolicy(BaseModel):
+    """Security and execution policy for a tool.
+
+    Defines what a tool is allowed to do, its risk level, resource
+    limits, and whether it requires human approval.
+    """
+
+    capabilities: set[str] = Field(default_factory=set)
+    risk: RiskLevel = "read"
+    timeout_s: float = 30.0
+    max_input_bytes: int = 1_000_000
+    max_output_bytes: int = 100_000
+    parallel_safe: bool = False
+    requires_approval: bool = False
+    allowed_domains: set[str] = Field(default_factory=set)
+    workspace_root: Path | None = None
 
 
 class ToolDefinition(BaseModel):
@@ -15,14 +38,23 @@ class ToolDefinition(BaseModel):
     func: Callable[..., Any] | None = None
     source: str = "local"
     metadata: dict[str, Any] = Field(default_factory=dict)
+    policy: ToolPolicy | None = None
+
+    def with_policy(self, policy: ToolPolicy) -> ToolDefinition:
+        """Return a copy of this definition with *policy* attached."""
+        return self.model_copy(update={"policy": policy})
 
 
 class ToolCall(BaseModel):
-    """A tool call from the model. Arguments are always dict — string
-    arguments from the API are parsed to dict at the client boundary."""
+    """A tool call from the model.
+
+    When the API returns valid JSON, ``arguments`` is a dict.
+    When JSON is malformed, ``arguments`` is the raw string so the
+    repair pipeline can attempt salvage.
+    """
     id: str | None = None
     name: str
-    arguments: dict = Field(default_factory=dict)
+    arguments: dict | str = Field(default_factory=dict)
     raw: dict | None = None
 
 

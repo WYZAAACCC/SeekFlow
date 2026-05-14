@@ -140,3 +140,82 @@ class TestSchemaGeneration:
         assert prop["type"] == "object"
         assert "city" in prop["properties"]
         assert prop["properties"]["city"]["type"] == "string"
+
+
+class TestToolPolicy:
+    """ToolPolicy model — capability, risk, timeout, safety metadata."""
+
+    def test_default_policy_has_safe_defaults(self):
+        from seekflow.types import ToolPolicy
+
+        p = ToolPolicy()
+        assert p.risk == "read"
+        assert p.timeout_s == 30.0
+        assert p.max_input_bytes == 1_000_000
+        assert p.max_output_bytes == 100_000
+        assert p.parallel_safe is False
+        assert p.requires_approval is False
+        assert p.capabilities == set()
+        assert p.allowed_domains == set()
+        assert p.workspace_root is None
+
+    def test_risk_values_are_constrained(self):
+        from seekflow.types import ToolPolicy
+
+        p = ToolPolicy(risk="read")
+        assert p.risk == "read"
+
+        for risk in ("write", "network", "code_exec", "destructive"):
+            p2 = ToolPolicy(risk=risk)
+            assert p2.risk == risk
+
+    def test_invalid_risk_raises(self):
+        import pytest
+        from pydantic import ValidationError
+        from seekflow.types import ToolPolicy
+
+        with pytest.raises(ValidationError):
+            ToolPolicy(risk="invalid_risk")
+
+    def test_policy_in_tool_definition(self):
+        from seekflow.types import ToolPolicy, ToolDefinition
+
+        policy = ToolPolicy(
+            capabilities={"filesystem.read"},
+            risk="read",
+            timeout_s=2.0,
+            workspace_root=None,
+        )
+        td = ToolDefinition(
+            name="read_file",
+            description="Read a file",
+            parameters={"type": "object", "properties": {}},
+            policy=policy,
+        )
+        assert td.policy is not None
+        assert td.policy.capabilities == {"filesystem.read"}
+        assert td.policy.risk == "read"
+        assert td.policy.timeout_s == 2.0
+
+    def test_with_policy_builder(self):
+        from seekflow.types import ToolPolicy, ToolDefinition
+
+        td = ToolDefinition(
+            name="web_fetch",
+            description="Fetch a URL",
+            parameters={"type": "object", "properties": {}},
+        )
+        p = ToolPolicy(risk="network", allowed_domains={"example.com"})
+        td = td.with_policy(p)
+        assert td.policy == p
+        assert td.policy.allowed_domains == {"example.com"}
+
+    def test_tool_definition_without_policy_has_none(self):
+        from seekflow.types import ToolDefinition
+
+        td = ToolDefinition(
+            name="simple_tool",
+            description="A simple tool",
+            parameters={"type": "object", "properties": {}},
+        )
+        assert td.policy is None

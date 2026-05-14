@@ -1,6 +1,7 @@
 """Minimal tool calling loop that wires together all modules."""
 from __future__ import annotations
 
+import copy
 import json
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
@@ -203,7 +204,7 @@ class ToolRuntime:
                         f"{check_result.issues[0].message}"
                     )
 
-        working_messages = list(messages)
+        working_messages = copy.deepcopy(messages)
         tool_results: list = []
         reasoning_contents: list[str] = []
         cumulative_usage: dict[str, Any] = {
@@ -223,12 +224,18 @@ class ToolRuntime:
                 "tool_count": len(tools_schema),
             })
 
+            # Force final text synthesis on penultimate step
+            steps_remaining = self._max_steps - step - 1
+            call_kwargs = dict(kwargs)
+            if steps_remaining <= 1:
+                call_kwargs["tool_choice"] = "none"
+
             try:
                 response: ChatResponse = client.chat(
                     model=model,
                     messages=working_messages,
                     tools=tools_schema if tools_schema else None,
-                    **kwargs,
+                    **call_kwargs,
                 )
             except CircuitBreakerOpenError:
                 recorder.finish()
@@ -448,7 +455,7 @@ class ToolRuntime:
 
         tools_schema = self._registry.to_deepseek_tools(strict=self._strict)
 
-        working_messages = list(messages)
+        working_messages = copy.deepcopy(messages)
         reasoning_contents: list[str] = []
         for _step in range(self._max_steps):
             # Trim context window before each API call

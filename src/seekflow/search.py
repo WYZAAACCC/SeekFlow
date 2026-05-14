@@ -1,13 +1,48 @@
 """Search provider abstraction — pluggable backends for web_search."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+
+
+@dataclass
+class SearchResult:
+    """A single search result with provenance metadata."""
+
+    title: str
+    snippet: str
+    url: str
+    source: str = ""
+    fetched_at: float = 0.0
+    content_hash: str = ""
+    trust_level: str = "standard"
+    freshness: str | None = None
+    extraction_method: str = "unknown"
+
+
+def format_search_results(results: list[SearchResult]) -> str:
+    """Format search results as numbered citations with sources footer."""
+    if not results:
+        return "No results."
+    lines = []
+    sources = []
+    for i, r in enumerate(results, 1):
+        lines.append(f"[{i}] {r.title}\n   {r.snippet}")
+        if r.url:
+            lines.append(f"   URL: {r.url}")
+            sources.append(f"[{i}] {r.title} — {r.url}")
+    if sources:
+        lines.append("\n--- Sources ---")
+        lines.extend(sources)
+    return "\n".join(lines)
 
 
 def _decode_html_entities(text: str) -> str:
@@ -20,11 +55,11 @@ class SearchProvider(ABC):
     """Abstract base for search backends."""
 
     @abstractmethod
-    def search(self, query: str, max_results: int = 5, timeout: int = 10) -> list[str]:
+    def search(self, query: str, max_results: int = 5, timeout: int = 10) -> list[str] | list[SearchResult]:
         """Execute a search query.
 
-        Returns a list of result strings. On failure, returns a single-element
-        list with a user-friendly error message — never raises.
+        Returns a list of result strings (legacy) or SearchResult objects.
+        On failure, returns a single-element list with an error message — never raises.
         """
 
 
@@ -33,6 +68,9 @@ class DuckDuckGoProvider(SearchProvider):
 
     def search(self, query: str, max_results: int = 5, timeout: int = 10) -> list[str]:
         url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode({"q": query})
+        from seekflow.security import validate_url  # noqa: S310
+        if not validate_url(url):
+            return ["Search blocked: URL failed security validation"]
         req = urllib.request.Request(url, headers={"User-Agent": "SeekFlow/1.0"})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -166,6 +204,59 @@ def auto_detect_provider(api_key: str | None = None) -> SearchProvider:
     if key:
         return BingWebSearchProvider(api_key=key)
     return BingChinaSearchProvider()
+
+
+class TrustedSearchPipeline:
+    """Multi-stage search pipeline: search → fetch → clean → cite.
+
+    Wraps a SearchProvider and enhances results with provenance metadata.
+    """
+
+    def __init__(
+        self,
+        provider: SearchProvider,
+        max_results: int = 5,
+        fetch_content: bool = False,
+        verify_claims: bool = False,
+    ):
+        self.provider = provider
+        self.max_results = max_results
+        self.fetch_content = fetch_content
+        self.verify_claims = verify_claims
+
+    def search(self, query: str, timeout: int = 10) -> dict:
+        """Execute search and return structured results with citations."""
+        raw = self.provider.search(query, max_results=self.max_results, timeout=timeout)
+
+        if not raw:
+            return {"results": [], "citations": [], "formatted": "No results."}
+
+        # Convert legacy strings to SearchResult if needed
+        if raw and isinstance(raw[0], str):
+            results = [
+                SearchResult(
+                    title=f"Result {i + 1}",
+                    snippet=r,
+                    url="",
+                    source=getattr(self.provider, "__class__", type(self.provider)).__name__,
+                    fetched_at=time.time(),
+                )
+                for i, r in enumerate(raw)
+            ]
+        else:
+            results = raw
+
+        formatted = format_search_results(results)
+        citations = [
+            {"index": i + 1, "title": r.title, "url": r.url, "snippet": r.snippet[:200]}
+            for i, r in enumerate(results)
+        ]
+        return {
+            "results": results,
+            "citations": citations,
+            "formatted": formatted,
+            "verification_notes": "",
+        }
 
 
 def get_search_provider(

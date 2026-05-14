@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import subprocess
 import time
 from typing import Any
 
-from seekflow.mcp.config import MCPServerConfig
+from seekflow.mcp.config import MCPServerConfig, MCPTrustLevel
 from seekflow.mcp.adapter import mcp_tool_to_deepseek_tool
 from seekflow.types import ToolCall, ToolExecutionResult
+
+logger = logging.getLogger("seekflow.mcp")
 
 
 class MCPToolExecutor:
@@ -31,6 +34,7 @@ class MCPToolExecutor:
         # server_name → (read, write, session) | subprocess.Popen
         self._sessions: dict[str, Any] = {}
         self._has_sdk = False
+        self.connection_errors: dict[str, str] = {}
 
     # ── Connection & Discovery ──────────────────────────────────────
 
@@ -55,10 +59,24 @@ class MCPToolExecutor:
         for cfg in self._configs.values():
             try:
                 if self._has_sdk:
-                    tools = asyncio.run(self._discover_via_sdk(cfg))
+                    tools = asyncio.run(
+                        asyncio.wait_for(self._discover_via_sdk(cfg), timeout=cfg.startup_timeout)
+                    )
                 else:
                     tools = self._discover_via_manual(cfg)
-            except Exception:
+            except asyncio.TimeoutError:
+                msg = f"MCP server '{cfg.name}' startup timed out after {cfg.startup_timeout}s"
+                logger.error(msg)
+                self.connection_errors[cfg.name] = msg
+                if cfg.fail_fast:
+                    raise TimeoutError(msg) from None
+                continue
+            except Exception as e:
+                msg = f"MCP server '{cfg.name}' connection failed: {e}"
+                logger.error(msg)
+                self.connection_errors[cfg.name] = msg
+                if cfg.fail_fast:
+                    raise
                 continue
 
             for name, desc, schema in tools:
@@ -98,7 +116,7 @@ class MCPToolExecutor:
         proc = subprocess.Popen(
             [cfg.command] + cfg.args,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.PIPE, shell=False,
         )
 
         def _rpc(method, params=None, rid=1):

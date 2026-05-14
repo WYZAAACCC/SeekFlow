@@ -207,3 +207,57 @@ def check_consistency(
         reasoning_mentions=sorted(mentions),
         actual_calls=list(actual_tool_names),
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Thinking Budget Router — task-aware thinking mode selection
+# ═══════════════════════════════════════════════════════════════════════════
+
+from dataclasses import dataclass as _dataclass
+
+
+@_dataclass
+class ThinkingDecision:
+    enable_thinking: bool = True
+    budget_tokens: int = 2048
+    self_consistency: int = 1
+    compress_reasoning: bool = False
+    inject_reasoning: bool = True
+
+
+class ThinkingRouter:
+    """Route thinking mode based on task characteristics."""
+
+    def route(
+        self,
+        task: str = "",
+        tools_count: int = 0,
+        model: str = "",
+        max_risk: str = "read",
+        sla_max_latency_s: float = 30.0,
+        response_format: str | None = None,
+    ) -> ThinkingDecision:
+        """Decide whether to enable thinking and budget allocation."""
+        # Structured output → enable thinking for schema adherence
+        if response_format == "json_object":
+            return ThinkingDecision(enable_thinking=True, budget_tokens=1024)
+
+        # Tight SLA → disable thinking to save latency
+        if sla_max_latency_s < 5.0:
+            return ThinkingDecision(enable_thinking=False, budget_tokens=0)
+
+        # Destructive tools → enable thinking for safety reasoning
+        if max_risk in ("destructive", "code_exec"):
+            return ThinkingDecision(enable_thinking=True, budget_tokens=4096)
+
+        # Complex task (long prompt, many tools) → enable with higher budget
+        if len(task) > 500 or tools_count > 3:
+            return ThinkingDecision(enable_thinking=True, budget_tokens=2048)
+
+        # Simple task → disable to save cost
+        if len(task) < 200 and tools_count == 0:
+            return ThinkingDecision(enable_thinking=False, budget_tokens=0,
+                                    compress_reasoning=False, inject_reasoning=False)
+
+        # Default: enable with moderate budget
+        return ThinkingDecision(enable_thinking=True, budget_tokens=1024)

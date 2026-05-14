@@ -16,6 +16,7 @@ def tool(
     max_retries: int = 0,
     retry_delay: float = 1.0,
     sanitize: bool = True,
+    trusted: bool = False,
 ) -> ToolDefinition:
     """Decorator that converts a Python function into a ToolDefinition.
 
@@ -40,13 +41,13 @@ def tool(
             return _make_tool_definition(fn, name=name, description=description,
                                          cache=cache, keep_fields=keep_fields,
                                          max_retries=max_retries, retry_delay=retry_delay,
-                                         sanitize=sanitize)
+                                         sanitize=sanitize, trusted=trusted)
         return decorator
 
     return _make_tool_definition(func, name=name, description=description,
                                  cache=cache, keep_fields=keep_fields,
                                  max_retries=max_retries, retry_delay=retry_delay,
-                                 sanitize=sanitize)
+                                 sanitize=sanitize, trusted=trusted)
 
 
 def _make_tool_definition(
@@ -58,11 +59,13 @@ def _make_tool_definition(
     max_retries: int = 0,
     retry_delay: float = 1.0,
     sanitize: bool = True,
+    trusted: bool = False,
 ) -> ToolDefinition:
     tool_name = name or fn.__name__
     tool_desc = description or (fn.__doc__ or "").strip()
     metadata: dict = {"cache": cache, "max_retries": max_retries,
-                      "retry_delay": retry_delay, "sanitize": sanitize}
+                      "retry_delay": retry_delay, "sanitize": sanitize,
+                      "trusted": trusted}
     if keep_fields is not None:
         metadata["keep_fields"] = keep_fields
     else:

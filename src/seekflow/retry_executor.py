@@ -64,6 +64,9 @@ class RetryExecutor:
 
         attempt = 0
         last_exception = None
+        deadline = time.monotonic() + self._policy.max_delay * (
+            self._policy.max_retries + 1
+        )
         while attempt <= self._policy.max_retries:
             try:
                 result = fn()
@@ -74,7 +77,7 @@ class RetryExecutor:
             except APIStatusError as e:
                 status = e.status_code
                 if status in RATE_LIMIT_HTTP_CODES:
-                    delay = self._parse_retry_after(e)
+                    delay = min(self._parse_retry_after(e), self._policy.max_delay)
                     if e.response:
                         try:
                             h = dict(e.response.headers)
@@ -84,13 +87,17 @@ class RetryExecutor:
                             }
                         except Exception:
                             pass
+                    attempt += 1
+                    last_exception = e
                     self._notify_retry("rate_limit", attempt, delay, status)
+                    if attempt > self._policy.max_retries or time.monotonic() > deadline:
+                        break
                     time.sleep(delay)
                     continue
                 if status not in ALL_RETRY_CODES:
-                    old_state = self._cb.state
-                    self._cb.record_failure()
-                    self._notify_cb_change(old_state, self._cb.state, "non_retryable")
+                    # Non-retryable errors (400/401/402/403/404) are
+                    # caller-side problems — do NOT count against the
+                    # upstream circuit breaker.
                     raise
                 last_exception = e
                 if attempt < self._policy.max_retries:
@@ -113,6 +120,9 @@ class RetryExecutor:
         last_exception = None
         # Buffer chunks as we yield so we can skip duplicates on retry
         yielded_count = 0
+        deadline = time.monotonic() + self._policy.max_delay * (
+            self._policy.max_retries + 1
+        )
 
         while attempt <= self._policy.max_retries:
             try:
@@ -131,7 +141,7 @@ class RetryExecutor:
             except APIStatusError as e:
                 status = e.status_code
                 if status in RATE_LIMIT_HTTP_CODES:
-                    delay = self._parse_retry_after(e)
+                    delay = min(self._parse_retry_after(e), self._policy.max_delay)
                     if e.response:
                         try:
                             h = dict(e.response.headers)
@@ -141,13 +151,17 @@ class RetryExecutor:
                             }
                         except Exception:
                             pass
+                    attempt += 1
+                    last_exception = e
                     self._notify_retry("rate_limit", attempt, delay, status)
+                    if attempt > self._policy.max_retries or time.monotonic() > deadline:
+                        break
                     time.sleep(delay)
                     continue
                 if status not in ALL_RETRY_CODES:
-                    old_state = self._cb.state
-                    self._cb.record_failure()
-                    self._notify_cb_change(old_state, self._cb.state, "non_retryable")
+                    # Non-retryable errors (400/401/402/403/404) are
+                    # caller-side problems — do NOT count against the
+                    # upstream circuit breaker.
                     raise
                 last_exception = e
                 if attempt < self._policy.max_retries:

@@ -309,9 +309,10 @@ class TestAgentTools:
 
         agent = DeepSeekAgent(
             role="分析师", goal="分析", backstory="专家", api_key="sk-test",
+            dangerous_tools=True,
         )
         agent.with_default_tools()
-        assert len(agent.tools) >= 3  # read_file, calculate, save_result
+        assert len(agent.tools) >= 3  # calculate + read_file + save_result + ...
 
     def test_default_tools_are_callable_by_agent(self):
         from seekflow.agent.agent import DeepSeekAgent

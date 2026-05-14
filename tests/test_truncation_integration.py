@@ -52,7 +52,7 @@ class TestToolExecutorTruncationStrategy:
     """ToolExecutor truncation_strategy integration."""
 
     def test_json_aware_strategy_uses_json_truncation(self):
-        @tool
+        @tool(trusted=True)
         def get_data() -> str:
             """Return structured data."""
             return json.dumps({"results": [{"id": i, "name": f"item_{i}"} for i in range(100)]})
@@ -71,7 +71,7 @@ class TestToolExecutorTruncationStrategy:
         assert "results" in parsed
 
     def test_simple_strategy_uses_simple_truncation(self):
-        @tool
+        @tool(trusted=True)
         def get_data() -> str:
             """Return long text."""
             return "x" * 1000
@@ -90,7 +90,7 @@ class TestToolExecutorTruncationStrategy:
 
     def test_default_strategy_is_json_aware(self):
         """Backward compatibility: default executor uses JSON-aware truncation."""
-        @tool
+        @tool(trusted=True)
         def get_data() -> str:
             return json.dumps({"key": "value"})
 
@@ -166,7 +166,7 @@ class TestPriorityStrategy:
         assert parsed["y"] == 2
 
     def test_executor_passes_keep_fields_to_truncation(self):
-        @tool(keep_fields=["temperature"])
+        @tool(keep_fields=["temperature"], trusted=True)
         def weather(city: str) -> str:
             return json.dumps({
                 "temperature": 25,

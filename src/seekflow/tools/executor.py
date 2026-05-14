@@ -1,35 +1,38 @@
 """Tool executor for unified local tool execution."""
 from __future__ import annotations
 
-import re
-
-
-def _sanitize_tool_output(text: str, skip_sanitize: bool = False) -> str:
-    """Filter prompt injection patterns from tool outputs.
-
-    Set skip_sanitize=True for high-trust tools (e.g., read_file)
-    where the user explicitly requested access to the content and
-    filtering would destroy legitimate data like code files.
-    """
-    if skip_sanitize:
-        return text
-    patterns = [
-        r'<\|im_start\|>', r'<\|im_end\|>',
-        r'\[SYSTEM\]\s*\(.*override.*\)',
-        r'ignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions',
-    ]
-    for pat in patterns:
-        if re.search(pat, text, re.IGNORECASE):
-            return f"[FILTERED] {text[:200]}"
-    return text
-
 
 import concurrent.futures
+import hashlib
 import json
 import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from seekflow.repair.coercion import coerce_arguments
+
+
+@dataclass
+class ToolAuditRecord:
+    """Immutable record of a single tool execution."""
+
+    timestamp: float = 0.0
+    tool_name: str = ""
+    tool_call_id: str = ""
+    args_hash: str = ""
+    result_hash: str | None = None
+    latency_ms: int = 0
+    ok: bool = False
+    error: str | None = None
+    policy_decision: str = "allowed"
+    policy_reason: str = ""
+    risk_level: str = "read"
+    repair_attempted: bool = False
+    repair_confidence: float | None = None
+    cache_hit: bool = False
+    redactions: int = 0
+    run_id: str = ""
+    step: int = 0
 from seekflow.repair.json_repair import repair_json_arguments
 from seekflow.tool_cache import ToolCallCache, make_cache_key
 from seekflow.tools.registry import ToolRegistry
@@ -58,8 +61,9 @@ class ToolExecutor:
         self._cache = cache
         self.truncation_strategy = truncation_strategy
         self.max_parallel = max_parallel
+        self.audit_trail: list[ToolAuditRecord] = []
 
-    def execute(self, tool_call: ToolCall) -> ToolExecutionResult:
+    def execute(self, tool_call: ToolCall, timeout: float | None = 30.0) -> ToolExecutionResult:
         start = time.time()
         repair_notes: list[str] = []
         repaired = False
@@ -77,8 +81,12 @@ class ToolExecutor:
                     return cached
         # Defensive: arguments normalized to dict at API boundary (client.py),
         # but legacy callers may still pass raw strings.
+        repair_confidence = 1.0
+        repair_level = 0
         if isinstance(arguments, str):
-            parsed, ok, notes = self._parse_arguments(arguments)
+            parsed, ok, notes, conf, level = self._parse_arguments(arguments)
+            repair_confidence = conf
+            repair_level = level
             repair_notes.extend(notes)
             if ok:
                 arguments = parsed
@@ -93,6 +101,24 @@ class ToolExecutor:
                     elapsed_ms=elapsed, repaired=repaired,
                     repair_notes=repair_notes,
                 )
+
+        # Dangerous-tool gating: syntactically repaired arguments must have
+        # high confidence for tools with write/network/code_exec/destructive risk
+        if repaired and repair_level == 1:
+            td = self.registry.get(tool_call.name) if self.registry.has(tool_call.name) else None
+            if td and td.policy and td.policy.risk in ("write", "network", "code_exec", "destructive"):
+                if repair_confidence < 0.85:
+                    elapsed = int((time.time() - start) * 1000)
+                    return ToolExecutionResult(
+                        tool_call_id=tool_call.id, name=tool_call.name,
+                        arguments={}, ok=False,
+                        error=(
+                            f"Repaired arguments confidence ({repair_confidence:.2f}) "
+                            f"below threshold (0.85) for dangerous tool '{tool_call.name}'"
+                        ),
+                        elapsed_ms=elapsed, repaired=True,
+                        repair_notes=repair_notes + ["repair_denied_for_dangerous_tool"],
+                    )
 
         # Look up tool
         if not self.registry.has(tool_call.name):
@@ -132,12 +158,24 @@ class ToolExecutor:
             retry_delay = (tool_def.metadata or {}).get("retry_delay", 1.0)
             last_error = None
 
+            effective_timeout = timeout
+            if (tool_def.metadata or {}).get("timeout") is not None:
+                effective_timeout = tool_def.metadata["timeout"]
+
             for attempt in range(max_retries + 1):
                 try:
-                    from seekflow.compat.telemetry import tool_span
-                    with tool_span(tool_call.name):
+                    if effective_timeout and effective_timeout > 0:
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                            future = pool.submit(tool_def.func, **arguments)
+                            raw_result = future.result(timeout=effective_timeout)
+                    else:
                         raw_result = tool_def.func(**arguments)
                     last_error = None
+                    break
+                except concurrent.futures.TimeoutError:
+                    last_error = TimeoutError(
+                        f"Tool '{tool_call.name}' timed out after {effective_timeout}s"
+                    )
                     break
                 except Exception as e:
                     last_error = e
@@ -153,12 +191,16 @@ class ToolExecutor:
                     elapsed_ms=elapsed,
                 )
 
-            # Sanitize: filter prompt injection patterns from tool output.
-            # High-trust tools (sanitize=False in metadata) skip filtering
-            # to avoid destroying legitimate content like code files.
+            # Wrap untrusted tool output — marks external data as untrusted
+            # so the model treats it as data, not instructions.
+            # Trusted internal tools (e.g. calculate) are NOT wrapped.
             if isinstance(raw_result, str):
-                skip = (tool_def.metadata or {}).get("sanitize", True) is False
-                raw_result = _sanitize_tool_output(raw_result, skip_sanitize=skip)
+                trusted = (tool_def.metadata or {}).get("trusted", False)
+                if not trusted:
+                    from seekflow.security import wrap_untrusted
+                    raw_result = wrap_untrusted(
+                        tool_call.name, raw_result,
+                    ).format_for_model()
 
             # Truncate if string result is too long
             keep_fields = tool_def.metadata.get("keep_fields") if tool_def.metadata else None
@@ -183,6 +225,15 @@ class ToolExecutor:
                     cache_key = make_cache_key(tool_call.name, arguments)
                     self._cache.put(cache_key, exec_result)
 
+            self._record_audit(
+                tool_def, tool_call.id or "", arguments,
+                result=str(exec_result.result)[:500] if exec_result.result else None,
+                latency_ms=elapsed, ok=exec_result.ok,
+                error=exec_result.error,
+                policy_decision="allowed", policy_reason="",
+                repair_attempted=repaired, repair_confidence=repair_confidence,
+                risk=(tool_def.policy.risk if tool_def.policy else "read"),
+            )
             return exec_result
         except Exception as e:
             elapsed = int((time.time() - start) * 1000)
@@ -197,11 +248,11 @@ class ToolExecutor:
                 repair_notes=repair_notes,
             )
 
-    def _parse_arguments(self, raw: str) -> tuple[dict, bool, list[str]]:
-        """Try to parse JSON arguments. Returns (parsed, ok, notes)."""
+    def _parse_arguments(self, raw: str) -> tuple[dict, bool, list[str], float, int]:
+        """Try to parse JSON arguments. Returns (parsed, ok, notes, confidence, level)."""
         # Try direct parse first
         try:
-            return json.loads(raw), True, []
+            return json.loads(raw), True, [], 1.0, 0
         except json.JSONDecodeError:
             pass
 
@@ -209,16 +260,18 @@ class ToolExecutor:
         if self.repair:
             repair_result = repair_json_arguments(raw)
             if repair_result.ok and repair_result.value is not None:
-                return repair_result.value, True, repair_result.applied_rules
-            return {}, False, repair_result.applied_rules
+                return (repair_result.value, True, repair_result.applied_rules,
+                        repair_result.confidence, repair_result.repair_level)
+            return {}, False, repair_result.applied_rules, repair_result.confidence, repair_result.repair_level
 
-        return {}, False, []
+        return {}, False, [], 0.0, 3
 
     def execute_batch(self, tool_calls: list[ToolCall]) -> list[ToolExecutionResult]:
-        """Execute multiple tool calls in parallel.
+        """Execute multiple tool calls with side-effect awareness.
 
-        All tool_calls in a single batch are assumed to be independent
-        (the LLM declares parallelism by returning them in one response).
+        Phase 1: all parallel-safe read tools execute concurrently.
+        Phase 2: side-effect tools (write/network/code_exec/destructive
+        or parallel_safe=False) execute sequentially in original order.
         Results are returned in the same order as the input tool_calls.
         """
         if len(tool_calls) == 0:
@@ -226,30 +279,81 @@ class ToolExecutor:
         if len(tool_calls) == 1:
             return [self.execute(tool_calls[0])]
 
-        max_workers = min(self.max_parallel, len(tool_calls))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-            # Preserve original order: store result by index
-            futures: dict[concurrent.futures.Future, int] = {}
-            for idx, tc in enumerate(tool_calls):
-                f = pool.submit(self.execute, tc)
-                futures[f] = idx
+        # Classify: parallel-safe reads vs sequential
+        parallel_indices: list[int] = []
+        sequential_indices: list[int] = []
+        for idx, tc in enumerate(tool_calls):
+            td = self.registry.get(tc.name) if self.registry.has(tc.name) else None
+            policy = td.policy if td else None
+            is_parallel_safe = (
+                policy.parallel_safe and policy.risk == "read"
+            ) if policy else True  # no policy → assume safe read
+            if is_parallel_safe:
+                parallel_indices.append(idx)
+            else:
+                sequential_indices.append(idx)
 
-            ordered: list[ToolExecutionResult | None] = [None] * len(tool_calls)
-            for future in concurrent.futures.as_completed(futures):
-                idx = futures[future]
-                try:
-                    ordered[idx] = future.result()
-                except Exception as e:
-                    tc = tool_calls[idx]
-                    ordered[idx] = ToolExecutionResult(
-                        tool_call_id=tc.id,
-                        name=tc.name,
-                        arguments={},
-                        ok=False,
-                        error=f"Parallel execution error: {e}",
-                        elapsed_ms=0,
-                    )
-            return [r for r in ordered if r is not None]
+        ordered: list[ToolExecutionResult | None] = [None] * len(tool_calls)
+
+        # Phase 1: parallel reads
+        if parallel_indices:
+            max_workers = min(self.max_parallel, len(parallel_indices))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures: dict[concurrent.futures.Future, int] = {}
+                for idx in parallel_indices:
+                    f = pool.submit(self.execute, tool_calls[idx])
+                    futures[f] = idx
+                for future in concurrent.futures.as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        ordered[idx] = future.result()
+                    except Exception as e:
+                        ordered[idx] = ToolExecutionResult(
+                            tool_call_id=tool_calls[idx].id,
+                            name=tool_calls[idx].name,
+                            arguments={}, ok=False,
+                            error=f"Parallel execution error: {e}",
+                            elapsed_ms=0,
+                        )
+
+        # Phase 2: sequential (original order)
+        for idx in sequential_indices:
+            ordered[idx] = self.execute(tool_calls[idx])
+
+        return [r for r in ordered if r is not None]
+
+    def _record_audit(self, tool_def, call_id: str, args: dict,
+                      result: str | None = None, *, latency_ms: int = 0,
+                      ok: bool = False, error: str | None = None,
+                      policy_decision: str = "allowed", policy_reason: str = "",
+                      repair_attempted: bool = False, repair_confidence: float = 1.0,
+                      risk: str = "read") -> None:
+        """Append an audit record for this tool execution."""
+        try:
+            args_canonical = json.dumps(args, sort_keys=True, ensure_ascii=False,
+                                        separators=(",", ":"), default=str)
+        except Exception:
+            args_canonical = str(args)
+        args_hash = hashlib.sha256(args_canonical.encode()).hexdigest()[:16]
+        result_hash = None
+        if result is not None:
+            result_hash = hashlib.sha256(result.encode()).hexdigest()[:16]
+
+        self.audit_trail.append(ToolAuditRecord(
+            timestamp=time.time(),
+            tool_name=tool_def.name,
+            tool_call_id=call_id,
+            args_hash=args_hash,
+            result_hash=result_hash,
+            latency_ms=latency_ms,
+            ok=ok,
+            error=error,
+            policy_decision=policy_decision,
+            policy_reason=policy_reason,
+            risk_level=risk,
+            repair_attempted=repair_attempted,
+            repair_confidence=repair_confidence,
+        ))
 
     def _maybe_truncate(self, result, keep_fields: list[str] | None = None):
         """Truncate string result if too long, using configured strategy."""

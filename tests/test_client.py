@@ -92,3 +92,35 @@ class TestDeepSeekClient:
         with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "sk-from-env"}):
             client = DeepSeekClient()
             assert client.api_key == "sk-from-env"
+
+    def test_malformed_tool_arguments_preserved_not_discarded(self, mock_chat_completion):
+        """JSONDecodeError must preserve raw string for repair pipeline."""
+        raw_broken_json = '{"city": "Beijing"'  # missing closing brace
+
+        mock_tc = MagicMock()
+        mock_tc.id = "call_1"
+        mock_tc.function.name = "get_weather"
+        mock_tc.function.arguments = raw_broken_json
+
+        mock_choice = MagicMock()
+        mock_choice.message.content = None
+        mock_choice.message.tool_calls = [mock_tc]
+        mock_choice.message.reasoning_content = None
+        mock_choice.finish_reason = "tool_calls"
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+        mock_response.usage = None
+
+        mock_chat_completion.return_value = mock_response
+
+        client = DeepSeekClient(api_key="sk-test")
+        result = client.chat(model="test", messages=[{"role": "user", "content": "hi"}])
+
+        assert len(result.tool_calls) == 1
+        tc = result.tool_calls[0]
+        # Must be the raw string, NOT an empty dict
+        assert isinstance(tc.arguments, str), (
+            f"Expected str, got {type(tc.arguments).__name__}: {tc.arguments!r}"
+        )
+        assert tc.arguments == raw_broken_json

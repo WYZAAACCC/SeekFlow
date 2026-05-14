@@ -81,10 +81,10 @@ def repair_message_order(messages: list[dict]) -> list[dict]:
     for j, m in enumerate(cleaned):
         if m.get("role") != "system":
             if m.get("role") != "user":
-                cleaned.insert(j, {"role": "user", "content": "Please continue."})
+                cleaned.insert(j, {"role": "user", "content": ""})
             break
     else:
-        cleaned.append({"role": "user", "content": "Please continue."})
+        cleaned.append({"role": "user", "content": ""})
 
     start = 0
     if cleaned and cleaned[0].get("role") == "system":
