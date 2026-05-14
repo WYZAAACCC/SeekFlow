@@ -80,7 +80,7 @@ class MCPToolExecutor:
                 continue
 
             for name, desc, schema in tools:
-                full_name = f"{cfg.name}.{name}"
+                full_name = f"{cfg.name}__{name}"
                 wrapper = self._make_wrapper(cfg.name, name)
                 from seekflow.types import ToolDefinition
                 mt_obj = type("MCPTool", (), {

@@ -283,11 +283,15 @@ class TestAgentTools:
             max_steps=2,
         )
 
+        from seekflow.types import ToolPolicy
+        from seekflow.tools.decorator import tool
+
+        @tool(trusted=True)
         def get_time() -> str:
             """Return the current time."""
             return "2025-01-15 14:30:00"
 
-        agent.add_tool(get_time)
+        agent.add_tool(get_time.with_policy(ToolPolicy(risk="read", capabilities={"read"})))
         result = agent.run("调用 get_time 工具，告诉我现在几点")
         assert "2025" in result.final_output or "14:30" in result.final_output
 

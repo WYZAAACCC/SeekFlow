@@ -292,69 +292,28 @@ class DeepSeekAgent:
             UserWarning,
         )
 
-        import urllib.request as _ur
-        import urllib.parse as _up
-        import re as _re
-        import html as _html
-        from pathlib import Path as _Path
-
-        def read_file(path: str) -> str:
-            """Read content from a file path."""
-            p = _Path(path)
-            if not p.exists():
-                return f"ERROR: File not found: {path}"
-            try:
-                content = p.read_text(encoding="utf-8")
-            except Exception:
-                content = p.read_bytes().decode("utf-8", errors="replace")
-            if len(content) > 8000:
-                content = content[:8000] + f"\n...[truncated, {len(content)} total chars]"
-            return content
-
-        def web_search(query: str) -> str:
-            """Search the web using auto-detected provider. Returns top 5 results."""
-            from seekflow.search import get_search_provider
-            provider = get_search_provider("auto")
-            results = provider.search(query, max_results=5)
-            return "\n".join(results) if results else "No results."
-
-        def download_page(url: str) -> str:
-            """Download and extract text from a web page."""
-            try:
-                from seekflow.security import validate_url
-                if not validate_url(url):
-                    return f"Download blocked: URL '{url[:100]}' failed security validation"
-                req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                with _ur.urlopen(req, timeout=15) as resp:
-                    raw = resp.read().decode("utf-8", errors="replace")
-                text = _re.sub(r"<script[^>]*>.*?</script>", "", raw, flags=_re.DOTALL)
-                text = _re.sub(r"<style[^>]*>.*?</style>", "", text, flags=_re.DOTALL)
-                text = _re.sub(r"<[^>]+>", " ", text)
-                text = _re.sub(r"\s+", " ", text).strip()
-                if len(text) > 8000:
-                    text = text[:8000] + "\n...[truncated]"
-                return text
-            except Exception as e:
-                return f"Download failed: {e}"
-
-        def save_result(filename: str, content: str) -> str:
-            """Save content to output directory."""
-            from seekflow.security import safe_join
-            out = _Path("output").resolve()
-            out.mkdir(exist_ok=True)
-            try:
-                target = safe_join(out, filename)
-            except PermissionError:
-                return f"Save blocked: path '{filename}' is outside output directory"
-            target.write_text(content, encoding="utf-8")
-            return f"Saved {len(content)} chars to output/{target.name}"
-
-        from seekflow.agent.builtins import (
-            fetch_url, run_python, parse_csv_str, extract_entities, query_sql, classify_text,
+        # Use safe builtin factories when profiles are configured
+        from seekflow.tools.builtins import (
+            make_read_file, make_fetch_url, make_python_exec, make_sqlite_query,
         )
-        self.add_tools([read_file, web_search, download_page, save_result,
-                        fetch_url, run_python, parse_csv_str, extract_entities,
-                        query_sql, classify_text])
+
+        if self._workspace_root:
+            self.add_tool(make_read_file(workspace_root=self._workspace_root))
+
+        if self._allowed_domains:
+            self.add_tool(make_fetch_url(allowed_domains=self._allowed_domains))
+
+        if self._sandbox:
+            self.add_tool(make_python_exec(sandbox=self._sandbox))
+
+        if self._workspace_root:
+            self.add_tool(make_sqlite_query(workspace_root=self._workspace_root))
+
+        # Legacy imports retained for text utils only (not for dangerous exec)
+        from seekflow.agent.builtins import (
+            parse_csv_str, extract_entities, classify_text,
+        )
+        self.add_tools([parse_csv_str, extract_entities, classify_text])
 
     async def run_async(self, task: str, files: list[str] | None = None) -> AgentResult:
         """Async version of run()."""
@@ -748,13 +707,30 @@ class DeepSeekAgent:
                 if checkpoint_cb:
                     self._runtime._step_callback = checkpoint_cb
                 return self._runtime
+            from seekflow.policy import PolicyEngine
+            from seekflow.execution.context import ToolExecutionContext
+
+            ctx = ToolExecutionContext(
+                run_id=getattr(self, '_cost_tag', '') or 'agent',
+                dangerous_tools_enabled=self._dangerous_tools,
+                allowed_capabilities=self._allowed_capabilities,
+                max_risk=self._max_risk,
+                workspace_root=(
+                    self._workspace_root if self._workspace_root else None
+                ),
+                allowed_domains=self._allowed_domains,
+                sandbox=self._sandbox,
+            )
+
             self._runtime = ToolRuntime(
-            tools=self._tools,
-            api_key=self._api_key,
-            max_steps=self._max_steps,
-            max_context_tokens=self._max_context_tokens,
-            mcp_servers=[s for s in self._mcp_servers],
-        )
+                tools=self._tools,
+                api_key=self._api_key,
+                max_steps=self._max_steps,
+                max_context_tokens=self._max_context_tokens,
+                mcp_servers=[s for s in self._mcp_servers],
+                policy_engine=PolicyEngine(),
+                policy_context=ctx,
+            )
         # FREEZE the cacheable prefix now that tools are finalized
         if self._mode == "stable":
             tools_schema = self._runtime._registry.to_deepseek_tools()

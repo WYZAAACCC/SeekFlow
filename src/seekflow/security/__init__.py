@@ -60,12 +60,10 @@ def validate_file_access(
 
     Returns the validated, resolved ``Path`` on success.
     """
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {path}")
-
-    # Workspace boundary
+    # Resolve first, then check existence (relative paths work cwd-free)
     resolved = safe_join(workspace_root, str(path))
+    if not resolved.exists():
+        raise FileNotFoundError(f"File not found: {path}")
 
     # Extension checks
     suffix = resolved.suffix.lower()

@@ -1,7 +1,6 @@
-"""Safe network tool factory — SSRF-hardened HTTP fetch."""
+"""Safe network tool factory — SSRF-hardened HTTP fetch using hardened client."""
 from __future__ import annotations
 
-from seekflow.security import validate_url
 from seekflow.tools.decorator import tool
 from seekflow.types import ToolPolicy
 
@@ -13,29 +12,27 @@ def make_fetch_url(
     timeout: float = 10.0,
     max_response_bytes: int = 1_000_000,
 ) -> "ToolDefinition":
-    """Create an SSRF-hardened fetch_url tool bound to specific domains."""
+    """Create an SSRF-hardened fetch_url tool bound to specific domains.
+
+    Uses ``fetch_url_hardened()`` from ``security.http`` which enforces:
+    DNS fail-closed, all-IP checking, per-redirect validation, userinfo rejection.
+    """
 
     @tool(trusted=False)
     def fetch_url(url: str) -> str:
-        import urllib.request as _ur
-
-        if not validate_url(
-            url,
-            allow_domains=allowed_domains,
-            allow_schemes={"https"} if https_only else {"https", "http"},
-        ):
-            return f"Fetch blocked: URL '{url[:200]}' failed security validation"
-
+        from seekflow.security.http import (
+            NetworkPolicy, fetch_url_hardened, SSRFError,
+        )
+        policy = NetworkPolicy(
+            allowed_domains=allowed_domains,
+            allowed_schemes={"https"} if https_only else {"https", "http"},
+            max_response_bytes=max_response_bytes,
+            timeout_s=timeout,
+        )
         try:
-            req = _ur.Request(url, headers={"User-Agent": "SeekFlow/1.0"})
-            with _ur.urlopen(req, timeout=timeout) as resp:
-                raw = resp.read()
-                if len(raw) > max_response_bytes:
-                    raw = raw[:max_response_bytes]
-                text = raw.decode("utf-8", errors="replace")
-                return text
-        except Exception as e:
-            return f"Fetch failed: {e}"
+            return fetch_url_hardened(url, policy)
+        except SSRFError as e:
+            return f"Fetch blocked: {e}"
 
     return fetch_url.with_policy(ToolPolicy(
         capabilities={"network.public_http"},
