@@ -1,6 +1,6 @@
 [project]
 name = "seekflow"
-version = "0.2.5"
+version = "0.2.5.dev0"
 description = "DeepSeek-native agent framework — security-hardened beta. Policy-enforced, sandbox-first, cache/cost-aware."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -95,16 +95,13 @@ module = [
     "seekflow.agent.*",
     "seekflow.mcp.*",
     "seekflow.compat.*",
-    "seekflow.retry_executor",
     "seekflow.batch_client",
     "seekflow.search",
     "seekflow.eval.*",
     "seekflow.cli",
-    "seekflow.files",
     "seekflow.fim",
     "seekflow.structured",
     "seekflow.balance",
-    "seekflow.cost",
     "seekflow.truncation",
 ]
 ignore_errors = true

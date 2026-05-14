@@ -1,14 +1,14 @@
-# SeekFlow v0.2.5-beta
+# SeekFlow v0.2.5-dev
 
-**DeepSeek-native &nbsp;|&nbsp; Security-hardened beta &nbsp;|&nbsp; Policy-enforced, sandbox-first**
+**DeepSeek-native &nbsp;|&nbsp; Security-hardening beta &nbsp;|&nbsp; Policy-enforced, sandbox-first**
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/seekflow.svg)](https://pypi.org/project/seekflow/)
 
-SeekFlow is a DeepSeek-native agent framework — security-hardened beta for production evaluation. Purpose-built around DeepSeek's thinking mode, prompt caching, JSON repair, and FIM. **Not** a generic OpenAI wrapper.
+SeekFlow is a DeepSeek-native agent framework — security-hardening beta. Purpose-built around DeepSeek's thinking mode, prompt caching, JSON repair, and FIM. **Not** a generic OpenAI wrapper.
 
-> **Status**: main branch is **beta**. PyPI stable is `0.1.0` until v0.2.5 is published. Production use only after passing the full security checklist in [docs/](docs/).
+> **Status**: main branch is **security-hardening beta**. PyPI stable is `0.1.0`. Production use is not recommended until v0.2.5 release and full security checklist pass.
 
 **v0.2.0** adds a **Policy Engine**, **SSRF protection**, **path sandboxing**, **secret redaction**, **preflight cost budgeting**, and **per-tool timeout** — making SeekFlow safe for production deployments.
 
