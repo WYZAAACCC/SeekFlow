@@ -46,12 +46,12 @@ class TestMCPToolExecutor:
         executor._sessions = {"fs": mock_mcp_session}
 
         result = executor.execute_sync(
-            ToolCall(id="call_1", name="fs.read_file", arguments={"path": "/tmp/test.txt"})
+            ToolCall(id="call_1", name="fs__read_file", arguments={"path": "/tmp/test.txt"})
         )
 
         assert isinstance(result, ToolExecutionResult)
         assert result.ok is True
-        assert result.name == "fs.read_file"
+        assert result.name == "fs__read_file"
 
     def test_execute_unknown_server(self, configs):
         """Tool call to an unknown server returns error result."""
@@ -60,7 +60,7 @@ class TestMCPToolExecutor:
         executor = MCPToolExecutor(configs)
 
         result = executor.execute_sync(
-            ToolCall(id="call_2", name="unknown.read_file", arguments={})
+            ToolCall(id="call_2", name="unknown__read_file", arguments={})
         )
 
         assert result.ok is False
@@ -95,7 +95,7 @@ class TestMCPToolExecutor:
         executor._sessions = {"fs": mock_mcp_session}
 
         result = executor.execute_sync(
-            ToolCall(id="call_4", name="fs.read_file", arguments={"path": "/bad"})
+            ToolCall(id="call_4", name="fs__read_file", arguments={"path": "/bad"})
         )
 
         assert result.ok is False
@@ -109,7 +109,7 @@ class TestMCPToolExecutor:
         executor._sessions = {"fs": mock_mcp_session}
 
         result = executor.execute_sync(
-            ToolCall(id="call_5", name="fs.read_file", arguments={})
+            ToolCall(id="call_5", name="fs__read_file", arguments={})
         )
 
         assert result.ok is False

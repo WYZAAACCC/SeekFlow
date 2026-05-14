@@ -163,12 +163,13 @@ class ToolExecutor:
             if decision.requires_approval:
                 if self.approval_handler is not None:
                     from seekflow.execution.approval import ApprovalRequest
+                    p = tool_def.policy  # resolve once
                     approval = self.approval_handler.request_approval(ApprovalRequest(
                         tool=tool_def,
                         arguments=arguments if isinstance(arguments, dict) else {},
                         reason=decision.reason,
-                        risk=policy.risk if tool_def.policy else "destructive",
-                        capability=policy.capabilities if tool_def.policy else set(),
+                        risk=p.risk if p else "destructive",
+                        capability=p.capabilities if p else set(),
                         run_id=getattr(self.context, "run_id", None) if self.context else None,
                     ))
                     if not approval.approved:
@@ -269,13 +270,17 @@ class ToolExecutor:
             # Wrap untrusted tool output — marks external data as untrusted
             # so the model treats it as data, not instructions.
             # Trusted internal tools (e.g. calculate) are NOT wrapped.
-            if isinstance(raw_result, str):
-                trusted = (tool_def.metadata or {}).get("trusted", False)
-                if not trusted:
-                    from seekflow.security import wrap_untrusted
-                    raw_result = wrap_untrusted(
-                        tool_call.name, raw_result,
-                    ).format_for_model()
+            trusted = (tool_def.metadata or {}).get("trusted", False)
+            if not trusted:
+                from seekflow.security import wrap_untrusted
+                if isinstance(raw_result, str):
+                    content = raw_result
+                else:
+                    content = json.dumps(raw_result, ensure_ascii=False, default=str)
+                raw_result = wrap_untrusted(tool_call.name, content).format_for_model()
+            elif isinstance(raw_result, str):
+                # Keep str as-is for trusted tools
+                pass
 
             # Truncate if string result is too long
             keep_fields = tool_def.metadata.get("keep_fields") if tool_def.metadata else None

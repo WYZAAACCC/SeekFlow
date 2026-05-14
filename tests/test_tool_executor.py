@@ -10,15 +10,15 @@ class TestToolExecutor:
     def registry(self):
         reg = ToolRegistry()
 
-        @tool
+        @tool(trusted=True)
         def add(a: int, b: int) -> int:
             return a + b
 
-        @tool
+        @tool(trusted=True)
         def greet(name: str) -> str:
             return f"Hello, {name}!"
 
-        @tool
+        @tool(trusted=True)
         def fail() -> str:
             raise ValueError("intentional error")
 
@@ -70,7 +70,7 @@ class TestToolExecutor:
         assert "truncated" in str(result.result).lower()
 
     def test_repair_disabled(self, registry):
-        @tool(name="add_without_repair")
+        @tool(name="add_without_repair", trusted=True)
         def add_vals(a: int, b: int) -> int:
             return a + b
 

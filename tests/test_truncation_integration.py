@@ -103,7 +103,7 @@ class TestToolExecutorTruncationStrategy:
         assert parsed["key"] == "value"
 
     def test_non_string_result_not_truncated(self):
-        @tool
+        @tool(trusted=True)
         def get_number() -> int:
             return 42
 

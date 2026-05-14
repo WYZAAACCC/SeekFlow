@@ -69,10 +69,18 @@ class ToolRegistry:
             from seekflow.deepseek.strict_schema import DeepSeekStrictSchemaCompiler
             compiler = DeepSeekStrictSchemaCompiler()
 
+        import re as _re_name
+        _NAME_RE = _re_name.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
         tools = []
         for td in sorted(self._tools.values(), key=lambda t: t.name):
             if len(td.name) > 64:
                 raise ValueError(f"Tool name too long for DeepSeek: {td.name}")
+            if not _NAME_RE.fullmatch(td.name):
+                raise ToolSchemaError(
+                    f"Tool name '{td.name}' invalid for DeepSeek. "
+                    "Use only letters, digits, underscores, and hyphens."
+                )
 
             parameters = td.parameters
             if compiler is not None:

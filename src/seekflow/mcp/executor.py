@@ -139,7 +139,7 @@ class MCPToolExecutor:
             [cfg.command] + cfg.args,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, shell=False,
-            env=mcp_env if mcp_env else None,
+            env=mcp_env,
             cwd=str(cfg.cwd) if cfg.cwd else None,
         )
 
@@ -243,7 +243,7 @@ class MCPToolExecutor:
                     ) or str(result_data)
                 return ""
 
-        _mcp_exec.__name__ = f"{server_name}.{tool_name}"
+        _mcp_exec.__name__ = f"{server_name}__{tool_name}"
         return _mcp_exec
 
     # ── Tool Execution ──────────────────────────────────────────────
@@ -388,7 +388,7 @@ class MCPToolExecutor:
     # ── Helpers ─────────────────────────────────────────────────────
 
     def _parse_tool_name(self, full_name: str) -> tuple[str, str]:
-        parts = full_name.split(".", 1)
+        parts = full_name.split("__", 1)
         if len(parts) == 2:
             return parts[0], parts[1]
         return "", full_name

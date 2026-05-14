@@ -26,7 +26,8 @@ class TestExecutorCache:
     def test_cache_hit_returns_cached_result_without_calling_tool(self):
         _call_counts.clear()
         registry = ToolRegistry()
-        registry.register(_counting_add)
+        from seekflow.tools.decorator import tool as _tool_dec
+        registry.register(_tool_dec(trusted=True)(_counting_add))
 
         cache = ToolCallCache(max_size=10)
         executor = ToolExecutor(registry, cache=cache)
@@ -47,7 +48,8 @@ class TestExecutorCache:
     def test_different_arguments_different_cache_key(self):
         _call_counts.clear()
         registry = ToolRegistry()
-        registry.register(_counting_add)
+        from seekflow.tools.decorator import tool as _tool_dec
+        registry.register(_tool_dec(trusted=True)(_counting_add))
 
         cache = ToolCallCache(max_size=10)
         executor = ToolExecutor(registry, cache=cache)
@@ -77,7 +79,8 @@ class TestExecutorCache:
     def test_no_cache_disabled(self):
         _call_counts.clear()
         registry = ToolRegistry()
-        registry.register(_counting_add)
+        from seekflow.tools.decorator import tool as _tool_dec
+        registry.register(_tool_dec(trusted=True)(_counting_add))
 
         executor = ToolExecutor(registry, cache=None)
         tc = ToolCall(name="_counting_add", arguments={"a": 1, "b": 2})

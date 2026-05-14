@@ -511,7 +511,11 @@ class DeepSeekAgent:
         self._max_risk = _max_of_risk(self._max_risk, "network")
         self._invalidate_runtime()
         from seekflow.tools.builtins import make_fetch_url
-        self.add_tool(make_fetch_url(allowed_domains=domains))
+        self.add_tool(make_fetch_url(
+            allowed_domains=domains,
+            https_only=https_only,
+            max_response_bytes=max_response_bytes,
+        ))
         return self
 
     def allow_python(
