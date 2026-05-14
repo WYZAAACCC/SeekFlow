@@ -13,6 +13,9 @@ from seekflow.batch_client import BatchClient, BatchTimeoutError
 from seekflow.client import DeepSeekClient
 from seekflow.errors import StrictSchemaError
 from seekflow.runtime_errors import DeepSeekProtocolError
+from seekflow.deepseek.adapter import DeepSeekAdapter, ThinkingConfig
+from seekflow.budget import BudgetGuard, BudgetExceeded, CostBudget, CostEstimator
+from seekflow.cost import CostTracker
 from seekflow.files import embed_files_into_message
 from seekflow.reasoning import check_consistency
 from seekflow.retry import CircuitBreaker, RetryPolicy
@@ -57,6 +60,7 @@ class ToolRuntime:
         policy_context: Any | None = None,
         approval_handler: Any | None = None,
         sandbox: Any | None = None,
+        cost_budget: CostBudget | None = None,
     ):
         self._api_key = api_key
         self._base_url = base_url
@@ -82,6 +86,10 @@ class ToolRuntime:
         self._policy_context = policy_context or ToolExecutionContext.conservative()
         self._approval_handler = approval_handler
         self._sandbox = sandbox
+        self._cost_budget = cost_budget
+        self._budget_guard = BudgetGuard(cost_budget) if cost_budget else None
+        self._cost_tracker = CostTracker()
+        self._cost_estimator = CostEstimator()
         self._last_messages: list[dict[str, Any]] = []
 
         # Build tool registry
@@ -187,7 +195,8 @@ class ToolRuntime:
             **kwargs: Passed to the underlying API call (e.g. temperature,
                       extra_body for additional options).
         """
-        kwargs = _apply_thinking_mode(thinking_mode, kwargs, messages=messages)
+        # Build thinking config from user-facing thinking_mode parameter
+        thinking = _resolve_thinking(thinking_mode)
         if response_format:
             kwargs["response_format"] = {"type": response_format}
         # Embed file content into messages
@@ -246,12 +255,34 @@ class ToolRuntime:
             "prompt_tokens_details": {"cached_tokens": 0},
         }
 
+        # Budget preflight — estimate cost before first API call
+        if self._budget_guard is not None:
+            estimated = self._cost_estimator.estimate(
+                messages=working_messages,
+                model=model,
+                max_steps=self._max_steps,
+                tools_count=len(tools_schema),
+            )
+            try:
+                self._budget_guard.check_tokens(
+                    prompt_tokens=estimated.estimated_prompt_tokens,
+                    completion_tokens=estimated.estimated_completion_tokens,
+                )
+            except BudgetExceeded:
+                recorder.finish()
+                return ToolRuntimeResult(
+                    final=f"Budget exceeded: estimated cost exceeds limit.",
+                    messages=working_messages,
+                    cache_stats=self._active_cache.stats if self._active_cache else None,
+                    reasoning_contents=[],
+                )
+
         for step in range(self._max_steps):
             # Trim context window before each API call
             working_messages = self._trim_messages(working_messages)
 
             # Protocol validation before every DeepSeek API request
-            _validate_protocol(working_messages, kwargs, step, recorder)
+            _validate_protocol(working_messages, thinking, step, recorder)
 
             # Call model
             recorder.record("model_request", {
@@ -265,25 +296,29 @@ class ToolRuntime:
             # DeepSeek V4 thinking mode does NOT support tool_choice.
             # Use a user message prompt instead.
             steps_remaining = self._max_steps - step - 1
-            call_kwargs = dict(kwargs)
+            extra_kwargs = dict(kwargs)
             if steps_remaining <= 1:
-                thinking_on = _is_thinking_enabled(kwargs)
-                if thinking_on:
-                    # Append a user prompt instead of sending tool_choice="none"
+                if thinking.enabled:
                     working_messages.append({
                         "role": "user",
                         "content": "请直接给出最终答案，不要再调用工具。",
                     })
                 else:
-                    call_kwargs["tool_choice"] = "none"
+                    extra_kwargs["tool_choice"] = "none"
+
+            # Build params through DeepSeekAdapter — single protocol entry point
+            normalized = DeepSeekAdapter.build_chat_params(
+                model=model,
+                messages=working_messages,
+                tools=tools_schema if tools_schema else None,
+                thinking=thinking,
+                response_format=kwargs.get("response_format"),
+                stream=False,
+                **extra_kwargs,
+            )
 
             try:
-                response: ChatResponse = client.chat(
-                    model=model,
-                    messages=working_messages,
-                    tools=tools_schema if tools_schema else None,
-                    **call_kwargs,
-                )
+                response: ChatResponse = client.chat(**normalized)
             except CircuitBreakerOpenError:
                 recorder.finish()
                 self._last_messages = working_messages
@@ -310,6 +345,23 @@ class ToolRuntime:
                 cumulative_usage["total_tokens"] += response.usage.get("total_tokens", 0)
                 details = response.usage.get("prompt_tokens_details", {}) or {}
                 cumulative_usage["prompt_tokens_details"]["cached_tokens"] += details.get("cached_tokens", 0)
+                # Record cost using ModelRegistry (single pricing source)
+                self._cost_tracker.record(model, response.usage)
+                if self._budget_guard is not None:
+                    try:
+                        self._budget_guard.record_usage(
+                            prompt_tokens=response.usage.get("prompt_tokens", 0),
+                            completion_tokens=response.usage.get("completion_tokens", 0),
+                        )
+                    except BudgetExceeded:
+                        recorder.finish()
+                        return ToolRuntimeResult(
+                            final="Budget exceeded during execution.",
+                            messages=working_messages,
+                            tool_results=tool_results,
+                            usage=dict(cumulative_usage),
+                            reasoning_contents=reasoning_contents,
+                        )
 
             # Collect reasoning content + harvest structured insights
             if response.reasoning_content:
@@ -476,7 +528,7 @@ class ToolRuntime:
             response_format: "text" or "json_object".
             **kwargs: Passed to the underlying API call.
         """
-        kwargs = _apply_thinking_mode(thinking_mode, kwargs, messages=messages)
+        thinking = _resolve_thinking(thinking_mode)
         if response_format:
             kwargs["response_format"] = {"type": response_format}
         if files:
@@ -514,7 +566,7 @@ class ToolRuntime:
             working_messages = self._trim_messages(working_messages)
 
             # Protocol validation
-            _validate_protocol(working_messages, kwargs, _step, recorder)
+            _validate_protocol(working_messages, thinking, _step, recorder)
 
             # Accumulate tool calls from streaming
             pending_tool_calls: dict[str, dict] = {}
@@ -522,14 +574,21 @@ class ToolRuntime:
             step_reasoning: list[str] = []
             stream_usage: dict | None = None
 
+            # Build params through DeepSeekAdapter
+            stream_normalized = DeepSeekAdapter.build_chat_params(
+                model=model,
+                messages=working_messages,
+                tools=tools_schema if tools_schema else None,
+                thinking=thinking,
+                response_format=kwargs.get("response_format"),
+                stream=True,
+                **{k: v for k, v in kwargs.items()
+                   if k not in ("response_format", "extra_body", "tool_choice")},
+            )
+
             # Stream the model response
             try:
-                stream_iter = client.chat_stream(
-                    model=model,
-                    messages=working_messages,
-                    tools=tools_schema if tools_schema else None,
-                    **kwargs,
-                )
+                stream_iter = client.chat_stream(**stream_normalized)
             except CircuitBreakerOpenError:
                 self._last_messages = working_messages
                 yield StreamEvent(
@@ -824,8 +883,19 @@ class ToolRuntime:
         return results
 
 
+def _resolve_thinking(thinking_mode: str | None) -> ThinkingConfig:
+    """Convert user-facing thinking_mode parameter to ThinkingConfig."""
+    if thinking_mode is None:
+        return ThinkingConfig(enabled=True, effort="high")
+    if thinking_mode == "disabled":
+        return ThinkingConfig(enabled=False)
+    if thinking_mode == "max":
+        return ThinkingConfig(enabled=True, effort="max")
+    return ThinkingConfig(enabled=True, effort="high")
+
+
 def _is_thinking_enabled(kwargs: dict) -> bool:
-    """Check if thinking mode is enabled from the extra_body kwargs."""
+    """Check if thinking mode is enabled from the extra_body kwargs. (deprecated — use ThinkingConfig)"""
     extra_body = kwargs.get("extra_body") or {}
     thinking = extra_body.get("thinking") or {}
     if isinstance(thinking, dict):
@@ -834,7 +904,7 @@ def _is_thinking_enabled(kwargs: dict) -> bool:
 
 
 def _validate_protocol(
-    messages: list[dict], kwargs: dict, step: int, recorder: Any = None,
+    messages: list[dict], thinking: ThinkingConfig, step: int, recorder: Any = None,
 ) -> None:
     """Validate messages against DeepSeek protocol before every API call.
 
@@ -843,7 +913,7 @@ def _validate_protocol(
     """
     from seekflow.deepseek.protocol import validate_deepseek_messages
     from seekflow.trace.events import EVENT_DEEPSEEK_PROTOCOL_VALIDATED
-    thinking_enabled = _is_thinking_enabled(kwargs)
+    thinking_enabled = thinking.enabled
     issues = validate_deepseek_messages(
         messages, thinking_enabled=thinking_enabled, repair=False,
     )
