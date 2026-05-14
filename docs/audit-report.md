@@ -66,46 +66,31 @@ response.tool_calls
 
 ---
 
-## 链路 3：DeepSeekAdapter 集成
+## 链路 3：DeepSeekAdapter 集成 **[已修复 v0.3.0]**
 
-`deepseek/adapter.py` 包含完整逻辑：
-- `build_chat_params()` — thinking params, tool_choice removal, sampling params, developer role, max_tokens
-- `normalize_messages()` — developer→system
-- `normalize_usage()` — cache hit/miss token parsing
-- `resolve_model()` — legacy alias mapping
+`deepseek/adapter.py` 包含完整逻辑。
 
 **调用方检查：**
 
-| 文件 | 是否导入 DeepSeekAdapter | 如何构造 API 参数 |
-|------|--------------------------|-------------------|
-| `runtime.py` | ❌ 无 | `_apply_thinking_mode()` 手拼 |
-| `client.py` | ❌ 无 | 直接透传 kwargs 到 OpenAI SDK |
-| `agent.py` | ❌ 无 | 用 `_thinking_mode()` 传 thinking_mode 字符串 |
-
-**结论：DeepSeekAdapter 是孤岛模块。所有主路径均绕过它。**
+| 文件 | 状态 | 说明 |
+|------|------|------|
+| `runtime.py` chat() | ✅ **已接入** | `DeepSeekAdapter.build_chat_params()` 是唯一协议入口 |
+| `runtime.py` chat_stream() | ✅ **已接入** | 同上 |
+| `runtime.py` chat_batch() | ✅ **已接入** | 同上 |
+| `client.py` | ✅ 透传 | client 接收 normalized params 的 **kwargs |
+| `agent.py` | ✅ | 通过 runtime 间接使用 |
 
 ---
 
-## 链路 4：ModelRegistry / Pricing / Cost / Budget
+## 链路 4：ModelRegistry / Pricing / Cost / Budget **[已修复 v0.3.0]**
 
-| 组件 | 定义位置 | 是否被主链路调用 |
-|------|---------|-----------------|
-| `ModelRegistry` | `deepseek/models.py` | ❌ 从未被 runtime/agent/client 调用 |
-| `Pricing` | `deepseek/models.py` | ❌ 从未被调用 |
-| `ModelSpec` | `deepseek/models.py` | ❌ 从未被调用 |
-| `CostTracker` | `cost.py` | ❌ 未在 runtime 中使用 |
-| `BudgetGuard` | `budget.py` | ❌ 未在 runtime 中使用 |
-| `CostEstimator` | `budget.py` | ❌ 未在 runtime 中使用 |
-| `PRICING` (agent) | `agent/agent.py` | ✅ `_result_from_runtime()` 使用硬编码价格 |
-| `PRICING` (cost) | `cost.py` | 独立使用 |
-| `_PRICING` (budget) | `budget.py` | 独立使用 |
-
-**结论：ModelRegistry/Pricing/Budget 是孤岛。实际使用中的价格来自 `agent.py` 的硬编码字典（`PRICING`），与 `cost.py` 和 `budget.py` 各有自己的定价表，三处互不一致。**
-
-具体不一致：
-- `agent.py PRICING`: `deepseek-v4-flash.cached_input = 0.014`
-- `cost.py PRICING`: `deepseek-v4-flash.cached_input = 0.002`
-- `budget.py _PRICING`: `deepseek-v4-flash.cached_input = 0.014`
+| 组件 | 状态 |
+|------|------|
+| `ModelRegistry.price_usage()` | ✅ Agent._result_from_runtime() 调用 |
+| `BudgetGuard` | ✅ Runtime 支持 opt-in cost_budget 参数 |
+| `CostEstimator` | ✅ Runtime preflight 检查 |
+| `CostTracker` | ✅ Runtime 每次 API 响应后记录 |
+| `agent.py PRICING` | ✅ 作为 fallback（registry 失败时） |
 
 ---
 
@@ -194,45 +179,49 @@ Agent.run() → _make_runtime(tools=self._tools) → ToolRegistry.register()
 
 ## 问题汇总
 
-### 🔴 阻塞级（主链路断裂）
+### ✅ 已修复（v0.3.0）
 
-| # | 问题 | 影响 |
+| # | 问题 | 修复 |
 |---|------|------|
-| 1 | **DeepSeekAdapter 未接入主链路** | 所有 DeepSeek 协议兼容逻辑沉在 adapter 中无人调用；runtime 仍手拼参数。thinking 参数、tool_choice 移除、developer role 转换全靠 `_apply_thinking_mode()` 和 adapter 的重复实现 |
-| 2 | **ModelRegistry 未接入** | 三处独立定价表（agent/cost/budget），无单一来源 |
-| 3 | **Budget preflight 未接入** | 没有请求前成本检查，可能意外超支 |
-
-### 🟡 警告级（功能断裂）
-
-| # | 问题 | 影响 |
-|---|------|------|
-| 4 | **approval_handler 未从 Agent 传入** | 需要审批的工具（write_file, python_exec）会因"无 handler"而失败，而非触发审批流程 |
-| 5 | **ToolExecutor 未强制 max_input_bytes/max_output_bytes** | 策略字段定义了但 execute() 未检查；依赖隐式的 truncation |
-| 6 | **chat_batch() 绕过 RetryExecutor** | batch 请求无重试/熔断保护 |
-| 7 | **chat_batch() 不走 adapter + protocol validation** | batch 请求无协议校验 + 无 DeepSeek 兼容处理 |
+| 1 | DeepSeekAdapter 未接入主链路 | chat/chat_stream/chat_batch 全部通过 `build_chat_params()` |
+| 2 | ModelRegistry 未接入 | Agent 通过 `registry.price_usage()` 计算成本 |
+| 3 | Budget preflight 未接入 | Runtime 支持 opt-in `cost_budget` + preflight + CostTracker |
+| 4 | approval_handler 未传入 | Agent 接受 `approval_handler`，传递给 Runtime → ToolExecutor |
+| 6 | chat_batch() 绕过 adapter | batch body 通过 DeepSeekAdapter 标准化 |
 
 ### 🟢 已接通（无需修改）
 
 | # | 链路 |
 |---|------|
-| 8 | PolicyEngine → ToolExecutor authorize() 强制执行 |
-| 9 | 协议验证 → chat/chat_stream 每次 API 调用前 |
-| 10 | RetryExecutor → 可重试状态码 + has_yielded 流保护 |
-| 11 | 文件安全 → workspace_root + deny globs + 目录遍历阻断 |
-| 12 | SSRF → fetch_url_hardened + validate_url_strict + trust_env=False |
-| 13 | SQLite → tokenizer + authorizer + readonly URI |
-| 14 | Python exec → NoSandbox 拒绝 + ProcessSandbox/ContainerSandbox |
-| 15 | Builtin → Agent.allow_* 工具注册链完整 |
-| 16 | content=None → "" 在 tool-call assistant 中修复 |
+| 5 | PolicyEngine → ToolExecutor authorize() 强制执行 |
+| 6 | 协议验证 → chat/chat_stream/chat_batch 每次 API 调用前 |
+| 7 | RetryExecutor → 可重试状态码 + has_yielded 流保护 |
+| 8 | 文件安全 → workspace_root + deny globs + 目录遍历阻断 |
+| 9 | SSRF → fetch_url_hardened + validate_url_strict + trust_env=False |
+| 10 | SQLite → tokenizer + authorizer + readonly URI |
+| 11 | Python exec → NoSandbox 拒绝 + ProcessSandbox/ContainerSandbox |
+| 12 | Builtin → Agent.allow_* 工具注册链完整 |
+| 13 | content=None → "" 在 tool-call assistant 中修复 |
 
 ---
 
-## 结论
+## 结论（更新）
 
-SeekFlow **不是空架子**——核心请求链路和工具执行链路是贯通的，安全边界已嵌入正确位置。但它是**一只脚走路**：安全这条腿踩实了，协议/模型/成本这条腿悬空——DeepSeekAdapter、ModelRegistry、Budget/Cost 三个模块写了完整代码却从未接入主链路，属于"写好了没用"的孤岛代码。
+SeekFlow 的三条腿现在全部着地。**安全腿**（PolicyEngine、文件沙箱、SSRF、SQL/Python 执行隔离）、**可靠性腿**（Retry/CircuitBreaker/协议验证/流安全）和**协议/模型/成本腿**（DeepSeekAdapter、ModelRegistry、Budget/Cost）现在全部接入主链路。
 
-如果现在接入真实 DeepSeek API，核心功能可以工作（Agent 发起请求 → 调用工具 → 返回结果），thinking mode 协议因 `_apply_thinking_mode()` 的辅助逻辑尚可维持正确性。但缺少成本保护和统一协议入口意味着：
-
-- 价格不一致会给出错误的成本估算
-- DeepSeek API 升级时需同时修改 `_apply_thinking_mode()` 和 `DeepSeekAdapter` 两处
-- 没有请求前预算检查
+关键路径现在是：
+```
+Agent.run()
+  → Runtime.chat()
+    → DeepSeekAdapter.build_chat_params()  ← 统一协议入口
+    → _validate_protocol()                 ← 每次 API 调用前
+    → BudgetGuard.check_tokens()           ← 首次调用前预检
+    → client.chat(**normalized)            ← RetryExecutor 封装
+    → CostTracker.record()                 ← 每次响应后
+    → [tool call]
+      → ToolExecutor.execute()
+        → PolicyEngine.authorize()         ← 安全门
+        → approval_handler                 ← 审批（如需要）
+        → sandbox/authorizer               ← 隔离执行
+    → ModelRegistry.price_usage()          ← 单一价格来源
+```

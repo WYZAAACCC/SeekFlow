@@ -759,20 +759,21 @@ class ToolRuntime:
         """
         tools_schema = self._registry.to_deepseek_tools(strict=self._strict)
 
-        # Build batch requests with tools
+        # Build batch requests — normalize each through DeepSeekAdapter
+        thinking = ThinkingConfig(enabled=True, effort="high")
         batch_requests = []
         for i, req in enumerate(requests):
-            body = {
-                "model": model,
-                "messages": req["messages"],
-            }
-            if "tools" in req and req["tools"]:
-                body["tools"] = req["tools"]
-            elif tools_schema:
-                body["tools"] = tools_schema
+            tools = req.get("tools") or tools_schema or None
+            normalized = DeepSeekAdapter.build_chat_params(
+                model=model,
+                messages=req["messages"],
+                tools=tools,
+                thinking=thinking,
+                stream=False,
+            )
             batch_requests.append({
                 "custom_id": f"req-{i}",
-                "body": body,
+                "body": normalized,
             })
 
         # Submit, poll, download
