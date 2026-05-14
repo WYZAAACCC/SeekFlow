@@ -14,7 +14,7 @@ RETRYABLE_HTTP_CODES = (503, 502, 504, 500)
 RATE_LIMIT_HTTP_CODES = (429,)
 NON_RETRYABLE_HTTP_CODES = (400, 401, 402, 403, 404)
 
-ALL_RETRY_CODES = RETRYABLE_HTTP_CODES + RATE_LIMIT_HTTP_CODES
+ALL_RETRY_CODES = RETRYABLE_HTTP_CODES + RATE_LIMIT_HTTP_CODES + (408, 409)
 
 
 def is_retryable(status_code: int) -> bool:
@@ -37,6 +37,7 @@ class RetryPolicy:
     """Configuration for retry and circuit breaker behavior."""
 
     max_retries: int = 4
+    max_elapsed_s: float = 60.0
     base_delay: float = 1.0
     backoff_factor: float = 2.0
     max_delay: float = 60.0
@@ -54,7 +55,7 @@ class RetryPolicy:
 
     @staticmethod
     def gentle() -> RetryPolicy:
-        return RetryPolicy(max_retries=2, base_delay=5.0)
+        return RetryPolicy(max_retries=2, base_delay=5.0, max_elapsed_s=30.0)
 
     def with_overrides(self, **kwargs) -> RetryPolicy:
         return dataclasses.replace(self, **kwargs)

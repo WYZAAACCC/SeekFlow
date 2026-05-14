@@ -14,16 +14,30 @@ class DeepSeekAPIError(SeekFlowError):
     suggestion: str = ""
 
 
+class BadRequestError(DeepSeekAPIError):
+    """400 — Invalid request (non-context-length). Retryable=False."""
+    http_status = 400
+
+
 class AuthenticationError(DeepSeekAPIError):
     """401 — API key is invalid or missing."""
     http_status = 401
     suggestion = "请检查 API Key 是否正确设置。可在 https://platform.deepseek.com 查看。"
 
 
-class InsufficientBalanceError(DeepSeekAPIError):
+class PaymentRequiredError(DeepSeekAPIError):
     """402 — Account balance is insufficient."""
     http_status = 402
     suggestion = "账户余额不足，请前往 https://platform.deepseek.com 充值。"
+
+
+# Backward-compat alias
+InsufficientBalanceError = PaymentRequiredError
+
+
+class PermissionDeniedError(DeepSeekAPIError):
+    """403 — Permission denied for this resource."""
+    http_status = 403
 
 
 class RateLimitError(DeepSeekAPIError):
@@ -60,17 +74,22 @@ def map_http_error(
     """Map an HTTP status code (and optional message) to a DeepSeek error type."""
     headers = headers or {}
 
+    if status_code == 400:
+        if "context" in message.lower() and ("length" in message.lower() or "exceed" in message.lower()):
+            return ContextLengthExceededError(message)
+        err = BadRequestError(message)
+        err.http_status = 400
+        return err
     if status_code == 401:
         return AuthenticationError(message)
     if status_code == 402:
-        return InsufficientBalanceError(message)
+        return PaymentRequiredError(message)
+    if status_code == 403:
+        return PermissionDeniedError(message)
     if status_code == 429:
         remaining = _parse_int_header(headers.get("X-RateLimit-Remaining"))
         reset = _parse_float_header(headers.get("X-RateLimit-Reset"))
         return RateLimitError(message, remaining=remaining, reset=reset)
-    if status_code == 400:
-        if "context" in message.lower() and ("length" in message.lower() or "exceed" in message.lower()):
-            return ContextLengthExceededError(message)
     if status_code == 503:
         return ServiceUnavailableError(message)
 

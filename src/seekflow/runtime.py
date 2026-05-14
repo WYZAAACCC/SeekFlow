@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from seekflow.batch_client import BatchClient, BatchTimeoutError
 from seekflow.client import DeepSeekClient
 from seekflow.errors import StrictSchemaError
+from seekflow.runtime_errors import DeepSeekProtocolError
 from seekflow.files import embed_files_into_message
 from seekflow.reasoning import check_consistency
 from seekflow.retry import CircuitBreaker, RetryPolicy
@@ -233,6 +234,9 @@ class ToolRuntime:
             # Trim context window before each API call
             working_messages = self._trim_messages(working_messages)
 
+            # Protocol validation before every DeepSeek API request
+            _validate_protocol(working_messages, kwargs, step, recorder)
+
             # Call model
             recorder.record("model_request", {
                 "step": step,
@@ -241,11 +245,21 @@ class ToolRuntime:
                 "tool_count": len(tools_schema),
             })
 
-            # Force final text synthesis on penultimate step
+            # Force final text synthesis on penultimate step.
+            # DeepSeek V4 thinking mode does NOT support tool_choice.
+            # Use a user message prompt instead.
             steps_remaining = self._max_steps - step - 1
             call_kwargs = dict(kwargs)
             if steps_remaining <= 1:
-                call_kwargs["tool_choice"] = "none"
+                thinking_on = _is_thinking_enabled(kwargs)
+                if thinking_on:
+                    # Append a user prompt instead of sending tool_choice="none"
+                    working_messages.append({
+                        "role": "user",
+                        "content": "请直接给出最终答案，不要再调用工具。",
+                    })
+                else:
+                    call_kwargs["tool_choice"] = "none"
 
             try:
                 response: ChatResponse = client.chat(
@@ -478,6 +492,9 @@ class ToolRuntime:
         for _step in range(self._max_steps):
             # Trim context window before each API call
             working_messages = self._trim_messages(working_messages)
+
+            # Protocol validation
+            _validate_protocol(working_messages, kwargs, _step, recorder)
 
             # Accumulate tool calls from streaming
             pending_tool_calls: dict[str, dict] = {}
@@ -784,6 +801,49 @@ class ToolRuntime:
             ))
 
         return results
+
+
+def _is_thinking_enabled(kwargs: dict) -> bool:
+    """Check if thinking mode is enabled from the extra_body kwargs."""
+    extra_body = kwargs.get("extra_body") or {}
+    thinking = extra_body.get("thinking") or {}
+    if isinstance(thinking, dict):
+        return thinking.get("type") == "enabled"
+    return False
+
+
+def _validate_protocol(
+    messages: list[dict], kwargs: dict, step: int, recorder: Any = None,
+) -> None:
+    """Validate messages against DeepSeek protocol before every API call.
+
+    Raises ``DeepSeekProtocolError`` if any error-severity issues are found.
+    This catches protocol violations BEFORE they hit the DeepSeek API (400 errors).
+    """
+    from seekflow.deepseek.protocol import validate_deepseek_messages
+    from seekflow.trace.events import EVENT_DEEPSEEK_PROTOCOL_VALIDATED
+    thinking_enabled = _is_thinking_enabled(kwargs)
+    issues = validate_deepseek_messages(
+        messages, thinking_enabled=thinking_enabled, repair=False,
+    )
+    errors = [i for i in issues if i.severity == "error"]
+    warnings = [i for i in issues if i.severity == "warning"]
+
+    if recorder is not None:
+        recorder.record(EVENT_DEEPSEEK_PROTOCOL_VALIDATED, {
+            "step": step,
+            "thinking_enabled": thinking_enabled,
+            "message_count": len(messages),
+            "error_count": len(errors),
+            "warning_count": len(warnings),
+            "error_codes": [i.code for i in errors],
+        })
+
+    if errors:
+        raise DeepSeekProtocolError(
+            f"Protocol validation failed at step {step}: "
+            + "; ".join(f"[{i.code}] {i.message}" for i in errors)
+        )
 
 
 def _apply_thinking_mode(

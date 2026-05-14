@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from typing import Any
 
-from openai import APIStatusError
+from openai import APIStatusError, APIConnectionError, APITimeoutError
 
+from seekflow.errors import (
+    DeepSeekAPIError,
+    RateLimitError,
+)
 from seekflow.retry import (
     ALL_RETRY_CODES,
     RATE_LIMIT_HTTP_CODES,
@@ -16,6 +20,13 @@ from seekflow.retry import (
     compute_delay,
 )
 from seekflow.types import ChatResponse, _StreamChunk, ToolChoice
+
+
+class StreamInterruptedError(Exception):
+    """Raised when a stream is interrupted after bytes were already yielded.
+    Automatic retry is disabled in this case to avoid duplicate/misordered tokens.
+    """
+    pass
 
 
 class RetryExecutor:
@@ -36,6 +47,7 @@ class RetryExecutor:
             cooldown=self._policy.cooldown,
         )
         self._on_retry = on_retry
+        self._last_rate_limit: dict[str, Any] | None = None
 
     def chat(
         self, *, model: str, messages: list[dict[str, Any]],
@@ -63,53 +75,47 @@ class RetryExecutor:
         self._notify_cb_change(old_state, self._cb.state, "allow_request")
 
         attempt = 0
-        last_exception = None
-        deadline = time.monotonic() + self._policy.max_delay * (
-            self._policy.max_retries + 1
-        )
+        last_exception: Exception | None = None
+        deadline = time.monotonic() + self._policy.max_elapsed_s
+
         while attempt <= self._policy.max_retries:
+            if time.monotonic() >= deadline:
+                break
             try:
                 result = fn()
+                # Success: reset circuit breaker failure count
                 old_state = self._cb.state
                 self._cb.record_success()
                 self._notify_cb_change(old_state, self._cb.state, "record_success")
                 return result
-            except APIStatusError as e:
-                status = e.status_code
-                if status in RATE_LIMIT_HTTP_CODES:
-                    delay = min(self._parse_retry_after(e), self._policy.max_delay)
-                    if e.response:
-                        try:
-                            h = dict(e.response.headers)
-                            self._last_rate_limit = {
-                                "remaining": int(h.get("x-ratelimit-remaining", -1)),
-                                "reset": h.get("x-ratelimit-reset", ""),
-                            }
-                        except Exception:
-                            pass
-                    attempt += 1
-                    last_exception = e
-                    self._notify_retry("rate_limit", attempt, delay, status)
-                    if attempt > self._policy.max_retries or time.monotonic() > deadline:
-                        break
-                    time.sleep(delay)
-                    continue
-                if status not in ALL_RETRY_CODES:
-                    # Non-retryable errors (400/401/402/403/404) are
-                    # caller-side problems — do NOT count against the
-                    # upstream circuit breaker.
+            except (DeepSeekAPIError, APIStatusError) as e:
+                status = self._extract_status(e)
+                if not self._is_retryable_status(status):
+                    # Non-retryable: re-raise, do NOT trip circuit breaker
                     raise
                 last_exception = e
-                if attempt < self._policy.max_retries:
-                    delay = compute_delay(self._policy, attempt)
-                    self._notify_retry("server_error", attempt, delay, status)
-                    time.sleep(delay)
+                delay = self._compute_delay(status, e, attempt)
                 attempt += 1
+                self._notify_retry("server_error", attempt, delay, status)
+                if attempt > self._policy.max_retries or time.monotonic() >= deadline:
+                    break
+                time.sleep(delay)
+            except (APITimeoutError, APIConnectionError) as e:
+                # Connection errors are retryable and trip circuit breaker
+                last_exception = e
+                delay = compute_delay(self._policy, attempt)
+                attempt += 1
+                self._notify_retry("connection_error", attempt, delay, 0)
+                if attempt > self._policy.max_retries or time.monotonic() >= deadline:
+                    break
+                time.sleep(delay)
 
         old_state = self._cb.state
         self._cb.record_failure()
         self._notify_cb_change(old_state, self._cb.state, "max_retries_exhausted")
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        raise RuntimeError("RetryExecutor exhausted attempts with no exception captured")
 
     def _execute_stream_with_retry(self, fn):
         old_state = self._cb.state
@@ -117,63 +123,79 @@ class RetryExecutor:
         self._notify_cb_change(old_state, self._cb.state, "allow_request")
 
         attempt = 0
-        last_exception = None
-        # Buffer chunks as we yield so we can skip duplicates on retry
-        yielded_count = 0
-        deadline = time.monotonic() + self._policy.max_delay * (
-            self._policy.max_retries + 1
-        )
+        last_exception: Exception | None = None
+        deadline = time.monotonic() + self._policy.max_elapsed_s
 
         while attempt <= self._policy.max_retries:
+            if time.monotonic() >= deadline:
+                break
+
+            has_yielded = False
             try:
-                chunk_buffer: list = []
                 for chunk in fn():
-                    chunk_buffer.append(chunk)
-                    if len(chunk_buffer) > yielded_count:
-                        # Only yield chunks we haven't yielded before
-                        for c in chunk_buffer[yielded_count:]:
-                            yield c
-                        yielded_count = len(chunk_buffer)
+                    has_yielded = True
+                    yield chunk
+                # Stream completed successfully
                 old_state = self._cb.state
                 self._cb.record_success()
                 self._notify_cb_change(old_state, self._cb.state, "record_success")
                 return
-            except APIStatusError as e:
-                status = e.status_code
-                if status in RATE_LIMIT_HTTP_CODES:
-                    delay = min(self._parse_retry_after(e), self._policy.max_delay)
-                    if e.response:
-                        try:
-                            h = dict(e.response.headers)
-                            self._last_rate_limit = {
-                                "remaining": int(h.get("x-ratelimit-remaining", -1)),
-                                "reset": h.get("x-ratelimit-reset", ""),
-                            }
-                        except Exception:
-                            pass
-                    attempt += 1
-                    last_exception = e
-                    self._notify_retry("rate_limit", attempt, delay, status)
-                    if attempt > self._policy.max_retries or time.monotonic() > deadline:
-                        break
-                    time.sleep(delay)
-                    continue
-                if status not in ALL_RETRY_CODES:
-                    # Non-retryable errors (400/401/402/403/404) are
-                    # caller-side problems — do NOT count against the
-                    # upstream circuit breaker.
+            except (DeepSeekAPIError, APIStatusError) as e:
+                if has_yielded:
+                    raise StreamInterruptedError(
+                        "Stream interrupted after bytes were yielded to the caller. "
+                        "Automatic retry is disabled to prevent duplicate/misordered tokens."
+                    ) from e
+                status = self._extract_status(e)
+                if not self._is_retryable_status(status):
                     raise
                 last_exception = e
-                if attempt < self._policy.max_retries:
-                    delay = compute_delay(self._policy, attempt)
-                    self._notify_retry("server_error", attempt, delay, status)
-                    time.sleep(delay)
+                delay = self._compute_delay(status, e, attempt)
                 attempt += 1
+                self._notify_retry("server_error", attempt, delay, status)
+                if attempt > self._policy.max_retries or time.monotonic() >= deadline:
+                    break
+                time.sleep(delay)
+            except (APITimeoutError, APIConnectionError) as e:
+                if has_yielded:
+                    raise StreamInterruptedError(
+                        "Stream interrupted after bytes were yielded to the caller. "
+                        "Automatic retry is disabled to prevent duplicate/misordered tokens."
+                    ) from e
+                last_exception = e
+                delay = compute_delay(self._policy, attempt)
+                attempt += 1
+                self._notify_retry("connection_error", attempt, delay, 0)
+                if attempt > self._policy.max_retries or time.monotonic() >= deadline:
+                    break
+                time.sleep(delay)
 
         old_state = self._cb.state
         self._cb.record_failure()
         self._notify_cb_change(old_state, self._cb.state, "max_retries_exhausted")
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        raise RuntimeError("RetryExecutor stream exhausted attempts with no exception captured")
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_status(e: Exception) -> int:
+        if isinstance(e, DeepSeekAPIError):
+            return getattr(e, "http_status", 0)
+        if isinstance(e, APIStatusError):
+            return e.status_code
+        return 0
+
+    @staticmethod
+    def _is_retryable_status(status: int) -> bool:
+        """Return True if status should be retried AND counted against circuit breaker."""
+        return status in ALL_RETRY_CODES or status in (408, 409)
+
+    def _compute_delay(self, status: int, error: Any, attempt: int) -> float:
+        if status in RATE_LIMIT_HTTP_CODES:
+            return min(self._parse_retry_after(error), self._policy.max_delay)
+        return compute_delay(self._policy, attempt)
 
     def _notify_retry(self, reason: str, attempt: int, delay: float, status_code: int) -> None:
         if self._on_retry:
@@ -195,8 +217,12 @@ class RetryExecutor:
             })
 
     @staticmethod
-    def _parse_retry_after(error: APIStatusError) -> float:
-        """Parse Retry-After header from a 429 response, default to 1 second."""
+    def _parse_retry_after(error: Any) -> float:
+        """Parse Retry-After header from a rate-limit response, default to 1 second."""
+        if isinstance(error, RateLimitError) and error.reset is not None:
+            remaining = max(error.reset - time.time(), 0)
+            if remaining > 0:
+                return min(remaining, 60.0)
         headers = getattr(error, "headers", None) or {}
         val = headers.get("Retry-After", headers.get("retry-after", "1"))
         try:
