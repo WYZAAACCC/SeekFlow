@@ -75,8 +75,10 @@ class ToolRuntime:
         self._cache_size = cache_size
         self._cache_ttl = cache_ttl
         self._truncation_strategy = truncation_strategy
-        self._policy_engine = policy_engine
-        self._policy_context = policy_context
+        from seekflow.policy import PolicyEngine
+        from seekflow.execution.context import ToolExecutionContext
+        self._policy_engine = policy_engine or PolicyEngine()
+        self._policy_context = policy_context or ToolExecutionContext.conservative()
         self._approval_handler = approval_handler
         self._sandbox = sandbox
         self._last_messages: list[dict[str, Any]] = []
@@ -459,6 +461,10 @@ class ToolRuntime:
             repair=self._repair,
             max_result_chars=self._max_result_chars,
             truncation_strategy=self._truncation_strategy,
+            policy_engine=self._policy_engine,
+            context=self._policy_context,
+            approval_handler=self._approval_handler,
+            sandbox=self._sandbox,
         )
 
         # Create a fresh recorder for retry trace events
@@ -749,6 +755,10 @@ class ToolRuntime:
                     repair=self._repair,
                     max_result_chars=self._max_result_chars,
                     truncation_strategy=self._truncation_strategy,
+                    policy_engine=self._policy_engine,
+                    context=self._policy_context,
+                    approval_handler=self._approval_handler,
+                    sandbox=self._sandbox,
                 )
                 for tc_data in tool_calls_data:
                     func_info = tc_data.get("function", {})

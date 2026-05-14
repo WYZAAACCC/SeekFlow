@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 
 from seekflow.runtime import ToolRuntime
 
+_RISK_ORDER = {"read": 0, "network": 1, "write": 2, "code_exec": 3, "destructive": 4}
+
+
+def _max_of_risk(a: str, b: str) -> str:
+    return a if _RISK_ORDER.get(a, 0) >= _RISK_ORDER.get(b, 0) else b
+
 
 # Model pricing: (input, cached_input, output) CNY per 1M tokens, max_context
 PRICING: dict[str, dict] = {
@@ -142,7 +148,7 @@ class DeepSeekAgent:
         self._dangerous_tools = dangerous_tools
 
         # Capability profile (mutable, populated by allow_* methods)
-        self._allowed_capabilities: set[str] = set()
+        self._allowed_capabilities: set[str] = {"read"}
         self._allowed_domains: set[str] = set()
         self._workspace_root: str | None = None
         self._max_risk: str = "read"
@@ -292,24 +298,9 @@ class DeepSeekAgent:
             UserWarning,
         )
 
-        # Use safe builtin factories when profiles are configured
-        from seekflow.tools.builtins import (
-            make_read_file, make_fetch_url, make_python_exec, make_sqlite_query,
-        )
-
-        if self._workspace_root:
-            self.add_tool(make_read_file(workspace_root=self._workspace_root))
-
-        if self._allowed_domains:
-            self.add_tool(make_fetch_url(allowed_domains=self._allowed_domains))
-
-        if self._sandbox:
-            self.add_tool(make_python_exec(sandbox=self._sandbox))
-
-        if self._workspace_root:
-            self.add_tool(make_sqlite_query(workspace_root=self._workspace_root))
-
-        # Legacy imports retained for text utils only (not for dangerous exec)
+        # Safe builtin tools are registered by allow_filesystem / allow_network
+        # / allow_python / allow_sqlite (called before with_default_tools).
+        # Legacy text utils added for convenience.
         from seekflow.agent.builtins import (
             parse_csv_str, extract_entities, classify_text,
         )
@@ -488,11 +479,22 @@ class DeepSeekAgent:
         allowed_extensions: set[str] | None = None,
         max_file_bytes: int = 5_000_000,
     ) -> "DeepSeekAgent":
-        """Enable filesystem capabilities within a workspace root."""
+        """Enable filesystem capabilities within a workspace root.
+
+        Immediately registers the safe read_file tool bound to *root*.
+        Call BEFORE with_default_tools() to avoid order issues.
+        """
         self._workspace_root = root
         self._allowed_capabilities.add("filesystem.read")
         if write:
             self._allowed_capabilities.add("filesystem.write")
+            self._max_risk = _max_of_risk(self._max_risk, "write")
+        self._invalidate_runtime()
+        # Register safe factory immediately
+        from seekflow.tools.builtins import make_read_file
+        self.add_tool(make_read_file(workspace_root=root,
+                      allowed_extensions=allowed_extensions,
+                      max_file_bytes=max_file_bytes))
         return self
 
     def allow_network(
@@ -500,32 +502,54 @@ class DeepSeekAgent:
         https_only: bool = True,
         max_response_bytes: int = 1_000_000,
     ) -> "DeepSeekAgent":
-        """Enable network fetch for specified domains."""
+        """Enable network fetch for specified domains.
+
+        Immediately registers the safe fetch_url tool bound to *domains*.
+        """
         self._allowed_capabilities.add("network.public_http")
         self._allowed_domains.update(domains)
-        self._max_risk = "network"
+        self._max_risk = _max_of_risk(self._max_risk, "network")
+        self._invalidate_runtime()
+        from seekflow.tools.builtins import make_fetch_url
+        self.add_tool(make_fetch_url(allowed_domains=domains))
         return self
 
     def allow_python(
         self, *, sandbox, timeout_s: float = 10.0,
     ) -> "DeepSeekAgent":
-        """Enable Python code execution with a configured sandbox."""
+        """Enable Python code execution with a configured sandbox.
+
+        Immediately registers the safe run_python tool using *sandbox*.
+        """
         from seekflow.sandbox import NoSandbox
         if isinstance(sandbox, NoSandbox):
             raise ValueError("Python execution requires a real sandbox, not NoSandbox")
         self._allowed_capabilities.add("code.exec")
         self._sandbox = sandbox
-        self._max_risk = "code_exec"
+        self._max_risk = _max_of_risk(self._max_risk, "code_exec")
+        self._invalidate_runtime()
+        from seekflow.tools.builtins import make_python_exec
+        self.add_tool(make_python_exec(sandbox=sandbox, timeout_s=timeout_s))
         return self
 
     def allow_sqlite(
         self, *, root: str, readonly: bool = True,
         max_rows: int = 1000,
     ) -> "DeepSeekAgent":
-        """Enable read-only SQLite queries within a workspace root."""
+        """Enable read-only SQLite queries within a workspace root.
+
+        Immediately registers the safe query_sql tool bound to *root*.
+        """
         self._allowed_capabilities.add("data.sqlite")
         self._workspace_root = root
+        self._invalidate_runtime()
+        from seekflow.tools.builtins import make_sqlite_query
+        self.add_tool(make_sqlite_query(workspace_root=root, max_rows=max_rows))
         return self
+
+    def _invalidate_runtime(self) -> None:
+        """Force next run() to create a fresh ToolRuntime with updated context."""
+        self._runtime = None
 
     def cleanup(self) -> None:
         """Clean up resources: MCP sessions, runtime cache, open connections."""

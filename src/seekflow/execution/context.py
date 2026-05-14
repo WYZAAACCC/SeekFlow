@@ -40,7 +40,7 @@ class ToolExecutionContext:
         return cls(
             run_id=run_id,
             dangerous_tools_enabled=False,
-            allowed_capabilities=set(),
+            allowed_capabilities={"read"},
             max_risk="read",
             sandbox_required=True,
         )

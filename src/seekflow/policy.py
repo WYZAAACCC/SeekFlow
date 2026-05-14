@@ -82,11 +82,32 @@ class PolicyEngine:
         self,
         tool_def: ToolDefinition,
         args: dict[str, Any],
-        run_context: dict[str, Any] | None = None,
+        context: Any = None,
     ) -> PolicyDecision:
-        """Check whether *tool_def* may execute with *args*."""
-        run_context = run_context or {}
+        """Check whether *tool_def* may execute with *args*.
+
+        When *context* is a ToolExecutionContext, performs full capability,
+        risk, dangerous_tools_enabled, workspace, domain, and sandbox checks.
+        Falls back to legacy dict-based checks when context is a plain dict.
+        """
         policy = tool_def.policy or _DEFAULT_UNTRUSTED_POLICY
+
+        # Support both ToolExecutionContext (object) and dict (legacy)
+        if context is not None and isinstance(context, dict):
+            dangerous_enabled = context.get("dangerous_tools_enabled", True)  # dict → permissive
+            allowed_caps = context.get("allowed_capabilities", set())
+            max_risk = context.get("max_risk", "destructive")
+            has_context = True
+        elif context is not None and hasattr(context, "dangerous_tools_enabled"):
+            dangerous_enabled = context.dangerous_tools_enabled
+            allowed_caps = context.allowed_capabilities
+            max_risk = context.max_risk
+            has_context = True
+        else:
+            dangerous_enabled = True  # No context → permissive (backward compat)
+            allowed_caps = set()
+            max_risk = "destructive"
+            has_context = False
 
         # 0. No-policy tools: deny unless explicitly allowed
         if tool_def.policy is None and not self._allow_no_policy:
@@ -96,70 +117,80 @@ class PolicyEngine:
                 requires_approval=True,
             )
 
-        # 1. Destructive always requires approval
-        if policy.risk == "destructive":
+        # 1. Dangerous tools gate
+        if policy.risk != "read" and not dangerous_enabled:
             return PolicyDecision(
-                allowed=True,
-                requires_approval=True,
-                reason="Destructive tool requires human approval",
+                allowed=False,
+                reason=f"Dangerous tools (risk={policy.risk}) are disabled.",
             )
 
-        # 2. Code execution requires sandbox (not NoSandbox)
+        # 2. Risk ceiling
+        if self.RISK_ORDER.get(policy.risk, 0) > self.RISK_ORDER.get(max_risk, 0):
+            return PolicyDecision(
+                allowed=False,
+                reason=f"Tool risk {policy.risk} exceeds allowed risk {max_risk}.",
+            )
+
+        # 3. Capability gate (only for proper ToolExecutionContext, not dict)
+        missing = policy.capabilities - allowed_caps
+        if has_context and not isinstance(context, dict) and missing:
+            return PolicyDecision(
+                allowed=False,
+                reason=f"Missing capabilities: {sorted(missing)}",
+            )
+
+        # 4. Destructive always requires approval
+        if policy.risk == "destructive":
+            return PolicyDecision(allowed=True, requires_approval=True,
+                                  reason="Destructive tool requires human approval")
+
+        # 5. Code execution requires sandbox
         if "code.exec" in policy.capabilities:
-            sandbox = run_context.get("sandbox")
+            sandbox = getattr(context, "sandbox", None) if has_context else (context or {}).get("sandbox")
             if sandbox is None:
-                return PolicyDecision(
-                    allowed=False,
-                    reason="code_exec capability requires a configured sandbox (not None)",
-                )
-            sandbox_name = getattr(sandbox, "name", "")
-            if sandbox_name in ("no_sandbox", "abstract"):
-                return PolicyDecision(
-                    allowed=False,
-                    reason=f"code_exec denied: sandbox '{sandbox_name}' is not a real sandbox",
-                )
+                return PolicyDecision(allowed=False,
+                    reason="code_exec requires a configured sandbox")
+            if getattr(sandbox, "name", "") in ("no_sandbox", "abstract"):
+                return PolicyDecision(allowed=False,
+                    reason=f"code_exec denied: sandbox '{getattr(sandbox, 'name' ,'')}' is not real")
 
-        # 3. Write requires workspace root
-        if "filesystem.write" in policy.capabilities:
-            if policy.workspace_root is None:
-                return PolicyDecision(
-                    allowed=False,
-                    reason="filesystem.write requires workspace_root in policy",
-                )
+        # 6. Filesystem requires workspace_root
+        if "filesystem.read" in policy.capabilities or "filesystem.write" in policy.capabilities:
+            if isinstance(context, dict):
+                root = policy.workspace_root or context.get("workspace_root")
+            elif has_context:
+                root = policy.workspace_root or getattr(context, "workspace_root", None)
+            else:
+                root = policy.workspace_root
+            if root is None:
+                return PolicyDecision(allowed=False,
+                    reason="filesystem capability requires workspace_root")
 
-        # 4. URL validation via allowed_domains
-        if "network.public_http" in policy.capabilities and policy.allowed_domains:
+        # 7. Network requires allowed_domains
+        if "network.public_http" in policy.capabilities:
+            domains = policy.allowed_domains or (getattr(context, "allowed_domains", set()) if has_context else set())
             url = args.get("url", "")
             if url:
                 parsed = urlparse(url)
                 hostname = parsed.hostname or ""
-                if hostname not in policy.allowed_domains:
-                    return PolicyDecision(
-                        allowed=False,
+                if domains and hostname and hostname not in domains:
+                    return PolicyDecision(allowed=False,
                         reason=f"Domain '{hostname}' not in allowed_domains",
                     )
 
-        # 5. Path validation via workspace_root
+        # 8. Path validation via workspace_root
         if policy.workspace_root is not None:
             from seekflow.security import safe_join
             for key, val in args.items():
                 if isinstance(val, str) and ("/" in val or "\\" in val):
-                    # Resolve the raw value directly — absolute paths outside
-                    # root will fail safe_join
                     try:
                         safe_join(policy.workspace_root, val)
                     except PermissionError as e:
-                        return PolicyDecision(
-                            allowed=False,
-                            reason=str(e),
-                        )
+                        return PolicyDecision(allowed=False, reason=str(e))
 
-        # 6. Approval requirement
+        # 9. Approval requirement
         if policy.requires_approval:
-            return PolicyDecision(
-                allowed=True,
-                requires_approval=True,
-                reason="Tool requires human approval",
-            )
+            return PolicyDecision(allowed=True, requires_approval=True,
+                                  reason="Tool requires human approval")
 
         return PolicyDecision(allowed=True)

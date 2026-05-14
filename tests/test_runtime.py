@@ -14,11 +14,13 @@ class TestToolRuntime:
 
     @pytest.fixture
     def add_tool(self):
-        @tool
+        from seekflow.types import ToolPolicy
+
+        @tool(trusted=True)
         def add(a: int, b: int) -> int:
             """Add two numbers."""
             return a + b
-        return add
+        return add.with_policy(ToolPolicy(risk="read", capabilities={"read"}, parallel_safe=True))
 
     @pytest.fixture
     def mock_two_round_client(self, add_tool):
@@ -397,11 +399,13 @@ class TestRuntimeSaverIntegration:
 
     @pytest.fixture
     def add_tool(self):
-        @tool
+        from seekflow.types import ToolPolicy
+
+        @tool(trusted=True)
         def add(a: int, b: int) -> int:
             """Add two numbers."""
             return a + b
-        return add
+        return add.with_policy(ToolPolicy(risk="read", capabilities={"read"}, parallel_safe=True))
 
     def test_non_streaming_agent_saves_runtime_data(self, add_tool, tmp_path):
         """Non-streaming agent records steps, tokens, tool calls via RuntimeSaver."""

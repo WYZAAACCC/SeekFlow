@@ -18,9 +18,10 @@ class TestPolicyEngine:
         td = ToolDefinition(
             name="read_file", description="Read a file",
             parameters={"type": "object", "properties": {}},
-            policy=ToolPolicy(capabilities={"filesystem.read"}, risk="read"),
+            policy=ToolPolicy(capabilities={"filesystem.read"}, risk="read",
+                              workspace_root="/workspace"),
         )
-        decision = engine.authorize(td, {"path": "data.txt"}, run_context={})
+        decision = engine.authorize(td, {"path": "data.txt"}, context={})
         assert decision.allowed is True
 
     def test_code_exec_without_sandbox_denied(self):
@@ -32,7 +33,7 @@ class TestPolicyEngine:
             parameters={"type": "object", "properties": {}},
             policy=ToolPolicy(capabilities={"code.exec"}, risk="code_exec"),
         )
-        decision = engine.authorize(td, {"code": "print(1)"}, run_context={})
+        decision = engine.authorize(td, {"code": "print(1)"}, context={})
         assert decision.allowed is False
         assert "sandbox" in decision.reason.lower()
 
@@ -45,7 +46,7 @@ class TestPolicyEngine:
             parameters={"type": "object", "properties": {}},
             policy=ToolPolicy(capabilities={"filesystem.write"}, risk="write"),
         )
-        decision = engine.authorize(td, {"filename": "out.txt"}, run_context={})
+        decision = engine.authorize(td, {"filename": "out.txt"}, context={})
         assert decision.allowed is False
 
     def test_destructive_requires_approval(self):
@@ -57,7 +58,7 @@ class TestPolicyEngine:
             parameters={"type": "object", "properties": {}},
             policy=ToolPolicy(capabilities={"filesystem.write"}, risk="destructive"),
         )
-        decision = engine.authorize(td, {}, run_context={})
+        decision = engine.authorize(td, {}, context={})
         assert decision.requires_approval is True
 
     def test_tool_without_policy_uses_restrictive_default(self):
@@ -69,7 +70,7 @@ class TestPolicyEngine:
             parameters={"type": "object", "properties": {}},
             # policy=None → restrictive default
         )
-        decision = engine.authorize(td, {}, run_context={})
+        decision = engine.authorize(td, {}, context={})
         # No-policy tools are denied by default (must have explicit ToolPolicy)
         assert decision.allowed is False
         assert decision.requires_approval is True
@@ -87,7 +88,7 @@ class TestPolicyEngine:
             ),
         )
         decision = engine.authorize(
-            td, {"url": "https://docs.deepseek.com/api"}, run_context={},
+            td, {"url": "https://docs.deepseek.com/api"}, context={},
         )
         assert decision.allowed is True
 
@@ -104,7 +105,7 @@ class TestPolicyEngine:
             ),
         )
         decision = engine.authorize(
-            td, {"url": "https://evil.com/hack"}, run_context={},
+            td, {"url": "https://evil.com/hack"}, context={},
         )
         assert decision.allowed is False
 
@@ -124,7 +125,7 @@ class TestPolicyEngine:
             ),
         )
         decision = engine.authorize(
-            td, {"path": "/workspace/data.txt"}, run_context={},
+            td, {"path": "/workspace/data.txt"}, context={},
         )
         assert decision.allowed is True
 
@@ -144,6 +145,6 @@ class TestPolicyEngine:
             ),
         )
         decision = engine.authorize(
-            td, {"path": "/etc/passwd"}, run_context={},
+            td, {"path": "/etc/passwd"}, context={},
         )
         assert decision.allowed is False

@@ -84,16 +84,17 @@ class ToolExecutor:
         repaired = False
 
         arguments = tool_call.arguments
-        # Check cache before execution
-        if self._cache is not None:
-            tool_def = self.registry.get(tool_call.name) if self.registry.has(tool_call.name) else None
-            cache_enabled = tool_def.metadata.get("cache", True) if tool_def else True
-            if cache_enabled:
-                cache_key = make_cache_key(tool_call.name, arguments)
-                cached = self._cache.get(cache_key)
-                if cached is not None:
-                    cached.repair_notes = list(cached.repair_notes) + ["cache_hit"]
-                    return cached
+
+        # Look up tool first (needed for policy check)
+        if not self.registry.has(tool_call.name):
+            elapsed = int((time.time() - start) * 1000)
+            return ToolExecutionResult(
+                tool_call_id=tool_call.id, name=tool_call.name,
+                arguments={}, ok=False,
+                error=f"Tool not found: {tool_call.name}",
+                elapsed_ms=elapsed,
+            )
+        tool_def = self.registry.get(tool_call.name)
         # Defensive: arguments normalized to dict at API boundary (client.py),
         # but legacy callers may still pass raw strings.
         repair_confidence = 1.0
@@ -135,20 +136,6 @@ class ToolExecutor:
                         repair_notes=repair_notes + ["repair_denied_for_dangerous_tool"],
                     )
 
-        # Look up tool
-        if not self.registry.has(tool_call.name):
-            elapsed = int((time.time() - start) * 1000)
-            return ToolExecutionResult(
-                tool_call_id=tool_call.id,
-                name=tool_call.name,
-                arguments=arguments,
-                ok=False,
-                error=f"Tool not found: {tool_call.name}",
-                elapsed_ms=elapsed,
-            )
-
-        tool_def = self.registry.get(tool_call.name)
-
         # ── Policy gate: enforce authorization before execution ──────
         policy_decision = "allowed"
         policy_reason = ""
@@ -156,15 +143,7 @@ class ToolExecutor:
             decision = self.policy_engine.authorize(
                 tool_def,
                 arguments if isinstance(arguments, dict) else {},
-                run_context={
-                    "dangerous_tools_enabled": getattr(
-                        self.context, "dangerous_tools_enabled", False
-                    ) if self.context else False,
-                    "sandbox": self.sandbox,
-                    "workspace_root": (
-                        self.context.workspace_root if self.context else None
-                    ),
-                },
+                context=self.context,
             )
             if not decision.allowed:
                 elapsed = int((time.time() - start) * 1000)
@@ -182,23 +161,53 @@ class ToolExecutor:
                     elapsed_ms=elapsed,
                 )
             if decision.requires_approval:
-                elapsed = int((time.time() - start) * 1000)
-                self._record_audit(
-                    tool_def, tool_call.id or "", arguments if isinstance(arguments, dict) else {},
-                    result=None, latency_ms=elapsed, ok=False,
-                    error="Human approval required",
-                    policy_decision="approval_required", policy_reason=decision.reason,
-                    risk=tool_def.policy.risk if tool_def.policy else "destructive",
-                )
-                return ToolExecutionResult(
-                    tool_call_id=tool_call.id, name=tool_call.name,
-                    arguments=arguments if isinstance(arguments, dict) else {},
-                    ok=False, error=f"Approval required: {decision.reason}",
-                    elapsed_ms=elapsed,
-                )
+                if self.approval_handler is not None:
+                    from seekflow.execution.approval import ApprovalRequest
+                    approval = self.approval_handler.request_approval(ApprovalRequest(
+                        tool=tool_def,
+                        arguments=arguments if isinstance(arguments, dict) else {},
+                        reason=decision.reason,
+                        risk=policy.risk if tool_def.policy else "destructive",
+                        capability=policy.capabilities if tool_def.policy else set(),
+                        run_id=getattr(self.context, "run_id", None) if self.context else None,
+                    ))
+                    if not approval.approved:
+                        elapsed = int((time.time() - start) * 1000)
+                        return ToolExecutionResult(
+                            tool_call_id=tool_call.id, name=tool_call.name,
+                            arguments=arguments if isinstance(arguments, dict) else {},
+                            ok=False, error=f"Approval denied: {approval.reason}",
+                            elapsed_ms=elapsed,
+                        )
+                else:
+                    elapsed = int((time.time() - start) * 1000)
+                    self._record_audit(
+                        tool_def, tool_call.id or "", arguments if isinstance(arguments, dict) else {},
+                        result=None, latency_ms=elapsed, ok=False,
+                        error="No approval handler configured",
+                        policy_decision="approval_required", policy_reason=decision.reason,
+                        risk=tool_def.policy.risk if tool_def.policy else "destructive",
+                    )
+                    return ToolExecutionResult(
+                        tool_call_id=tool_call.id, name=tool_call.name,
+                        arguments=arguments if isinstance(arguments, dict) else {},
+                        ok=False, error=f"Approval required but no handler: {decision.reason}",
+                        elapsed_ms=elapsed,
+                    )
             policy_decision = "allowed"
             policy_reason = decision.reason
         # ── End policy gate ──────────────────────────────────────────
+
+        # Cache lookup AFTER policy (policy decisions affect cache validity)
+        if self._cache is not None:
+            cache_enabled = tool_def.metadata.get("cache", True)
+            # Only cache read-level tools
+            if cache_enabled and (tool_def.policy is None or tool_def.policy.risk == "read"):
+                cache_key = make_cache_key(tool_call.name, arguments)
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    cached.repair_notes = list(cached.repair_notes) + ["cache_hit"]
+                    return cached
 
         # Coerce argument types
         if self.repair:

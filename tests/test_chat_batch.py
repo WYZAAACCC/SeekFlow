@@ -79,13 +79,16 @@ class TestChatBatchBasic:
              "response": {"choices": [{"message": {"content": "ok"}}]}, "error": None},
         ])
 
-        @tool
+        from seekflow.types import ToolPolicy
+
+        @tool(trusted=True)
         def add(a: int, b: int) -> int:
             """Add two numbers."""
             return a + b
+        add_tool = add.with_policy(ToolPolicy(risk="read", capabilities={"read"}, parallel_safe=True))
 
         with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
-            rt = ToolRuntime(tools=[add])
+            rt = ToolRuntime(tools=[add_tool])
             rt._client = mock.MagicMock()  # bypass _make_client
             rt.chat_batch(
                 model="deepseek-chat",
@@ -150,13 +153,16 @@ class TestChatBatchWithTools:
             },
         ])
 
-        @tool
+        from seekflow.types import ToolPolicy
+
+        @tool(trusted=True)
         def add(a: int, b: int) -> int:
             """Add two numbers."""
             return a + b
+        add_tool = add.with_policy(ToolPolicy(risk="read", capabilities={"read"}, parallel_safe=True))
 
         with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
-            rt = ToolRuntime(tools=[add])
+            rt = ToolRuntime(tools=[add_tool])
             rt._client = mock.MagicMock()  # bypass _make_client
             results = rt.chat_batch(
                 model="deepseek-chat",
@@ -191,12 +197,15 @@ class TestChatBatchWithTools:
             },
         ])
 
-        @tool
+        from seekflow.types import ToolPolicy
+
+        @tool(trusted=True)
         def risky() -> str:
             raise ValueError("boom")
+        risky_tool = risky.with_policy(ToolPolicy(risk="read", capabilities={"read"}))
 
         with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
-            rt = ToolRuntime(tools=[risky])
+            rt = ToolRuntime(tools=[risky_tool])
             rt._client = mock.MagicMock()  # bypass _make_client
             results = rt.chat_batch(
                 model="deepseek-chat",
