@@ -63,12 +63,15 @@ def fim_complete(
         stop: Stop sequences.
         timeout: Request timeout in seconds.
     """
+    if max_tokens is not None and max_tokens > 4096:
+        raise ValueError("DeepSeek FIM max_tokens must be <= 4096")
+
     client = _make_fim_client(api_key, timeout)
     prompt = _build_fim_prompt(prefix, suffix)
 
     params: dict = {"model": model, "prompt": prompt, **kwargs}
     if max_tokens is not None:
-        params["max_tokens"] = max_tokens
+        params["max_tokens"] = min(max_tokens, 4096)
     if temperature is not None:
         params["temperature"] = temperature
     if top_p is not None:
@@ -128,12 +131,15 @@ def fim_complete_stream(
         stop: Stop sequences.
         timeout: Request timeout in seconds.
     """
+    if max_tokens is not None and max_tokens > 4096:
+        raise ValueError("DeepSeek FIM max_tokens must be <= 4096")
+
     client = _make_fim_client(api_key, timeout)
     prompt = _build_fim_prompt(prefix, suffix)
 
     params: dict = {"model": model, "prompt": prompt, "stream": True, **kwargs}
     if max_tokens is not None:
-        params["max_tokens"] = max_tokens
+        params["max_tokens"] = min(max_tokens, 4096)
     if temperature is not None:
         params["temperature"] = temperature
     if top_p is not None:

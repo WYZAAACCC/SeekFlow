@@ -117,8 +117,11 @@ class ToolRuntime:
 
     def _make_client(self, recorder: TraceRecorder) -> RetryExecutor:
         """Create a RetryExecutor wrapping DeepSeekClient with trace callback."""
+        base_url = self._base_url
+        if self._strict:
+            base_url = "https://api.deepseek.com/beta"
         raw_client = DeepSeekClient(
-            api_key=self._api_key, base_url=self._base_url, timeout=self._timeout
+            api_key=self._api_key, base_url=base_url, timeout=self._timeout
         )
 
         def on_retry_event(data: dict) -> None:

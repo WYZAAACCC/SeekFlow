@@ -57,16 +57,34 @@ class ToolRegistry:
         Tools are sorted by name for deterministic JSON serialization.
         This is CRITICAL for prompt cache stability — non-deterministic
         key ordering invalidates the DeepSeek byte-prefix cache.
+
+        When *strict* is True, applies the DeepSeek Strict Schema Compiler
+        and sets ``strict: true`` on each function.
         """
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": td.name,
-                    "description": td.description,
-                    "parameters": td.parameters,
-                },
+        if len(self._tools) > 128:
+            raise ValueError("DeepSeek supports at most 128 tools")
+
+        compiler = None
+        if strict:
+            from seekflow.deepseek.strict_schema import DeepSeekStrictSchemaCompiler
+            compiler = DeepSeekStrictSchemaCompiler()
+
+        tools = []
+        for td in sorted(self._tools.values(), key=lambda t: t.name):
+            if len(td.name) > 64:
+                raise ValueError(f"Tool name too long for DeepSeek: {td.name}")
+
+            parameters = td.parameters
+            if compiler is not None:
+                parameters = compiler.compile(parameters)
+
+            function = {
+                "name": td.name,
+                "description": td.description,
+                "parameters": parameters,
             }
-            for td in sorted(self._tools.values(), key=lambda t: t.name)
-        ]
+            if strict:
+                function["strict"] = True
+
+            tools.append({"type": "function", "function": function})
         return tools
