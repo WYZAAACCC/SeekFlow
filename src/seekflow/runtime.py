@@ -524,7 +524,7 @@ class ToolRuntime:
                         try:
                             parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
                         except json.JSONDecodeError:
-                            parsed_args = {}
+                            parsed_args = raw_args  # preserve for repair pipeline
                         tool_call = ToolCall(
                             id=tc["id"],
                             name=tc["name"],
