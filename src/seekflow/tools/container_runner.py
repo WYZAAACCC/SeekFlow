@@ -1,7 +1,12 @@
 """ContainerRunner — executes code_exec/destructive tools in isolated containers.
 
-Wraps a ToolSandbox (ContainerSandbox / ProcessSandbox) and treats the tool
-function's return value as either a CodeExecutionRequest or a code string.
+Wraps a ContainerSandbox and treats the tool function's return value as either a
+CodeExecutionRequest or a code string.
+
+SECURITY BOUNDARY: The tool function runs IN-PROCESS to produce code for the
+sandbox. To prevent arbitrary code execution on the host, ContainerRunner is
+gated behind ToolPolicy(trusted=True, container_codegen_trusted=True). Only
+safe code-builder functions that return CodeExecutionRequest are allowed.
 """
 from __future__ import annotations
 
@@ -20,10 +25,15 @@ class CodeExecutionRequest:
 
 
 class ContainerRunner:
-    """Runs code_exec/destructive tools via a configured ToolSandbox.
+    """Runs code_exec/destructive tools via a configured ContainerSandbox.
 
-    The tool function is called in-process first to produce the code to execute.
-    The code is then run inside the sandbox with hard isolation.
+    SECURITY: The tool function is called in-process to produce the code
+    specification. Only functions with ToolPolicy(trusted=True,
+    container_codegen_trusted=True) are accepted — these must be safe
+    code-builder functions that return CodeExecutionRequest, NOT arbitrary
+    tool implementations.
+
+    The generated code is then run inside the sandbox with hard isolation.
     """
 
     name = "container"

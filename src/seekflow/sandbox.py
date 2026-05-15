@@ -15,6 +15,8 @@ class SandboxResult:
     stderr: str = ""
     error: str | None = None
     elapsed_ms: int = 0
+    killed: bool = False
+    container_name: str | None = None
 
 
 class ToolSandbox(ABC):
@@ -108,6 +110,8 @@ class ContainerSandbox(ToolSandbox):
 
     Requires Docker installed and running. Provides full isolation:
     no network, read-only rootfs, memory/cpu limits, non-root user.
+    Uses Popen + named containers with explicit docker kill/rm on timeout
+    to prevent zombie containers.
     """
 
     name = "container"
@@ -122,15 +126,17 @@ class ContainerSandbox(ToolSandbox):
         import tempfile
         import os as _os
         import time
+        import uuid
 
         start = time.monotonic()
+        container_name = f"seekflow-sandbox-{uuid.uuid4().hex[:12]}"
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
         try:
             tmp.write(code)
             tmp.close()
 
             cmd = [
-                "docker", "run", "--rm",
+                "docker", "run", "--rm", "--name", container_name,
                 "--network", "none",
                 "--read-only",
                 "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
@@ -146,36 +152,57 @@ class ContainerSandbox(ToolSandbox):
                 "python", "/code.py",
             ]
 
-            result = subprocess.run(
+            proc = subprocess.Popen(
                 cmd,
-                capture_output=True, text=True, shell=False,
-                timeout=timeout + 5,  # extra time for container startup
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             )
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout + 5)
+            except subprocess.TimeoutExpired:
+                subprocess.run(["docker", "kill", container_name],
+                               timeout=3, capture_output=True)
+                subprocess.run(["docker", "rm", "-f", container_name],
+                               timeout=3, capture_output=True)
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+                elapsed = int((time.monotonic() - start) * 1000)
+                return SandboxResult(
+                    ok=False,
+                    error=f"Container execution timed out after {timeout}s",
+                    elapsed_ms=elapsed,
+                    killed=True,
+                    container_name=container_name,
+                )
+
             elapsed = int((time.monotonic() - start) * 1000)
             return SandboxResult(
-                ok=result.returncode == 0,
-                stdout=result.stdout[:4000] or "[no output]",
-                stderr=result.stderr[:1000],
+                ok=proc.returncode == 0,
+                stdout=(stdout or "")[:4000] or "[no output]",
+                stderr=(stderr or "")[:1000],
                 elapsed_ms=elapsed,
-            )
-        except subprocess.TimeoutExpired:
-            return SandboxResult(
-                ok=False,
-                error=f"Container execution timed out after {timeout}s",
-                elapsed_ms=int((time.monotonic() - start) * 1000),
+                killed=False,
+                container_name=container_name,
             )
         except FileNotFoundError:
             return SandboxResult(
                 ok=False,
                 error="Docker not found. Install Docker or use ProcessSandbox.",
+                container_name=container_name,
             )
         except Exception as e:
             return SandboxResult(
                 ok=False,
                 error=f"Container execution failed: {e}",
                 elapsed_ms=int((time.monotonic() - start) * 1000),
+                container_name=container_name,
             )
         finally:
+            # Always attempt cleanup
+            subprocess.run(["docker", "rm", "-f", container_name],
+                           timeout=3, capture_output=True)
             try:
                 _os.unlink(tmp.name)
             except Exception:

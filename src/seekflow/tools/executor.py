@@ -47,6 +47,20 @@ if TYPE_CHECKING:
 DANGEROUS_REPAIR_CONFIDENCE_THRESHOLD = 0.95
 
 
+def _cache_allowed(tool_def) -> bool:
+    """Cache only read tools, or idempotent network with explicit opt-in."""
+    policy = tool_def.policy
+    if policy is None:
+        return False
+    if not tool_def.metadata.get("cache", True):
+        return False
+    if policy.risk == "read":
+        return True
+    if policy.risk == "network" and policy.idempotent and tool_def.metadata.get("cache_network", False):
+        return True
+    return False
+
+
 class RunnerUnavailableError(RuntimeError):
     """Raised when a required runner cannot be provided (e.g. container without sandbox)."""
 
@@ -85,6 +99,7 @@ class ToolExecutor:
         context: Any | None = None,
         approval_handler: Any | None = None,
         sandbox: Any | None = None,
+        allow_unsafe_no_policy_execution: bool = False,
     ):
         self.registry = registry
         self.repair = repair
@@ -96,6 +111,7 @@ class ToolExecutor:
         self.context = context
         self.approval_handler = approval_handler
         self.sandbox = sandbox
+        self.allow_unsafe_no_policy_execution = allow_unsafe_no_policy_execution
         self.audit_trail: list[ToolAuditRecord] = []
 
     def execute(self, tool_call: ToolCall, timeout: float | None = 30.0) -> ToolExecutionResult:
@@ -155,6 +171,24 @@ class ToolExecutor:
                         elapsed_ms=elapsed, repaired=True,
                         repair_notes=repair_notes + ["repair_denied_for_dangerous_tool"],
                     )
+
+        # ── No-policy gate: deny tools without ToolPolicy ──────
+        if tool_def.policy is None:
+            if not self.allow_unsafe_no_policy_execution:
+                elapsed = int((time.time() - start) * 1000)
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                    ok=False,
+                    error="ToolPolicy required for execution. Set a ToolPolicy on the tool, "
+                          "or use allow_unsafe_no_policy_execution=True (not Level 2 compliant).",
+                    elapsed_ms=elapsed,
+                )
+            import warnings
+            warnings.warn(
+                "allow_unsafe_no_policy_execution=True disables semi-production safety guarantees",
+                RuntimeWarning,
+            )
 
         # ── Policy gate: enforce authorization before execution ──────
         policy_decision = "allowed"
@@ -263,14 +297,12 @@ class ToolExecutor:
                 )
 
         # Cache lookup AFTER schema validation + policy (no bypass)
-        if self._cache is not None:
-            cache_enabled = tool_def.metadata.get("cache", True)
-            if cache_enabled and (tool_def.policy is None or tool_def.policy.risk == "read"):
-                cache_key = make_cache_key(tool_call.name, arguments)
-                cached = self._cache.get(cache_key)
-                if cached is not None:
-                    cached.repair_notes = list(cached.repair_notes) + ["cache_hit"]
-                    return cached
+        if self._cache is not None and _cache_allowed(tool_def):
+            cache_key = make_cache_key(tool_call.name, arguments)
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                cached.repair_notes = list(cached.repair_notes) + ["cache_hit"]
+                return cached
 
         # Execute via runner (NEVER call tool_def.func directly)
         try:
@@ -312,7 +344,7 @@ class ToolExecutor:
 
             # PR-2: container fail-closed
             try:
-                runner = self._runner_for(plan)
+                runner = self._runner_for(plan, tool_def)
             except RunnerUnavailableError as e:
                 elapsed = int((time.time() - start) * 1000)
                 self._record_audit(
@@ -412,8 +444,20 @@ class ToolExecutor:
                 repair_notes.append("output_truncated_by_max_bytes")
 
             # Wrap untrusted tool output + redact secrets before model sees it
-            trusted = (tool_def.metadata or {}).get("trusted", False)
-            if not trusted:
+            policy = tool_def.policy
+            trusted_output = bool(policy and policy.trusted_output)
+
+            # Emit deprecation warning if old metadata.trusted path is used
+            if not trusted_output and (tool_def.metadata or {}).get("trusted", False):
+                import warnings
+                warnings.warn(
+                    "metadata.trusted is deprecated for output wrapping. "
+                    "Use ToolPolicy(trusted_output=True) instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+
+            if not trusted_output:
                 from seekflow.security import wrap_untrusted, redact_secrets
                 if isinstance(raw_result, str):
                     content = redact_secrets(raw_result)
@@ -422,6 +466,11 @@ class ToolExecutor:
                         json.dumps(raw_result, ensure_ascii=False, default=str)
                     )
                 raw_result = wrap_untrusted(tool_call.name, content).format_for_model()
+            else:
+                # trusted output: still redact secrets by default
+                from seekflow.security import redact_secrets
+                if isinstance(raw_result, str):
+                    raw_result = redact_secrets(raw_result)
 
             # Truncate if string result is too long
             keep_fields = tool_def.metadata.get("keep_fields") if tool_def.metadata else None
@@ -440,11 +489,9 @@ class ToolExecutor:
             )
 
             # Write to cache
-            if self._cache is not None:
-                cache_enabled = tool_def.metadata.get("cache", True)
-                if cache_enabled:
-                    cache_key = make_cache_key(tool_call.name, arguments)
-                    self._cache.put(cache_key, exec_result)
+            if self._cache is not None and _cache_allowed(tool_def):
+                cache_key = make_cache_key(tool_call.name, arguments)
+                self._cache.put(cache_key, exec_result)
 
             self._record_audit(
                 tool_def, tool_call.id or "", arguments,
@@ -545,11 +592,13 @@ class ToolExecutor:
 
         return [r for r in ordered if r is not None]
 
-    def _runner_for(self, plan):
+    def _runner_for(self, plan, tool_def=None):
         """Resolve an ExecutionPlan to a runner instance.
 
         "container" plans REQUIRE a real ContainerSandbox — no silent fallback.
         code_exec/destructive tools without a container sandbox are DENIED.
+        ContainerRunner also requires the tool to have
+        ToolPolicy(trusted=True, container_codegen_trusted=True).
         """
         from seekflow.tools.runners import InProcessRunner, ProcessRunner
 
@@ -570,6 +619,20 @@ class ToolExecutor:
                 raise RunnerUnavailableError(
                     f"Container runner required, but sandbox is '{sandbox_name}'. "
                     "Configure a ContainerSandbox for code_exec/destructive tools."
+                )
+            # ContainerRunner only accepts trusted code-generation tools.
+            # The tool function runs in-process to produce a CodeExecutionRequest;
+            # arbitrary tool functions must not run in-process.
+            policy = tool_def.policy if tool_def else None
+            if policy is None:
+                raise RunnerUnavailableError(
+                    "ContainerRunner requires ToolPolicy with container_codegen_trusted=True"
+                )
+            if not (policy.trusted and policy.container_codegen_trusted):
+                raise RunnerUnavailableError(
+                    "ContainerRunner requires a trusted code-generation tool. "
+                    "Set ToolPolicy(trusted=True, container_codegen_trusted=True) "
+                    "only for safe code-builder functions that return CodeExecutionRequest."
                 )
             from seekflow.tools.container_runner import ContainerRunner
             return ContainerRunner(self.sandbox)

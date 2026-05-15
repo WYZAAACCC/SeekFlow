@@ -7,7 +7,7 @@ from seekflow.tools.decorator import tool
 from seekflow.tools.executor import ToolExecutor
 from seekflow.tools.registry import ToolRegistry
 from seekflow.truncation import TruncationStrategy, truncate_result
-from seekflow.types import ToolCall
+from seekflow.types import ToolCall, ToolPolicy
 
 
 class TestToolDecoratorKeepFields:
@@ -58,7 +58,7 @@ class TestToolExecutorTruncationStrategy:
             return json.dumps({"results": [{"id": i, "name": f"item_{i}"} for i in range(100)]})
 
         reg = ToolRegistry()
-        reg.register(get_data)
+        reg.register(get_data.with_policy(ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(
             reg,
             max_result_chars=500,
@@ -77,7 +77,7 @@ class TestToolExecutorTruncationStrategy:
             return "x" * 1000
 
         reg = ToolRegistry()
-        reg.register(get_data)
+        reg.register(get_data.with_policy(ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(
             reg,
             max_result_chars=60,
@@ -95,7 +95,7 @@ class TestToolExecutorTruncationStrategy:
             return json.dumps({"key": "value"})
 
         reg = ToolRegistry()
-        reg.register(get_data)
+        reg.register(get_data.with_policy(ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(reg, max_result_chars=1000)  # No explicit strategy
         result = executor.execute(ToolCall(name="get_data", arguments={}))
         assert result.ok
@@ -108,7 +108,7 @@ class TestToolExecutorTruncationStrategy:
             return 42
 
         reg = ToolRegistry()
-        reg.register(get_number)
+        reg.register(get_number.with_policy(ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(
             reg,
             max_result_chars=10,
@@ -176,7 +176,7 @@ class TestPriorityStrategy:
             })
 
         reg = ToolRegistry()
-        reg.register(weather)
+        reg.register(weather.with_policy(ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(
             reg,
             max_result_chars=130,

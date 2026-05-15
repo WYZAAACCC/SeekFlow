@@ -38,6 +38,8 @@
 | `ProcessRunner` | Process boundary + hard timeout | Default for untrusted read/network/write tools |
 | `ContainerRunner` | Docker container (`--network none`, `--read-only`, etc.) | Required for `code_exec`/`destructive` tools |
 
+**ContainerRunner boundary**: The tool function runs **in-process** to generate a `CodeExecutionRequest`. Only tools with `ToolPolicy(trusted=True, container_codegen_trusted=True)` are accepted — the tool function must be a safe code-builder, not an arbitrary implementation. The generated code then runs inside the Docker container with full isolation. On timeout, the container is explicitly killed and removed (`docker kill` + `docker rm -f`) to prevent zombie containers.
+
 **Important**: `ProcessRunner` provides **timeout isolation and crash isolation**, not full security sandboxing. A malicious tool running in `ProcessRunner` can access the host filesystem, environment variables, and network. For strong isolation, use `ContainerRunner` with `ContainerSandbox`.
 
 ---

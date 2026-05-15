@@ -30,24 +30,26 @@ def _run_in_subprocess(
     queue: multiprocessing.Queue,
     max_output_bytes: int,
 ) -> None:
-    """Target function executed in the child process. Bounds large string output."""
+    """Target function executed in the child process. Bounds all output sizes."""
     try:
-        from seekflow.tools.limits import serialize_bounded
+        from seekflow.tools.limits import estimate_json_bytes, serialize_bounded
 
         result = func(**args)
-        if isinstance(result, str):
-            bounded, truncated = serialize_bounded(result, max_output_bytes)
-            queue.put({
-                "ok": True,
-                "result": bounded,
-                "output_truncated": truncated,
-            })
+        size = estimate_json_bytes(result)
+
+        if size <= max_output_bytes:
+            payload = {"ok": True, "result": result, "output_truncated": False}
         else:
-            queue.put({
-                "ok": True,
-                "result": result,
-                "output_truncated": False,
-            })
+            bounded, truncated = serialize_bounded(result, max_output_bytes)
+            payload = {"ok": True, "result": bounded, "output_truncated": truncated}
+
+        try:
+            queue.put(payload)
+        except Exception as e:
+            fallback, _ = serialize_bounded(
+                {"error": f"failed to serialize tool result: {e}"}, max_output_bytes
+            )
+            queue.put({"ok": False, "error": fallback})
     except Exception as e:
         queue.put({"ok": False, "error": str(e)})
 

@@ -9,7 +9,25 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from seekflow.types import ToolDefinition
+    from seekflow.types import ToolDefinition, ToolPolicy
+
+# Runner isolation levels: higher = stronger isolation.
+# An explicit runner override may only *increase* isolation, never decrease it.
+RUNNER_ORDER: dict[str, int] = {"in_process": 0, "process": 1, "container": 2}
+
+
+def _required_runner(policy: "ToolPolicy | None") -> str:
+    """Minimum isolation level required by this tool's risk/capabilities."""
+    caps = policy.capabilities if policy else set()
+    risk = policy.risk if policy else "destructive"
+
+    if risk in {"code_exec", "destructive"} or "code.exec" in caps:
+        return "container"
+    if risk in {"network", "write"} or "network.public_http" in caps or "filesystem.write" in caps:
+        return "process"
+    if policy and policy.trusted and risk == "read" and policy.parallel_safe:
+        return "in_process"
+    return "process"
 
 
 @dataclass
@@ -31,7 +49,7 @@ def plan_execution(
     """Select the appropriate runner for *tool_def* based on risk/trust/capabilities.
 
     Rules (first match wins):
-    1. Explicit runner override on ToolPolicy (not "auto")
+    1. Explicit runner override on ToolPolicy (not "auto") — may only increase isolation
     2. code_exec / destructive → container (ProcessRunner fallback)
     3. network / write / filesystem.write → process
     4. trusted=True + risk="read" + parallel_safe=True → in_process
@@ -46,15 +64,28 @@ def plan_execution(
     if tool_def.metadata and tool_def.metadata.get("timeout") is not None:
         effective_timeout = min(effective_timeout, float(tool_def.metadata["timeout"]))
 
-    # 1. Explicit runner override
+    # 1. Explicit runner override — may only increase isolation, never weaken it
     if policy is not None and policy.runner != "auto":
+        required = _required_runner(policy)
+        requested = policy.runner
+        if RUNNER_ORDER.get(requested, 0) < RUNNER_ORDER.get(required, 0):
+            # Requested runner is weaker than required → upgrade to required
+            return ExecutionPlan(
+                runner=required,
+                timeout_s=effective_timeout,
+                requires_hard_timeout=required != "in_process",
+                allow_parallel=False,
+                cache_allowed=policy.risk == "read",
+                reason=f"policy.runner={requested} upgraded to required runner={required} (minimum isolation)",
+            )
+        # Requested runner equals or exceeds required → use it
         return ExecutionPlan(
-            runner=policy.runner,
+            runner=requested,
             timeout_s=effective_timeout,
-            requires_hard_timeout=policy.runner != "in_process",
-            allow_parallel=policy.parallel_safe,
+            requires_hard_timeout=requested != "in_process",
+            allow_parallel=requested == "in_process" and policy.parallel_safe,
             cache_allowed=policy.risk == "read",
-            reason=f"explicit policy runner: {policy.runner}",
+            reason=f"explicit runner={requested}, required={required}",
         )
 
     risk = policy.risk if policy else "read"

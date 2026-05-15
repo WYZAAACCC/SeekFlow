@@ -77,6 +77,14 @@ def _extract_xfails(file_path: Path) -> list[dict]:
 
 
 def main() -> int:
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Check xfail policy compliance — enforce strict=True and issue ID references."
+    )
+    parser.add_argument("--strict-core", action="store_true",
+                        help="Treat core-path xfail as ERROR instead of WARNING")
+    args = parser.parse_args()
+
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -104,12 +112,16 @@ def main() -> int:
                     f'(got: "{xf["reason"]}")'
                 )
 
-            # Rule 3: core path xfail is a warning (not error)
+            # Rule 3: core path xfail
             if _is_core(rel):
-                warnings.append(
+                msg = (
                     f"{test_id}: xfail in core path — review and fix or link to "
                     f"a specific issue tracking the root cause"
                 )
+                if args.strict_core:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
 
     if warnings:
         print("WARNINGS:")

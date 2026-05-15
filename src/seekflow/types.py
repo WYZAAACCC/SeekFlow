@@ -36,6 +36,8 @@ class ToolPolicy(BaseModel):
     trusted: bool = False
     idempotent: bool = False
     allow_in_process_fallback: bool = False
+    container_codegen_trusted: bool = False
+    trusted_output: bool = False
 
 
 class ToolDefinition(BaseModel):

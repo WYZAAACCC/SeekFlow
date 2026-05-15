@@ -62,7 +62,7 @@ class TestAuditRecordsRunnerName:
         def echo(msg: str) -> str:
             return msg
 
-        reg.register(echo)
+        reg.register(echo.with_policy(ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(reg)
         tc = ToolCall(name="echo", arguments={"msg": "hello"})
         result = executor.execute(tc)
@@ -104,7 +104,7 @@ class TestExecutorUsesRunners:
         def double(n: int) -> int:
             return n * 2
 
-        reg.register(double)
+        reg.register(double.with_policy(ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(reg)
         tc = ToolCall(name="double", arguments={"n": 21})
         result = executor.execute(tc)

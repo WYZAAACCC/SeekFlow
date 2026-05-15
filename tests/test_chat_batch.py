@@ -159,7 +159,7 @@ class TestChatBatchWithTools:
         def add(a: int, b: int) -> int:
             """Add two numbers."""
             return a + b
-        add_tool = add.with_policy(ToolPolicy(risk="read", capabilities={"read"}, parallel_safe=True, trusted=True))
+        add_tool = add.with_policy(ToolPolicy(risk="read", capabilities={"read"}, parallel_safe=True, trusted=True, trusted_output=True))
 
         with mock.patch("seekflow.runtime.BatchClient", return_value=fake_bc):
             rt = ToolRuntime(tools=[add_tool])

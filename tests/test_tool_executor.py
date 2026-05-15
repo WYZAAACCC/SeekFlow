@@ -2,7 +2,7 @@
 import pytest
 from seekflow.tools import tool, ToolRegistry
 from seekflow.tools.executor import ToolExecutor
-from seekflow.types import ToolCall
+from seekflow.types import ToolCall, ToolPolicy
 
 
 class TestToolExecutor:
@@ -22,9 +22,10 @@ class TestToolExecutor:
         def fail() -> str:
             raise ValueError("intentional error")
 
-        reg.register(add)
-        reg.register(greet)
-        reg.register(fail)
+        read_policy = ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)
+        reg.register(add.with_policy(read_policy))
+        reg.register(greet.with_policy(read_policy))
+        reg.register(fail.with_policy(read_policy))
         return reg
 
     @pytest.fixture
@@ -62,7 +63,8 @@ class TestToolExecutor:
         def long_output() -> str:
             return "x" * 100
 
-        registry.register(long_output)
+        registry.register(long_output.with_policy(
+            ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
         executor = ToolExecutor(registry, max_result_chars=20)
         tc = ToolCall(name="long_output", arguments={})
         result = executor.execute(tc)

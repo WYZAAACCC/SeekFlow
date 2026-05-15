@@ -243,6 +243,23 @@ sandbox = ContainerSandbox(image="python:3.11-slim")
 - [Issues](docs/issues/) — 30 tracer-bullet issues with acceptance criteria
 - [Tests](tests/) — 620+ tests covering security, retry, policy, tools, agent
 
+## Security Status (v0.3.x)
+
+SeekFlow v0.3.x supports **Level 2 semi-production** under these conditions:
+
+- All tools must have ToolPolicy.
+- `code_exec` and `destructive` require ContainerRunner / ContainerSandbox.
+- Policy.runner cannot decrease the required isolation level (minimum isolation enforced).
+- ContainerRunner only accepts tools with `ToolPolicy(trusted=True, container_codegen_trusted=True)`.
+- ProcessRunner provides **timeout isolation**, not a full security sandbox.
+- All ProcessRunner outputs are size-bounded in the child process.
+- Tool outputs are untrusted by default (`trusted_output=False`).
+- Cache is restricted to read tools or idempotent network with explicit opt-in.
+- No-policy tools are denied by default (`allow_unsafe_no_policy_execution` opt-in).
+- Network tools require allowed_domains.
+- Filesystem tools require workspace_root.
+- Untrusted third-party tools and arbitrary MCP servers are not supported.
+
 ## License
 
 MIT

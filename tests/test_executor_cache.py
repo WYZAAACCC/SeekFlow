@@ -28,7 +28,9 @@ class TestExecutorCache:
         _call_counts.clear()
         registry = ToolRegistry()
         from seekflow.tools.decorator import tool as _tool_dec
-        registry.register(_tool_dec(trusted=True)(_counting_add))
+        from seekflow.types import ToolPolicy
+        registry.register(_tool_dec(trusted=True)(_counting_add).with_policy(
+            ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
 
         cache = ToolCallCache(max_size=10)
         executor = ToolExecutor(registry, cache=cache)
@@ -50,7 +52,9 @@ class TestExecutorCache:
         _call_counts.clear()
         registry = ToolRegistry()
         from seekflow.tools.decorator import tool as _tool_dec
-        registry.register(_tool_dec(trusted=True)(_counting_add))
+        from seekflow.types import ToolPolicy
+        registry.register(_tool_dec(trusted=True)(_counting_add).with_policy(
+            ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
 
         cache = ToolCallCache(max_size=10)
         executor = ToolExecutor(registry, cache=cache)
@@ -82,7 +86,9 @@ class TestExecutorCache:
         _call_counts.clear()
         registry = ToolRegistry()
         from seekflow.tools.decorator import tool as _tool_dec
-        registry.register(_tool_dec(trusted=True)(_counting_add))
+        from seekflow.types import ToolPolicy
+        registry.register(_tool_dec(trusted=True)(_counting_add).with_policy(
+            ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)))
 
         executor = ToolExecutor(registry, cache=None)
         tc = ToolCall(name="_counting_add", arguments={"a": 1, "b": 2})

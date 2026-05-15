@@ -46,16 +46,16 @@ class TestParallelExecution:
     def test_single_tool_call_no_overhead(self):
         from seekflow.tools.executor import ToolExecutor
         from seekflow.tools.registry import ToolRegistry
+        from seekflow.types import ToolCall, ToolPolicy
 
         def quick():
             return "ok"
 
         reg = ToolRegistry()
         td = reg.register(quick)
-        td.metadata["trusted"] = True
+        td.policy = ToolPolicy(risk="read", trusted=True, trusted_output=True, parallel_safe=True)
         executor = ToolExecutor(reg)
 
-        from seekflow.types import ToolCall
         results = executor.execute_batch([ToolCall(id="1", name="quick", arguments={})])
         assert len(results) == 1
         assert results[0].ok

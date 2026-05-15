@@ -111,7 +111,21 @@ class PolicyEngine:
     def authorize_with_context(
         self, policy: ToolPolicy, context: ToolPolicyContext,
     ) -> PolicyDecision:
-        """Authorize using ToolPolicyContext (simpler, context-based check)."""
+        """Authorize using ToolPolicyContext (simpler, context-based check).
+
+        .. deprecated::
+            This method does NOT validate tool arguments (URLs, paths,
+            workspace). Use :meth:`authorize` for full policy enforcement.
+        """
+        import warnings
+        warnings.warn(
+            "authorize_with_context() is deprecated — it does not validate tool arguments "
+            "(URLs, paths, workspace). Use authorize(tool_def, args, context) for full "
+            "policy enforcement.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         if policy.risk != "read" and not context.dangerous_tools_enabled:
             return PolicyDecision(False, "Dangerous tools are disabled by default.")
 
