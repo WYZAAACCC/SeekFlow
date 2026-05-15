@@ -667,28 +667,26 @@ class DeepSeekAgent:
         }
 
     def _result_from_runtime(self, result, messages=None, model_used: str = "", output_model=None) -> AgentResult:
-        """Build AgentResult from ToolRuntimeResult using ModelRegistry pricing."""
+        """Build AgentResult from ToolRuntimeResult using unified pricing."""
         from seekflow.deepseek.models import ModelRegistry
+        from seekflow.deepseek.cache_metrics import extract_cache_metrics
         model = model_used or self._model
         tokens = result.usage or {}
         prompt_tokens = tokens.get("prompt_tokens", 0)
         completion_tokens = tokens.get("completion_tokens", 0)
-        cached_tokens = (
-            (tokens.get("prompt_tokens_details", {}) or {}).get("cached_tokens", 0)
-        )
+        cm = extract_cache_metrics(tokens)
         try:
             registry = ModelRegistry.default()
             cost = float(registry.price_usage(model, tokens))
         except Exception:
-            # Fallback to legacy pricing if registry fails
             pricing = PRICING.get(model, PRICING["__default__"])
             cost = (
-                max(prompt_tokens - cached_tokens, 0) * pricing["input"] / 1_000_000
-                + cached_tokens * pricing["cached_input"] / 1_000_000
+                max(prompt_tokens - cm.hit_tokens, 0) * pricing["input"] / 1_000_000
+                + cm.hit_tokens * pricing["cached_input"] / 1_000_000
                 + completion_tokens * pricing["output"] / 1_000_000
             )
         context_used = prompt_tokens + completion_tokens
-        cache_hit_rate = cached_tokens / max(prompt_tokens, 1)
+        cache_hit_rate = cm.hit_ratio
         ar = AgentResult(
             final_output=result.final,
             tool_calls=[
@@ -708,8 +706,8 @@ class DeepSeekAgent:
                 context_total=self._max_context_tokens,
                 context_breakdown=self._compute_breakdown(messages, result),
                 cost_tag=self._cost_tag,
-                cache_hit=cached_tokens > 0,
-                cache_tokens=cached_tokens,
+                cache_hit=cm.hit_tokens > 0,
+                cache_tokens=cm.hit_tokens,
                 cache_hit_rate=round(cache_hit_rate, 4),
                 retry_attempts=getattr(result, 'retry_count', 0),
                 retry_cost=0.0,

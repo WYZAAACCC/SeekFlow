@@ -15,6 +15,18 @@ class NormalizedUsage:
     cache_miss_tokens: int = 0
     reasoning_tokens: int = 0
 
+    @property
+    def cache_hit_ratio(self) -> float:
+        if self.prompt_tokens <= 0:
+            return 0.0
+        return self.cache_hit_tokens / self.prompt_tokens
+
+    @property
+    def cache_miss_ratio(self) -> float:
+        if self.prompt_tokens <= 0:
+            return 0.0
+        return self.cache_miss_tokens / self.prompt_tokens
+
     def add(self, other: NormalizedUsage) -> NormalizedUsage:
         return NormalizedUsage(
             prompt_tokens=self.prompt_tokens + other.prompt_tokens,
