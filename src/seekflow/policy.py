@@ -94,32 +94,35 @@ class PolicyEngine:
         """
         policy = tool_def.policy or _DEFAULT_UNTRUSTED_POLICY
 
-        # Support both ToolExecutionContext (object) and dict (legacy)
+        # Normalize context to typed (fixes dict bypass of capability gate)
         if context is not None and isinstance(context, dict):
-            if self._mode == "compat":
-                dangerous_enabled = context.get("dangerous_tools_enabled", True)
-                allowed_caps = context.get("allowed_capabilities", set())
-                max_risk = context.get("max_risk", "destructive")
-            else:
-                # strict: dict context must be explicit
-                dangerous_enabled = context.get("dangerous_tools_enabled", False)
-                allowed_caps = context.get("allowed_capabilities", {"read"})
-                max_risk = context.get("max_risk", "read")
+            import warnings
+            warnings.warn(
+                "dict policy context is deprecated; use ToolExecutionContext",
+                DeprecationWarning, stacklevel=2,
+            )
+            dangerous_enabled = context.get("dangerous_tools_enabled", False)
+            allowed_caps = context.get("allowed_capabilities", {"read"})
+            max_risk = context.get("max_risk", "read")
+            workspace_root = context.get("workspace_root")
+            allowed_domains = context.get("allowed_domains", set())
+            sandbox = context.get("sandbox")
             has_context = True
         elif context is not None and hasattr(context, "dangerous_tools_enabled"):
             dangerous_enabled = context.dangerous_tools_enabled
             allowed_caps = context.allowed_capabilities
             max_risk = context.max_risk
+            workspace_root = context.workspace_root
+            allowed_domains = context.allowed_domains
+            sandbox = context.sandbox
             has_context = True
         else:
-            if self._mode == "compat":
-                dangerous_enabled = True
-                allowed_caps = set()
-                max_risk = "destructive"
-            else:
-                dangerous_enabled = False
-                allowed_caps = {"read"}
-                max_risk = "read"
+            dangerous_enabled = False
+            allowed_caps = {"read"}
+            max_risk = "read"
+            workspace_root = None
+            allowed_domains = set()
+            sandbox = None
             has_context = False
 
         # 0. No-policy tools: deny unless explicitly allowed
@@ -144,9 +147,9 @@ class PolicyEngine:
                 reason=f"Tool risk {policy.risk} exceeds allowed risk {max_risk}.",
             )
 
-        # 3. Capability gate (only for proper ToolExecutionContext, not dict)
+        # 3. Capability gate (enforced for ALL context types)
         missing = policy.capabilities - allowed_caps
-        if has_context and not isinstance(context, dict) and missing:
+        if has_context and missing:
             return PolicyDecision(
                 allowed=False,
                 reason=f"Missing capabilities: {sorted(missing)}",
@@ -179,22 +182,22 @@ class PolicyEngine:
                 return PolicyDecision(allowed=False,
                     reason="filesystem capability requires workspace_root")
 
-        # 7. Network requires allowed_domains + strict SSRF validation
+        # 7. Network requires non-empty allowed_domains + strict SSRF
         if "network.public_http" in policy.capabilities:
-            domains = policy.allowed_domains or (
-                getattr(context, "allowed_domains", set()) if has_context and not isinstance(context, dict) else set()
-            )
+            domains = set(policy.allowed_domains or allowed_domains or set())
+            if not domains:
+                return PolicyDecision(allowed=False,
+                    reason="network.public_http requires non-empty allowed_domains")
             url = args.get("url", "")
             if not url:
                 return PolicyDecision(allowed=False,
                     reason="network.public_http requires a URL argument")
-            if domains:
-                from seekflow.security.http import NetworkPolicy, validate_url_strict
-                try:
-                    validate_url_strict(url, NetworkPolicy(allowed_domains=domains))
-                except ValueError as e:
-                    return PolicyDecision(allowed=False,
-                        reason=f"SSRF blocked: {e}")
+            from seekflow.security.http import NetworkPolicy, validate_url_strict
+            try:
+                validate_url_strict(url, NetworkPolicy(allowed_domains=domains))
+            except ValueError as e:
+                return PolicyDecision(allowed=False,
+                    reason=f"SSRF blocked: {e}")
 
         # 8. Path validation via path_params + workspace_root
         effective_root = policy.workspace_root or (

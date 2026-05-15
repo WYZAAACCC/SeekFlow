@@ -21,7 +21,8 @@ class TestPolicyEngine:
             policy=ToolPolicy(capabilities={"filesystem.read"}, risk="read",
                               workspace_root=Path("/workspace")),
         )
-        decision = engine.authorize(td, {"path": "data.txt"}, context={})
+        decision = engine.authorize(td, {"path": "data.txt"},
+            context={"allowed_capabilities": {"filesystem.read"}, "workspace_root": "/workspace"})
         assert decision.allowed is True
 
     def test_code_exec_without_sandbox_denied(self):
@@ -88,7 +89,8 @@ class TestPolicyEngine:
             ),
         )
         decision = engine.authorize(
-            td, {"url": "https://docs.deepseek.com/api"}, context={},
+            td, {"url": "https://docs.deepseek.com/api"},
+            context={"allowed_capabilities": {"network.public_http"}, "dangerous_tools_enabled": True},
         )
         if not decision.allowed and "DNS" in decision.reason:
             pytest.skip("DNS resolution not available")
@@ -128,7 +130,8 @@ class TestPolicyEngine:
             ),
         )
         decision = engine.authorize(
-            td, {"path": "/workspace/data.txt"}, context={},
+            td, {"path": "/workspace/data.txt"},
+            context={"allowed_capabilities": {"filesystem.read"}, "workspace_root": "/workspace"},
         )
         assert decision.allowed is True
 
@@ -183,9 +186,8 @@ class TestPolicyEngine:
                 allowed_domains={"example.com"},
             ),
         )
+        # dict context now defaults dangerous_enabled=False → deny
         decision = engine.authorize(
             td, {"url": "https://example.com/api"}, context={},
         )
-        if not decision.allowed and "DNS" in decision.reason:
-            pytest.skip("DNS resolution not available")
-        assert decision.allowed is True
+        assert decision.allowed is False

@@ -217,6 +217,28 @@ class ToolExecutor:
             if coercion_notes:
                 repaired = True
 
+        # Schema validate — deny execution if args don't match schema
+        if tool_def.parameters:
+            from seekflow.tools.validation import validate_tool_arguments
+            issues = validate_tool_arguments(tool_def.parameters, arguments)
+            if issues:
+                elapsed = int((time.time() - start) * 1000)
+                joined = "; ".join(f"{i.path}: {i.message}" for i in issues[:3])
+                self._record_audit(
+                    tool_def, tool_call.id or "", arguments,
+                    result=None, latency_ms=elapsed, ok=False,
+                    error=f"Schema validation: {joined}",
+                    policy_decision=policy_decision, policy_reason="schema_invalid",
+                    risk=tool_def.policy.risk if tool_def.policy else "read",
+                )
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments=arguments, ok=False,
+                    error=f"Argument validation failed: {joined}",
+                    elapsed_ms=elapsed, repaired=repaired,
+                    repair_notes=repair_notes + ["schema_validation_failed"],
+                )
+
         # Execute
         try:
             if tool_def.func is None:
