@@ -199,13 +199,17 @@ class ToolRuntime:
         thinking = _resolve_thinking(thinking_mode)
         if response_format:
             kwargs["response_format"] = {"type": response_format}
-        # Embed file content into messages
+
+        # Deep-copy BEFORE any mutation (file embed, trim, repair)
+        working_messages = copy.deepcopy(messages)
+
+        # Embed file content into working copy only
         if files:
             workspace_root = self._workspace_root_or_error(files)
-            for i in range(len(messages) - 1, -1, -1):
-                if messages[i].get("role") == "user":
-                    messages[i] = embed_files_into_message(
-                        messages[i], files, workspace_root=workspace_root,
+            for i in range(len(working_messages) - 1, -1, -1):
+                if working_messages[i].get("role") == "user":
+                    working_messages[i] = embed_files_into_message(
+                        working_messages[i], files, workspace_root=workspace_root,
                     )
                     break
 
@@ -247,7 +251,6 @@ class ToolRuntime:
                         f"{check_result.issues[0].message}"
                     )
 
-        working_messages = copy.deepcopy(messages)
         tool_results: list = []
         reasoning_contents: list[str] = []
         cumulative_usage: dict[str, Any] = {
@@ -531,12 +534,15 @@ class ToolRuntime:
         thinking = _resolve_thinking(thinking_mode)
         if response_format:
             kwargs["response_format"] = {"type": response_format}
+
+        working_messages = copy.deepcopy(messages)
+
         if files:
             workspace_root = self._workspace_root_or_error(files)
-            for i in range(len(messages) - 1, -1, -1):
-                if messages[i].get("role") == "user":
-                    messages[i] = embed_files_into_message(
-                        messages[i], files, workspace_root=workspace_root,
+            for i in range(len(working_messages) - 1, -1, -1):
+                if working_messages[i].get("role") == "user":
+                    working_messages[i] = embed_files_into_message(
+                        working_messages[i], files, workspace_root=workspace_root,
                     )
                     break
 
@@ -559,7 +565,6 @@ class ToolRuntime:
 
         tools_schema = self._registry.to_deepseek_tools(strict=self._strict)
 
-        working_messages = copy.deepcopy(messages)
         reasoning_contents: list[str] = []
         for _step in range(self._max_steps):
             # Trim context window before each API call
