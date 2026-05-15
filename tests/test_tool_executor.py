@@ -58,7 +58,7 @@ class TestToolExecutor:
         assert result.error is not None
 
     def test_result_truncation(self, registry):
-        @tool
+        @tool(trusted=True)
         def long_output() -> str:
             return "x" * 100
 
@@ -69,7 +69,7 @@ class TestToolExecutor:
         assert result.ok
         assert "truncated" in str(result.result).lower()
 
-    @pytest.mark.xfail(reason="pre-existing: schema validation blocking un-coerced string args (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-001: schema validation blocking un-coerced string args (v0.3.5)")
     def test_repair_disabled(self, registry):
         @tool(name="add_without_repair", trusted=True)
         def add_vals(a: int, b: int) -> int:

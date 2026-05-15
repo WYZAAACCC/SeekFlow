@@ -1,7 +1,7 @@
 [project]
 name = "seekflow"
-version = "0.2.5.dev0"
-description = "DeepSeek-native agent framework — security-hardened beta. Policy-enforced, sandbox-first, cache/cost-aware."
+version = "0.3.6"
+description = "DeepSeek-native secure tool runtime — Level 2 semi-production candidate. Policy-enforced, runner-isolated, fail-closed."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

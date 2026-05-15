@@ -61,7 +61,7 @@ class TestExecutorCache:
         assert r1.ok and r2.ok
         assert _call_counts["_counting_add"] == 2
 
-    @pytest.mark.xfail(reason="process isolation: _call_counts global not shared across subprocesses")
+    @pytest.mark.xfail(strict=True, reason="issue #process-isolation-001: process isolation: _call_counts global not shared across subprocesses")
     def test_cache_false_tool_always_executes(self):
         _call_counts.clear()
         registry = ToolRegistry()

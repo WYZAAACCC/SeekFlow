@@ -200,7 +200,7 @@ class TestSessionManagement:
         assert callable(agent.fork_session)
         assert callable(agent.rollback)
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-001: user business changes (v0.3.5)")
     def test_rollback_restores_previous_state(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -225,7 +225,7 @@ class TestSessionManagement:
 class TestBuiltinTools:
     """Builtin tools library with 20+ tools."""
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-002: user business changes (v0.3.5)")
     def test_with_default_tools_has_20_tools(self):
         from seekflow.agent.agent import DeepSeekAgent
 

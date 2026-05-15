@@ -35,7 +35,7 @@ class TestThinkingModeParameter:
         call_kwargs = client.chat.call_args.kwargs
         assert call_kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-001: user business changes (v0.3.5)")
     def test_thinking_mode_max_maps_to_extra_body(self):
         from seekflow.runtime import ToolRuntime
         rt = ToolRuntime(tools=[], api_key="sk-test", max_steps=1)
@@ -134,7 +134,7 @@ class TestThinkingModeSmartDefault:
         call_kwargs = client.chat.call_args.kwargs
         assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-002: user business changes (v0.3.5)")
     def test_multi_turn_default_disables_thinking_and_warns(self):
         """thinking_mode=None on multi-turn → extra_body["thinking"]="disabled" + UserWarning."""
         from seekflow.runtime import ToolRuntime
@@ -153,7 +153,7 @@ class TestThinkingModeSmartDefault:
         warning_msgs = [str(x.message) for x in w]
         assert any("automatically" in msg and "disabled" in msg for msg in warning_msgs), warning_msgs
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-003: user business changes (v0.3.5)")
     def test_multi_turn_explicit_enabled_respected(self):
         """thinking_mode="enabled" on multi-turn → not downgraded, no warning."""
         from seekflow.runtime import ToolRuntime
@@ -171,7 +171,7 @@ class TestThinkingModeSmartDefault:
         warning_msgs = [str(x.message) for x in w]
         assert not any("automatically" in msg for msg in warning_msgs)
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-004: user business changes (v0.3.5)")
     def test_multi_turn_explicit_disabled_respected(self):
         """thinking_mode="disabled" on multi-turn → not changed, no warning."""
         from seekflow.runtime import ToolRuntime
@@ -188,7 +188,7 @@ class TestThinkingModeSmartDefault:
         warning_msgs = [str(x.message) for x in w]
         assert not any("automatically" in msg for msg in warning_msgs)
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-005: user business changes (v0.3.5)")
     def test_multi_turn_explicit_max_respected(self):
         """thinking_mode="max" on multi-turn → not downgraded, no warning."""
         from seekflow.runtime import ToolRuntime
@@ -221,7 +221,7 @@ class TestThinkingModeSmartDefault:
         call_kwargs = client.chat_stream.call_args.kwargs
         assert call_kwargs["extra_body"]["thinking"] == {"type": "enabled"}
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-006: user business changes (v0.3.5)")
     def test_streaming_default_multi_turn_disables_thinking(self):
         """chat_stream with thinking_mode=None on multi-turn disables thinking."""
         from seekflow.runtime import ToolRuntime

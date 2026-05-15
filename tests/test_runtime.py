@@ -51,7 +51,7 @@ class TestToolRuntime:
             mock_client_class.return_value = mock_client
             yield mock_client
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-001: user business changes (v0.3.5)")
     def test_basic_tool_loop(self, mock_two_round_client, add_tool):
         """A full tool loop: model calls tool, executor runs it, model gets result."""
         from seekflow.runtime import ToolRuntime
@@ -95,7 +95,7 @@ class TestToolRuntime:
         assert result.final == "Hello, how can I help?"
         assert result.tool_results == []
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-002: user business changes (v0.3.5)")
     def test_max_steps_exhausted(self, add_tool):
         """When the model keeps calling tools, stop after max_steps."""
         from seekflow.runtime import ToolRuntime
@@ -197,7 +197,7 @@ class TestToolRuntime:
                     messages=[{"role": "user", "content": "Hi"}],
                 )
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-003: user business changes (v0.3.5)")
     def test_trace_recording(self, mock_two_round_client, add_tool):
         """trace=True produces full execution trace that can be saved."""
         import json
@@ -232,7 +232,7 @@ class TestToolRuntime:
                 data = json.load(f)
             assert data["trace_id"] == trace_dict["trace_id"]
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-004: user business changes (v0.3.5)")
     def test_tool_call_error_recorded(self, add_tool):
         """When a tool call fails (tool not found), the error is recorded."""
         from seekflow.runtime import ToolRuntime

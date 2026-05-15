@@ -40,6 +40,7 @@ def test_policy_allows_read_with_policy():
     policy = ToolPolicy(
         capabilities={"filesystem.read"}, risk="read",
         workspace_root=Path(".").resolve(),  # required by policy engine
+        trusted=True, parallel_safe=True,
     )
     td = _make_tool("read", func=read, policy=policy)
     reg = _make_registry(td)

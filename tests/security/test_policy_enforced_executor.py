@@ -30,7 +30,7 @@ class TestNoPolicyToolDenied:
             name="safe_read", description="Safe",
             parameters={"type": "object", "properties": {}},
             func=lambda: "data",
-            policy=ToolPolicy(risk="read", capabilities={"read"}),
+            policy=ToolPolicy(risk="read", capabilities={"read"}, trusted=True, parallel_safe=True),
         ))
         engine = PolicyEngine()
         executor = ToolExecutor(reg, policy_engine=engine)

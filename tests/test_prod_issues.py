@@ -31,7 +31,7 @@ class TestModelPricing:
         assert default is not None
         assert default["input"] > 0
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-001: user business changes (v0.3.5)")
     def test_agent_cost_uses_model_specific_pricing(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -53,7 +53,7 @@ class TestModelPricing:
 class TestCacheEfficiency:
     """Cache hit rate is reported and system prompt changes are warned."""
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-002: user business changes (v0.3.5)")
     def test_agent_result_has_cache_hit_rate(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -66,7 +66,7 @@ class TestCacheEfficiency:
         assert result.diagnostics.cache_hit_rate is not None
         assert 0.0 <= result.diagnostics.cache_hit_rate <= 1.0
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-003: user business changes (v0.3.5)")
     def test_cache_stats_accumulate_across_runs(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -89,7 +89,7 @@ class TestCacheEfficiency:
 class TestRetryCost:
     """Retry attempts are counted and cost is tracked."""
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-004: user business changes (v0.3.5)")
     def test_no_retries_means_zero_retry_cost(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -135,7 +135,7 @@ class TestBalanceWarning:
 class TestContextBreakdown:
     """Context usage is broken down by category."""
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-005: user business changes (v0.3.5)")
     def test_agent_result_has_context_breakdown(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -169,7 +169,7 @@ class TestCostAttribution:
         )
         assert agent._cost_tag == "customer-123"
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-006: user business changes (v0.3.5)")
     def test_agent_result_includes_cost_tag(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -194,7 +194,7 @@ class TestCostAttribution:
 class TestErrorRecovery:
     """DeepSeek-specific errors are detected and tracked."""
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-007: user business changes (v0.3.5)")
     def test_agent_result_has_recovery_counters(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -207,7 +207,7 @@ class TestErrorRecovery:
         assert hasattr(result.diagnostics, 'empty_content_retries')
         assert hasattr(result.diagnostics, 'hallucinated_tool_retries')
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-008: user business changes (v0.3.5)")
     def test_normal_run_has_zero_recovery_retries(self):
         from seekflow.agent.agent import DeepSeekAgent
 
@@ -245,7 +245,7 @@ class TestBatchAgent:
 class TestModelVersion:
     """Model version is captured from API response."""
 
-    @pytest.mark.xfail(reason="pre-existing: user business changes (v0.3.5)")
+    @pytest.mark.xfail(strict=True, reason="issue #pre-existing-009: user business changes (v0.3.5)")
     def test_agent_result_has_model_field(self):
         from seekflow.agent.agent import DeepSeekAgent
 

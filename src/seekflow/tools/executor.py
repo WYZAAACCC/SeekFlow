@@ -46,6 +46,10 @@ if TYPE_CHECKING:
 
 DANGEROUS_REPAIR_CONFIDENCE_THRESHOLD = 0.95
 
+
+class RunnerUnavailableError(RuntimeError):
+    """Raised when a required runner cannot be provided (e.g. container without sandbox)."""
+
 _PICKLE_ERROR_SIGNATURES = (
     "Can't get local object",
     "Can't pickle",
@@ -215,16 +219,19 @@ class ToolExecutor:
             policy_reason = decision.reason
         # ── End policy gate ──────────────────────────────────────────
 
-        # Cache lookup AFTER policy (policy decisions affect cache validity)
-        if self._cache is not None:
-            cache_enabled = tool_def.metadata.get("cache", True)
-            # Only cache read-level tools
-            if cache_enabled and (tool_def.policy is None or tool_def.policy.risk == "read"):
-                cache_key = make_cache_key(tool_call.name, arguments)
-                cached = self._cache.get(cache_key)
-                if cached is not None:
-                    cached.repair_notes = list(cached.repair_notes) + ["cache_hit"]
-                    return cached
+        # Input size limit (PR-6: enforced before any heavy work)
+        if tool_def.policy is not None:
+            from seekflow.tools.limits import enforce_input_limit
+            try:
+                enforce_input_limit(arguments, tool_def.policy.max_input_bytes)
+            except Exception as e:
+                elapsed = int((time.time() - start) * 1000)
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                    ok=False, error=str(e),
+                    elapsed_ms=elapsed,
+                )
 
         # Coerce argument types
         if self.repair:
@@ -255,6 +262,16 @@ class ToolExecutor:
                     repair_notes=repair_notes + ["schema_validation_failed"],
                 )
 
+        # Cache lookup AFTER schema validation + policy (no bypass)
+        if self._cache is not None:
+            cache_enabled = tool_def.metadata.get("cache", True)
+            if cache_enabled and (tool_def.policy is None or tool_def.policy.risk == "read"):
+                cache_key = make_cache_key(tool_call.name, arguments)
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    cached.repair_notes = list(cached.repair_notes) + ["cache_hit"]
+                    return cached
+
         # Execute via runner (NEVER call tool_def.func directly)
         try:
             if tool_def.func is None:
@@ -268,9 +285,22 @@ class ToolExecutor:
                     elapsed_ms=elapsed,
                 )
 
-            max_retries = (tool_def.metadata or {}).get("max_retries", 0)
+            raw_max_retries = (tool_def.metadata or {}).get("max_retries", 0)
             retry_delay = (tool_def.metadata or {}).get("retry_delay", 1.0)
+
+            # PR-7: only read tools and explicitly idempotent tools may retry
+            policy = tool_def.policy
+            if policy is not None and policy.risk == "read":
+                max_retries = raw_max_retries
+            elif policy is not None and policy.idempotent:
+                max_retries = raw_max_retries
+            elif policy is None:
+                max_retries = raw_max_retries  # no policy → caller's responsibility
+            else:
+                max_retries = 0  # write/network/destructive: no retry without idempotent
+
             last_error = None
+            fallback_used = False
 
             effective_timeout = timeout
             if (tool_def.metadata or {}).get("timeout") is not None:
@@ -279,29 +309,68 @@ class ToolExecutor:
             # Plan: select runner based on risk/capabilities/trust
             from seekflow.tools.planner import plan_execution
             plan = plan_execution(tool_def, effective_timeout)
-            runner = self._runner_for(plan)
+
+            # PR-2: container fail-closed
+            try:
+                runner = self._runner_for(plan)
+            except RunnerUnavailableError as e:
+                elapsed = int((time.time() - start) * 1000)
+                self._record_audit(
+                    tool_def, tool_call.id or "", arguments,
+                    result=None, latency_ms=elapsed, ok=False,
+                    error=str(e),
+                    policy_decision=policy_decision, policy_reason=policy_reason,
+                    risk=policy.risk if policy else "destructive",
+                    runner_name=plan.runner,
+                )
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                    ok=False, error=f"Runner unavailable: {e}",
+                    elapsed_ms=elapsed,
+                )
 
             run_result = None
             for attempt in range(max_retries + 1):
                 try:
-                    run_result = runner.run(tool_def.func, arguments, plan.timeout_s)
+                    run_result = runner.run(
+                        tool_def.func, arguments, plan.timeout_s,
+                        max_output_bytes=policy.max_output_bytes if policy else 100_000,
+                    )
                     last_error = None
                     break
                 except Exception as e:
                     last_error = e
-                    # Fallback: pickle/serialization error on process runner
-                    # → retry with InProcessRunner for read-level tools.
+                    # PR-3: pickle fallback — only with explicit opt-in
                     if _is_pickle_error(str(e)):
-                        risk = tool_def.policy.risk if tool_def.policy else "read"
-                        if risk == "read" and plan.runner != "in_process":
+                        allow_fallback = (
+                            policy is not None
+                            and policy.risk == "read"
+                            and policy.trusted is True
+                            and policy.allow_in_process_fallback is True
+                            and plan.runner != "in_process"
+                        )
+                        if allow_fallback:
                             from seekflow.tools.runners import InProcessRunner
                             fallback = InProcessRunner()
                             try:
-                                run_result = fallback.run(tool_def.func, arguments, plan.timeout_s)
+                                run_result = fallback.run(
+                                    tool_def.func, arguments, plan.timeout_s,
+                                    max_output_bytes=policy.max_output_bytes if policy else 100_000,
+                                )
                                 last_error = None
+                                fallback_used = True
                                 break
                             except Exception as fe:
                                 last_error = fe
+                        else:
+                            last_error = RuntimeError(
+                                "Tool is not pickleable and cannot run in ProcessRunner. "
+                                "Use a module-level function, or explicitly set "
+                                "ToolPolicy(trusted=True, allow_in_process_fallback=True) "
+                                "for trusted local-only tools."
+                            )
+                            break
                     if attempt < max_retries:
                         time.sleep(retry_delay * (attempt + 1))
 
@@ -337,6 +406,10 @@ class ToolExecutor:
                 )
 
             raw_result = run_result.result
+
+            # Record output truncation from runner
+            if run_result.output_truncated:
+                repair_notes.append("output_truncated_by_max_bytes")
 
             # Wrap untrusted tool output + redact secrets before model sees it
             trusted = (tool_def.metadata or {}).get("trusted", False)
@@ -475,18 +548,33 @@ class ToolExecutor:
     def _runner_for(self, plan):
         """Resolve an ExecutionPlan to a runner instance.
 
-        "container" plans fall back to ProcessRunner when no real container
-        sandbox is configured.
+        "container" plans REQUIRE a real ContainerSandbox — no silent fallback.
+        code_exec/destructive tools without a container sandbox are DENIED.
         """
         from seekflow.tools.runners import InProcessRunner, ProcessRunner
 
         if plan.runner == "in_process":
             return InProcessRunner()
+
+        if plan.runner == "process":
+            return ProcessRunner()
+
         if plan.runner == "container":
-            if self.sandbox is not None and getattr(self.sandbox, "name", "") == "container":
-                return ProcessRunner()  # TODO: wire ContainerSandbox when ready
-            return ProcessRunner()  # fallback
-        return ProcessRunner()
+            if self.sandbox is None:
+                raise RunnerUnavailableError(
+                    "Container runner required for code_exec/destructive tool, "
+                    "but no sandbox is configured."
+                )
+            sandbox_name = getattr(self.sandbox, "name", "")
+            if sandbox_name != "container":
+                raise RunnerUnavailableError(
+                    f"Container runner required, but sandbox is '{sandbox_name}'. "
+                    "Configure a ContainerSandbox for code_exec/destructive tools."
+                )
+            from seekflow.tools.container_runner import ContainerRunner
+            return ContainerRunner(self.sandbox)
+
+        raise RunnerUnavailableError(f"Unknown runner: {plan.runner}")
 
     def _record_audit(self, tool_def, call_id: str, args: dict,
                       result: str | None = None, *, latency_ms: int = 0,

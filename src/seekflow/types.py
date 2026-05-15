@@ -34,6 +34,8 @@ class ToolPolicy(BaseModel):
     url_params: frozenset[str] = Field(default_factory=frozenset)
     runner: RunnerKind = "auto"
     trusted: bool = False
+    idempotent: bool = False
+    allow_in_process_fallback: bool = False
 
 
 class ToolDefinition(BaseModel):

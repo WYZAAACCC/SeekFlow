@@ -51,7 +51,8 @@ class TestParallelExecution:
             return "ok"
 
         reg = ToolRegistry()
-        reg.register(quick)
+        td = reg.register(quick)
+        td.metadata["trusted"] = True
         executor = ToolExecutor(reg)
 
         from seekflow.types import ToolCall

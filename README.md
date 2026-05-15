@@ -1,16 +1,16 @@
-# SeekFlow v0.2.5-dev
+# SeekFlow v0.3.6 — Level 2 Semi-production Candidate
 
-**DeepSeek-native &nbsp;|&nbsp; Security-hardening beta &nbsp;|&nbsp; Policy-enforced, sandbox-first**
+**DeepSeek-native &nbsp;|&nbsp; Policy-enforced &nbsp;|&nbsp; Runner-isolated &nbsp;|&nbsp; Fail-closed**
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/seekflow.svg)](https://pypi.org/project/seekflow/)
 
-SeekFlow is a DeepSeek-native agent framework — security-hardening beta. Purpose-built around DeepSeek's thinking mode, prompt caching, JSON repair, and FIM. **Not** a generic OpenAI wrapper.
+SeekFlow is a DeepSeek-native secure tool runtime with **policy-enforced execution, process isolation, and hard timeout kill**. Purpose-built around DeepSeek's thinking mode, prompt caching, JSON repair, and FIM. **Not** a generic OpenAI wrapper.
 
-> **Status**: main branch is **security-hardening beta**. PyPI stable is `0.1.0`. Production use is not recommended until v0.2.5 release and full security checklist pass.
+> **Status**: main branch is **Level 2 semi-production**. PyPI stable is `0.1.0`. See [docs/security/levels.md](docs/security/levels.md) for security level definitions.
 
-**v0.2.0** adds a **Policy Engine**, **SSRF protection**, **path sandboxing**, **secret redaction**, **preflight cost budgeting**, and **per-tool timeout** — making SeekFlow safe for production deployments.
+**v0.3.6** introduces **ToolRunner isolation** (InProcessRunner / ProcessRunner / ContainerRunner), **hard timeout kill** (terminate → kill), **JsonSchema close-object validation**, **resource limit enforcement**, and **container fail-closed** — completing the Level 2 security baseline.
 
 **Why SeekFlow over LangChain or CrewAI for DeepSeek?**
 
@@ -100,7 +100,7 @@ result = agent.run("Analyze Q3 financials", max_cost=budget.max_cny)
 
 ---
 
-## Security Architecture (v0.2.0)
+## Security Architecture (v0.3.6)
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -109,6 +109,7 @@ result = agent.run("Analyze Q3 financials", max_cost=budget.max_cny)
 ├─────────────────────────────────────────────────┤
 │  Policy Layer    PolicyEngine.authorize()        │
 │                  ToolPolicy (capability/risk)    │
+│                  Normalized context (PR-4)       │
 ├─────────────────────────────────────────────────┤
 │  Runtime         chat() / chat_stream()          │
 │                  Thinking mode / Cache           │
@@ -117,14 +118,16 @@ result = agent.run("Analyze Q3 financials", max_cost=budget.max_cny)
 │  Security        safe_join() / validate_url()    │
 │                  redact_secrets()                │
 │                  UntrustedContent wrapper        │
+│                  close_object_schema (PR-5)      │
 ├─────────────────────────────────────────────────┤
-│  Reliability     Retry + CircuitBreaker          │
-│                  ToolCache (LRU+TTL)             │
-│                  Preflight CostEstimator         │
+│  Runners         InProcessRunner (trusted reads) │
+│                  ProcessRunner (hard timeout)     │
+│                  ContainerRunner (Docker, PR-2)  │
 ├─────────────────────────────────────────────────┤
 │  Tool System     @tool → Schema → Registry       │
 │                  Executor (repair + coerce)      │
-│                  Audit trail + timeout           │
+│                  limits.py (PR-6)               │
+│                  Audit trail + runner_name       │
 ├─────────────────────────────────────────────────┤
 │  Sandbox         NoSandbox / LocalThread         │
 │                  ProcessSandbox / Container      │
@@ -149,7 +152,7 @@ result = agent.run("Analyze Q3 financials", max_cost=budget.max_cny)
 | **Secret Redaction** | API keys, JWTs, connection strings redacted from logs/traces |
 | **Untrusted Content** | Tool outputs wrapped as data, not instructions |
 | **Dangerous Tools Off** | File/network/code tools require `dangerous_tools=True` |
-| **Per-Tool Timeout** | Each tool independently timed out via ThreadPoolExecutor |
+| **Per-Tool Timeout** | Hard timeout via ProcessRunner (terminate → kill); ContainerRunner for code_exec |
 | **Audit Trail** | ToolAuditRecord with args/result hashes per execution |
 
 ### DeepSeek Thinking Mode — Fully Leveraged
@@ -189,8 +192,12 @@ prediction = compiler.predict_cache_hit(compiled, messages)
 
 ### Production Reliability
 
-| Component | v0.2.0 Status |
+| Component | v0.3.6 Status |
 |-----------|---------------|
+| Tool Runners | InProcessRunner / ProcessRunner (hard kill) / ContainerRunner (Docker) |
+| Schema Validation | Draft202012Validator + close_object_schema (hallucination defense) |
+| Resource Limits | max_input_bytes / max_output_bytes enforced pre/post execution |
+| Retry Control | Read tools + idempotent-only retry; side-effect tools execute once |
 | Circuit Breaker | 3-state. Non-retryable errors excluded from upstream CB |
 | Retry Executor | 429 bounded (attempt + deadline + Retry-After cap) |
 | Cost Budget | Preflight estimation with hard stops |
