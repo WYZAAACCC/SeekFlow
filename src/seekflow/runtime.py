@@ -251,12 +251,11 @@ class ToolRuntime:
                         f"{check_result.issues[0].message}"
                     )
 
+        from seekflow.usage import NormalizedUsage, normalize_usage
+
         tool_results: list = []
         reasoning_contents: list[str] = []
-        cumulative_usage: dict[str, Any] = {
-            "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
-            "prompt_tokens_details": {"cached_tokens": 0},
-        }
+        cumulative_usage = NormalizedUsage()
 
         # Budget preflight — estimate cost before first API call
         if self._budget_guard is not None:
@@ -341,13 +340,10 @@ class ToolRuntime:
                 "tool_call_count": len(response.tool_calls),
             })
 
-            # Accumulate token usage across ALL steps (including cache)
+            # Accumulate token usage across ALL steps via NormalizedUsage
             if response.usage:
-                cumulative_usage["prompt_tokens"] += response.usage.get("prompt_tokens", 0)
-                cumulative_usage["completion_tokens"] += response.usage.get("completion_tokens", 0)
-                cumulative_usage["total_tokens"] += response.usage.get("total_tokens", 0)
-                details = response.usage.get("prompt_tokens_details", {}) or {}
-                cumulative_usage["prompt_tokens_details"]["cached_tokens"] += details.get("cached_tokens", 0)
+                step_usage = normalize_usage(response.usage)
+                cumulative_usage = cumulative_usage.add(step_usage)
                 # Record cost using ModelRegistry (single pricing source)
                 self._cost_tracker.record(model, response.usage)
                 if self._budget_guard is not None:
@@ -420,7 +416,7 @@ class ToolRuntime:
                     messages=working_messages,
                     tool_results=tool_results,
                     trace=recorder if self._trace_enabled else None,
-                    usage=dict(cumulative_usage),
+                    usage=cumulative_usage.to_dict(),
                     cache_stats=self._active_cache.stats if self._active_cache else None,
                     reasoning_contents=reasoning_contents,
                     empty_content_retries=1 if not content.strip() else 0,
