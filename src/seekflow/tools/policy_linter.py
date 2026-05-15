@@ -34,13 +34,13 @@ LintRule = Callable[[ToolPolicy, ManifestSource], list[LintIssue]]
 def _rule_no_local_runner_for_external(
     policy: ToolPolicy, source: ManifestSource
 ) -> list[LintIssue]:
-    """Non-local tools must not run in-process or in a subprocess."""
+    """Non-local tools MUST use external_container — never in_process/process/container."""
     if source in {"registry", "mcp", "oci", "wasm"}:
-        if policy.runner in {"in_process", "process"}:
+        if policy.runner != "external_container":
             return [LintIssue(
                 severity="error",
                 code="L001",
-                message=f"source={source} requires runner=container (or external), "
+                message=f"source={source} requires runner=external_container; "
                         f"got runner={policy.runner}",
                 path="$.runner",
             )]

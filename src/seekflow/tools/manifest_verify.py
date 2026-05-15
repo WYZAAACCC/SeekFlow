@@ -69,15 +69,14 @@ def verify_signature(
     manifest: ToolManifest,
     *,
     strict: bool = False,
+    trust_store: Any | None = None,
 ) -> None:
-    """Verify the manifest's signature.
+    """Verify the manifest's Ed25519 signature.
 
-    Phase B placeholder:
     - If no signature and source is 'local': OK (trusted local tool)
     - If no signature and source is external + strict=True: REJECT
-    - If signature present: accept (verification placeholder)
-
-    Phase F: full cryptographic verification.
+    - If signature present + trust_store: verify Ed25519 signature
+    - If signature present but no trust_store: format check only (Phase B compat)
     """
     if manifest.signature is None:
         if strict and manifest.source != "local":
@@ -87,13 +86,22 @@ def verify_signature(
             )
         return
 
-    # Placeholder: in Phase F, verify Ed25519/ECDSA signature against
-    # the manifest's canonical JSON bytes using the key identified by
-    # manifest.signing_key_id.
     if not manifest.signing_key_id and strict:
         raise ManifestVerificationError(
             f"Tool '{manifest.name}': signature present but signing_key_id is missing"
         )
+
+    # If trust_store is available, do real cryptographic verification
+    if trust_store is not None and manifest.signing_key_id:
+        from seekflow.tools.trust_store import verify_ed25519_signature
+        try:
+            verify_ed25519_signature(manifest, trust_store)
+        except ImportError:
+            if strict:
+                raise ManifestVerificationError(
+                    f"Tool '{manifest.name}': cryptography package required for "
+                    "signature verification. Install with: pip install cryptography>=42"
+                )
 
 
 def verify_manifest(
@@ -101,13 +109,14 @@ def verify_manifest(
     *,
     package_bytes: bytes | None = None,
     strict: bool = False,
+    trust_store: Any | None = None,
 ) -> None:
     """Run all verification checks on a manifest.
 
     Raises ManifestVerificationError on the first failure.
     """
     verify_digest(manifest, package_bytes)
-    verify_signature(manifest, strict=strict)
+    verify_signature(manifest, strict=strict, trust_store=trust_store)
 
 
 def compute_manifest_digest(manifest: ToolManifest) -> str:

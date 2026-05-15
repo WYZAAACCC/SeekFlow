@@ -1,16 +1,16 @@
-# SeekFlow v0.3.7 — Level 2 Semi-production
+# SeekFlow v0.3.7 — Level 3 Candidate
 
-**DeepSeek-native &nbsp;|&nbsp; Policy-enforced &nbsp;|&nbsp; Runner-isolated &nbsp;|&nbsp; Fail-closed**
+**DeepSeek-native &nbsp;|&nbsp; Zero-trust tool gateway &nbsp;|&nbsp; Runner-isolated &nbsp;|&nbsp; Fail-closed**
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/seekflow.svg)](https://pypi.org/project/seekflow/)
 
-SeekFlow is a DeepSeek-native secure tool runtime with **policy-enforced execution, process isolation, and hard timeout kill**. Purpose-built around DeepSeek's thinking mode, prompt caching, JSON repair, and FIM. **Not** a generic OpenAI wrapper.
+SeekFlow is a DeepSeek-native **zero-trust tool gateway** with policy-enforced execution, process isolation, and manifest-based external tool sandboxing. Purpose-built around DeepSeek's thinking mode, prompt caching, JSON repair, and FIM. **Not** a generic OpenAI wrapper.
 
-> **Status**: main branch is **Level 2 semi-production**. PyPI stable is `0.1.0`. See [docs/security/levels.md](docs/security/levels.md) for security level definitions.
+> **Status**: main branch is **Level 3 candidate** (early production-grade untrusted tool runtime). Level 2 fully supported. Not yet full Level 3 production-ready — see [docs/security/levels.md](docs/security/levels.md).
 
-**v0.3.7** completes the Level 2 semi-production security baseline: **runner minimum isolation**, **ContainerRunner codegen-trusted gate**, **ProcessRunner output bounding** for all types, **cache policy restrictions**, **trusted_output in ToolPolicy**, **no-policy deny-by-default**, and **ContainerSandbox zombie prevention** via explicit docker kill/rm.
+**v0.3.7** introduces **Lv3 zero-trust architecture**: ToolManifest v1, ExternalToolRunner (containerized third-party tools), MCPGateway (zero-trust MCP), EgressGateway, SecretBroker, and DurableAuditStore. Lv2 security baseline is fully hardened with runner minimum isolation, ContainerRunner codegen-trusted gate, ProcessRunner output bounding, cache policy restrictions, and no-policy deny-by-default.
 
 **Why SeekFlow over LangChain or CrewAI for DeepSeek?**
 

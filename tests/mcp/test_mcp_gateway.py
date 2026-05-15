@@ -49,14 +49,14 @@ class TestMCPServerConfig:
         assert "PATH" in params.env
         assert "SECRET" not in params.env  # not in allowlist
 
-    def test_to_stdio_params_no_allowlist_passes_env_with_warning(self):
+    def test_to_stdio_params_no_allowlist_raises(self):
+        """Lv3: env without allowlist raises ValueError."""
         cfg = MCPServerConfig(
             name="test", command="python",
             env={"MY_VAR": "value"},
         )
-        with pytest.warns(RuntimeWarning, match="no env_allowlist"):
-            params = cfg.to_stdio_params()
-        assert params.env == {"MY_VAR": "value"}
+        with pytest.raises(ValueError, match="env_allowlist"):
+            cfg.to_stdio_params()
 
 
 class TestServerConfigValidation:

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 # Runner isolation levels: higher = stronger isolation.
 # An explicit runner override may only *increase* isolation, never decrease it.
-RUNNER_ORDER: dict[str, int] = {"in_process": 0, "process": 1, "container": 2, "external_container": 3}
+RUNNER_ORDER: dict[str, int] = {"in_process": 0, "process": 1, "container": 2, "external_container": 3, "mcp_gateway": 3}
 
 
 def _required_runner(policy: "ToolPolicy | None", tool_def: "ToolDefinition | None" = None) -> str:
@@ -73,7 +73,16 @@ def plan_execution(
         effective_timeout = min(effective_timeout, float(tool_def.metadata["timeout"]))
 
     # 0. Lv3: non-local tools always run in external containers — hard gate
-    if tool_def.source != "local":
+    if tool_def.source == "mcp":
+        return ExecutionPlan(
+            runner="mcp_gateway",
+            timeout_s=effective_timeout,
+            requires_hard_timeout=True,
+            allow_parallel=False,
+            cache_allowed=False,
+            reason=f"source=mcp requires MCP gateway isolation",
+        )
+    if tool_def.source not in {"local", ""}:
         return ExecutionPlan(
             runner="external_container",
             timeout_s=effective_timeout,

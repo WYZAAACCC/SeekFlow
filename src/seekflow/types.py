@@ -11,7 +11,7 @@ ToolChoice = Literal["auto", "none", "required"] | dict[str, Any]
 """Valid tool_choice values for DeepSeek API."""
 
 RiskLevel = Literal["read", "write", "network", "code_exec", "destructive"]
-RunnerKind = Literal["auto", "in_process", "process", "container"]
+RunnerKind = Literal["auto", "in_process", "process", "container", "external_container", "mcp_gateway"]
 
 
 class ToolPolicy(BaseModel):

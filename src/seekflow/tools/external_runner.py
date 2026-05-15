@@ -63,7 +63,7 @@ class ExternalToolRunner:
         max_output_bytes: int = 100_000,
         egress_profile: EgressProfile | None = None,
         fs_profile: FSProfile | None = None,
-        env_profile: EnvProfile | None = None,
+        env_profile: dict[str, str] | None = None,
     ) -> ToolRunResult:
         """Execute an external tool in an isolated container.
 
@@ -93,17 +93,38 @@ class ExternalToolRunner:
             tmp_input.close()
 
             # ── Build container command ────────────────────────────
-            image = sandbox.image or "python:3.11-slim"
-            # If image_digest is present, use digest pinning
+            # Lv3: non-local tools MUST have a pinned image digest
+            if manifest.source != "local":
+                if not sandbox.image_digest:
+                    return ToolRunResult(
+                        ok=False,
+                        error="External tools require sandbox.image_digest pinned by sha256",
+                        runner_name=self.name,
+                    )
+                if not sandbox.image_digest.startswith("sha256:"):
+                    return ToolRunResult(
+                        ok=False,
+                        error="image_digest must start with 'sha256:'",
+                        runner_name=self.name,
+                    )
+
             if sandbox.image_digest:
-                image_ref = f"{image.split(':')[0]}@{sandbox.image_digest}"
+                base_image = (sandbox.image or "python:3.11-slim").split(":")[0]
+                image_ref = f"{base_image}@{sandbox.image_digest}"
             else:
-                image_ref = image
+                image_ref = sandbox.image or "python:3.11-slim"
+
+            # Lv3: external tools default to --network none unless egress sidecar configured
+            network_mode = "none"
+            if manifest.network.allowed_domains:
+                # Network access requires egress sidecar (Phase 5)
+                # For now, block — sidecar must be explicitly started
+                network_mode = "none"
 
             cmd = [
                 "docker", "run",
                 "--name", container_name,
-                "--network", sandbox.network,
+                "--network", network_mode,
                 "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges",
                 "--pids-limit", str(sandbox.pids_limit),
@@ -117,6 +138,11 @@ class ExternalToolRunner:
             if sandbox.read_only_rootfs:
                 cmd.append("--read-only")
 
+            # Inject secrets from env_profile (SecretBroker) — only declared secrets
+            if env_profile:
+                for key, value in env_profile.items():
+                    cmd.extend(["-e", f"{key}={value}"])
+
             # Entrypoint: the tool's entrypoint command
             entrypoint_cmd = manifest.entrypoint.get("command", "python")
             entrypoint_args = manifest.entrypoint.get("args", ["/tool/main.py"])
@@ -124,7 +150,9 @@ class ExternalToolRunner:
             cmd.append(entrypoint_cmd)
             cmd.extend(entrypoint_args)
 
-            # ── Execute ────────────────────────────────────────────
+            # ── Execute with bounded stream read ───────────────────
+            # Lv3: do NOT use proc.communicate() — that buffers unbounded output
+            # in parent memory first. Instead, read chunks with a hard limit.
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -133,8 +161,21 @@ class ExternalToolRunner:
             )
 
             try:
-                stdout, stderr = proc.communicate(timeout=timeout_s + 10)
-            except subprocess.TimeoutExpired:
+                stdout_str, stderr_str, timed_out, limit_exceeded = _bounded_communicate(
+                    proc, timeout_s + 10, max_output_bytes + 4096, 64_000,
+                )
+            except Exception:
+                _kill_container(container_name)
+                proc.kill()
+                elapsed = int((_time.monotonic() - start) * 1000)
+                return ToolRunResult(
+                    ok=False,
+                    error=f"External tool I/O error",
+                    runner_name=self.name,
+                    elapsed_ms=elapsed,
+                )
+
+            if timed_out:
                 _kill_container(container_name)
                 proc.kill()
                 try:
@@ -151,6 +192,24 @@ class ExternalToolRunner:
                     exit_code=proc.returncode,
                 )
 
+            if limit_exceeded:
+                _kill_container(container_name)
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+                elapsed = int((_time.monotonic() - start) * 1000)
+                return ToolRunResult(
+                    ok=False,
+                    error=f"External tool stdout exceeded max_output_bytes ({max_output_bytes})",
+                    killed=True,
+                    runner_name=self.name,
+                    elapsed_ms=elapsed,
+                    exit_code=proc.returncode,
+                    output_truncated=True,
+                )
+
             elapsed = int((_time.monotonic() - start) * 1000)
 
             # ── Check exit code ────────────────────────────────────
@@ -159,14 +218,15 @@ class ExternalToolRunner:
                 return ToolRunResult(
                     ok=False,
                     error=f"External tool exited with code {proc.returncode}: "
-                          f"{stderr[:500] if stderr else 'no stderr'}",
+                          f"{stderr_str[:500] if stderr_str else 'no stderr'}",
                     runner_name=self.name,
                     elapsed_ms=elapsed,
                     exit_code=proc.returncode,
                 )
 
             # ── Parse stdout as JSON ───────────────────────────────
-            stdout_str = (stdout or "").strip()
+            # stdout_str is already set by _bounded_communicate above
+            stdout_str = (stdout_str or "").strip()
             if not stdout_str:
                 _kill_container(container_name)
                 return ToolRunResult(
@@ -243,6 +303,72 @@ class ExternalToolRunner:
                     Path(tmp_input.name).unlink(missing_ok=True)
                 except Exception:
                     pass
+
+
+def _bounded_communicate(
+    proc: "subprocess.Popen",
+    timeout_s: float,
+    max_stdout: int,
+    max_stderr: int,
+) -> tuple[str, str, bool, bool]:
+    """Read stdout/stderr from a subprocess with hard byte limits.
+
+    Returns (stdout_str, stderr_str, timed_out, limit_exceeded).
+    Uses selectors for non-blocking chunked reads.
+    """
+    import selectors
+
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+    stdout_bytes = 0
+    stderr_bytes = 0
+    deadline = _time.monotonic() + timeout_s
+    timed_out = False
+    limit_exceeded = False
+
+    sel = selectors.DefaultSelector()
+    sel.register(proc.stdout, selectors.EVENT_READ, "stdout")
+    sel.register(proc.stderr, selectors.EVENT_READ, "stderr")
+
+    try:
+        while proc.poll() is None:
+            if _time.monotonic() > deadline:
+                timed_out = True
+                break
+
+            events = sel.select(timeout=0.1)
+            for key, _ in events:
+                chunk = key.fileobj.read(4096)
+                if not chunk:
+                    sel.unregister(key.fileobj)
+                    continue
+                if key.data == "stdout":
+                    stdout_bytes += len(chunk.encode("utf-8", errors="replace"))
+                    if stdout_bytes > max_stdout:
+                        limit_exceeded = True
+                        break
+                    stdout_chunks.append(chunk)
+                else:
+                    stderr_bytes += len(chunk.encode("utf-8", errors="replace"))
+                    if stderr_bytes > max_stderr:
+                        limit_exceeded = True
+                        break
+                    stderr_chunks.append(chunk)
+
+            if limit_exceeded:
+                break
+
+        if not timed_out and not limit_exceeded:
+            remaining = proc.stdout.read()
+            if remaining:
+                stdout_chunks.append(remaining)
+            remaining = proc.stderr.read()
+            if remaining:
+                stderr_chunks.append(remaining)
+    finally:
+        sel.close()
+
+    return "".join(stdout_chunks), "".join(stderr_chunks), timed_out, limit_exceeded
 
 
 def _kill_container(container_name: str) -> None:

@@ -98,15 +98,11 @@ class MCPServerConfig(BaseModel):
                     if key in self.env_allowlist:
                         filtered_env[key] = val
         elif self.env:
-            # No allowlist set — pass only explicit env, warn
-            import warnings
-            warnings.warn(
-                f"MCP server '{self.name}' has env set but no env_allowlist. "
-                "In Lv3, env without allowlist is not recommended.",
-                RuntimeWarning,
-                stacklevel=2,
+            # Lv3 fail-closed: env without env_allowlist is denied
+            raise ValueError(
+                f"MCP server '{self.name}' provided env without env_allowlist. "
+                "Lv3 requires explicit env_allowlist or SecretBroker refs."
             )
-            filtered_env = dict(self.env)
 
         return StdioServerParameters(
             command=self.command,

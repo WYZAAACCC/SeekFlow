@@ -220,10 +220,10 @@ class TestPolicyCompiler:
         assert policy.trusted is True
         assert policy.runner == "auto"
 
-    def test_registry_source_gets_container(self):
+    def test_registry_source_gets_external_container(self):
         m = load_manifest_from_dict(VALID_MANIFEST_DICT)
         policy = compile_policy(m)
-        assert policy.runner == "container"
+        assert policy.runner == "external_container"
         assert policy.trusted is False
         assert policy.trusted_output is False
 
@@ -315,7 +315,7 @@ class TestPolicyLinter:
         from seekflow.types import ToolPolicy
         policy = ToolPolicy(
             risk="read",
-            runner="container",
+            runner="external_container",
             capabilities={"filesystem.read"},
             workspace_root=Path("/tmp"),
             path_params=frozenset({"path"}),
@@ -334,7 +334,7 @@ class TestRegistryIntegration:
         assert td.name == "example-tool"
         assert td.source == "registry"
         assert td.policy is not None
-        assert td.policy.runner == "container"
+        assert td.policy.runner == "external_container"
         assert td.func is None  # external tools have no Python callable
 
     def test_register_from_manifest_rejects_bad_policy(self):

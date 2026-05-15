@@ -100,6 +100,8 @@ class ToolExecutor:
         approval_handler: Any | None = None,
         sandbox: Any | None = None,
         allow_unsafe_no_policy_execution: bool = False,
+        secret_broker: Any | None = None,
+        audit_store: Any | None = None,
     ):
         self.registry = registry
         self.repair = repair
@@ -112,6 +114,8 @@ class ToolExecutor:
         self.approval_handler = approval_handler
         self.sandbox = sandbox
         self.allow_unsafe_no_policy_execution = allow_unsafe_no_policy_execution
+        self.secret_broker = secret_broker
+        self.audit_store = audit_store
         self.audit_trail: list[ToolAuditRecord] = []
 
     def execute(self, tool_call: ToolCall, timeout: float | None = 30.0) -> ToolExecutionResult:
@@ -306,17 +310,6 @@ class ToolExecutor:
 
         # Execute via runner (NEVER call tool_def.func directly)
         try:
-            if tool_def.func is None:
-                elapsed = int((time.time() - start) * 1000)
-                return ToolExecutionResult(
-                    tool_call_id=tool_call.id,
-                    name=tool_call.name,
-                    arguments=arguments,
-                    ok=False,
-                    error=f"Tool '{tool_call.name}' has no callable function",
-                    elapsed_ms=elapsed,
-                )
-
             raw_max_retries = (tool_def.metadata or {}).get("max_retries", 0)
             retry_delay = (tool_def.metadata or {}).get("retry_delay", 1.0)
 
@@ -362,6 +355,19 @@ class ToolExecutor:
                     elapsed_ms=elapsed,
                 )
 
+            # Lv3 gate: func=None is valid for external_container and mcp_gateway.
+            # Local tools (in_process/process/container) still require a callable.
+            if plan.runner not in {"external_container", "mcp_gateway"} and tool_def.func is None:
+                elapsed = int((time.time() - start) * 1000)
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id,
+                    name=tool_call.name,
+                    arguments=arguments,
+                    ok=False,
+                    error=f"Tool '{tool_call.name}' has no callable function",
+                    elapsed_ms=elapsed,
+                )
+
             run_result = None
             for attempt in range(max_retries + 1):
                 try:
@@ -373,9 +379,30 @@ class ToolExecutor:
                                 "External tool requires _manifest_data in metadata"
                             )
                         from seekflow.tools.manifest import ToolManifest
+                        from seekflow.secrets.types import SecretRef
                         manifest = ToolManifest.model_validate(manifest_data)
+
+                        # Resolve secrets via SecretBroker if configured
+                        secret_env: dict[str, str] = {}
+                        if self.secret_broker and manifest.env.secrets:
+                            refs = [
+                                SecretRef(name=s, scope="tool")
+                                for s in manifest.env.secrets
+                            ]
+                            run_id = getattr(self.context, "run_id", "") if self.context else ""
+                            secret_env = self.secret_broker.resolve_for_tool(
+                                manifest.name, refs, run_id=run_id,
+                            )
+
                         run_result = runner.run(
                             manifest, arguments, plan.timeout_s,
+                            max_output_bytes=policy.max_output_bytes if policy else 100_000,
+                            env_profile=secret_env,
+                        )
+                    elif plan.runner == "mcp_gateway":
+                        # MCP gateway tools: pass tool_def (func=None is expected)
+                        run_result = runner.run(
+                            tool_def, arguments, plan.timeout_s,
                             max_output_bytes=policy.max_output_bytes if policy else 100_000,
                         )
                     else:
@@ -656,6 +683,11 @@ class ToolExecutor:
             from seekflow.tools.external_runner import ExternalToolRunner
             return ExternalToolRunner()
 
+        if plan.runner == "mcp_gateway":
+            # Lv3: MCP tools run through MCPGatewayRunner — no local callable
+            from seekflow.mcp.runner import MCPGatewayRunner
+            return MCPGatewayRunner()
+
         raise RunnerUnavailableError(f"Unknown runner: {plan.runner}")
 
     def _record_audit(self, tool_def, call_id: str, args: dict,
@@ -691,6 +723,63 @@ class ToolExecutor:
             repair_confidence=repair_confidence,
             runner_name=runner_name,
         ))
+
+        # ── Durable audit (Lv3): write to append-only store if configured ──
+        if self.audit_store is not None:
+            self._write_durable_audit(
+                tool_def, call_id, args, args_hash, result_hash,
+                latency_ms, ok, error, runner_name, risk,
+            )
+
+    def _write_durable_audit(self, tool_def, call_id: str, args: dict,
+                              args_hash: str, result_hash: str | None,
+                              latency_ms: int, ok: bool, error: str | None,
+                              runner_name: str, risk: str) -> None:
+        """Write a durable AuditEvent to the configured audit store."""
+        import uuid
+        from datetime import datetime, timezone
+
+        try:
+            from seekflow.audit.model import AuditEvent
+
+            meta = tool_def.metadata or {}
+            policy = tool_def.policy
+            policy_digest = None
+            if policy is not None:
+                import json as _json
+                policy_canonical = _json.dumps(
+                    policy.model_dump(mode="json", exclude_none=True),
+                    sort_keys=True, ensure_ascii=False,
+                )
+                policy_digest = hashlib.sha256(
+                    policy_canonical.encode("utf-8")
+                ).hexdigest()[:16]
+
+            event = AuditEvent(
+                event_id=str(uuid.uuid4()),
+                ts=datetime.now(timezone.utc),
+                run_id=getattr(self.context, "run_id", "") if self.context else "",
+                step=getattr(self.context, "step", 0) if self.context else 0,
+                event_type="tool_execution",
+                tool_name=tool_def.name,
+                tool_version=meta.get("manifest_version"),
+                tool_digest=meta.get("manifest_digest"),
+                manifest_digest=meta.get("manifest_digest"),
+                policy_digest=policy_digest,
+                input_hash=args_hash,
+                output_hash=result_hash,
+                runner=runner_name,
+                sandbox_image_digest=(
+                    meta.get("_manifest_data", {}).get("sandbox", {}).get("image_digest")
+                    if isinstance(meta.get("_manifest_data"), dict) else None
+                ),
+                ok=ok,
+                error=error,
+                elapsed_ms=latency_ms,
+            )
+            self.audit_store.append(event)
+        except Exception:
+            pass  # durable audit must not block execution
 
     def _maybe_truncate(self, result, keep_fields: list[str] | None = None):
         """Truncate string result if too long, using configured strategy."""

@@ -1,7 +1,7 @@
 [project]
 name = "seekflow"
 version = "0.3.7"
-description = "DeepSeek-native secure tool runtime — Level 2 semi-production candidate. Policy-enforced, runner-isolated, fail-closed."
+description = "DeepSeek-native zero-trust tool gateway — Level 3 candidate with manifest-based external tool sandboxing. Policy-enforced, runner-isolated, fail-closed."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

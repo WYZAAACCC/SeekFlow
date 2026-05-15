@@ -44,11 +44,11 @@ class SecretBroker:
     - Secrets resolved by reference via registered providers.
     - Secret values never enter trace or model output.
     - Every resolution is audited (name + hash only, no value).
+    - EnvProvider requires explicit allowlist — no ambient env access.
     """
 
     def __init__(self):
         self._providers: dict[str, Any] = {
-            "env": _EnvProvider(),
             "memory": _MemoryProvider(),
         }
         self.audit_entries: list[SecretAuditEntry] = []
@@ -105,9 +105,18 @@ class SecretBroker:
 
 
 class _EnvProvider:
-    """Resolves secrets from environment variables (allowlist-based)."""
+    """Resolves secrets from environment variables (explicit allowlist only).
+
+    Lv3 fail-closed: no ambient env access. Each allowed env var must be
+    explicitly listed at construction time.
+    """
+    def __init__(self, allowed_names: set[str] | None = None):
+        self.allowed_names = allowed_names or set()
+
     def resolve(self, ref: SecretRef) -> str | None:
         import os as _os
+        if ref.name not in self.allowed_names:
+            return None
         return _os.environ.get(ref.name)
 
 

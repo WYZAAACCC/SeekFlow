@@ -38,9 +38,16 @@ class TestLintRules:
             ToolPolicy(runner="in_process"), "local")
         assert len(issues) == 0
 
-    def test_L001_ok_for_container_runner(self):
+    def test_L001_container_rejected_for_external(self):
+        """Lv3: container runner is NOT sufficient for external sources."""
         issues = _rule_no_local_runner_for_external(
             ToolPolicy(runner="container"), "registry")
+        assert len(issues) == 1
+        assert issues[0].code == "L001"
+
+    def test_L001_external_container_passes(self):
+        issues = _rule_no_local_runner_for_external(
+            ToolPolicy(runner="external_container"), "registry")
         assert len(issues) == 0
 
     # ── L002/L003: Network ──────────────────────────────────────

@@ -24,7 +24,7 @@ VALID_EXTERNAL_MANIFEST = {
     "entrypoint": {"command": "python", "args": ["-c", "import sys,json; print(json.dumps(json.load(sys.stdin)))"]},
     "input_schema": {"type": "object", "properties": {"msg": {"type": "string"}}},
     "output_schema": {"type": "object", "properties": {"msg": {"type": "string"}}},
-    "sandbox": {"image": "python:3.11-slim"},
+    "sandbox": {"image": "python:3.11-slim", "image_digest": "sha256:" + "b" * 64},
 }
 
 
@@ -36,6 +36,11 @@ def _make_manifest(**overrides) -> ToolManifest:
 class TestExternalToolRunner:
     """ExternalToolRunner containerized execution."""
 
+    @staticmethod
+    def _mock_bounded_read(stdout="", stderr="", timed_out=False, limit_exceeded=False):
+        """Mock _bounded_communicate return value."""
+        return stdout, stderr, timed_out, limit_exceeded
+
     def test_runner_name_is_external_container(self):
         runner = ExternalToolRunner()
         assert runner.name == "external_container"
@@ -45,11 +50,12 @@ class TestExternalToolRunner:
         runner = ExternalToolRunner()
         manifest = _make_manifest()
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            mock_proc.communicate.return_value = (json.dumps({"msg": "hello"}), "")
             mock_proc.returncode = 0
             mock_popen.return_value = mock_proc
+            mock_read.return_value = (json.dumps({"msg": "hello"}), "", False, False)
 
             result = runner.run(manifest, {"msg": "hello"}, timeout_s=30.0)
             assert result.ok
@@ -58,27 +64,29 @@ class TestExternalToolRunner:
     def test_timeout_kills_container(self):
         runner = ExternalToolRunner()
         manifest = _make_manifest()
-        with mock.patch("subprocess.Popen") as mock_popen:
+        with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
+             mock.patch("seekflow.tools.external_runner._kill_container") as mock_kill:
             mock_proc = mock.MagicMock()
-            mock_proc.communicate.side_effect = subprocess.TimeoutExpired("cmd", 10)
             mock_popen.return_value = mock_proc
+            mock_read.return_value = ("", "", True, False)  # timed_out=True
 
-            with mock.patch("seekflow.tools.external_runner._kill_container") as mock_kill:
-                result = runner.run(manifest, {"msg": "hi"}, timeout_s=1.0)
-                assert not result.ok
-                assert result.killed
-                assert "timed out" in (result.error or "")
-                mock_kill.assert_called()
+            result = runner.run(manifest, {"msg": "hi"}, timeout_s=1.0)
+            assert not result.ok
+            assert result.killed
+            assert "timed out" in (result.error or "")
+            mock_kill.assert_called()
 
     def test_non_zero_exit_code_is_error(self):
         runner = ExternalToolRunner()
         manifest = _make_manifest()
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            mock_proc.communicate.return_value = ("", "something went wrong")
             mock_proc.returncode = 1
             mock_popen.return_value = mock_proc
+            mock_read.return_value = ("", "something went wrong", False, False)
 
             result = runner.run(manifest, {"msg": "hi"}, timeout_s=30.0)
             assert not result.ok
@@ -88,11 +96,12 @@ class TestExternalToolRunner:
         runner = ExternalToolRunner()
         manifest = _make_manifest()
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            mock_proc.communicate.return_value = ("", "")
             mock_proc.returncode = 0
             mock_popen.return_value = mock_proc
+            mock_read.return_value = ("", "", False, False)
 
             result = runner.run(manifest, {"msg": "hi"}, timeout_s=30.0)
             assert not result.ok
@@ -102,11 +111,12 @@ class TestExternalToolRunner:
         runner = ExternalToolRunner()
         manifest = _make_manifest()
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            mock_proc.communicate.return_value = ("not json", "")
             mock_proc.returncode = 0
             mock_popen.return_value = mock_proc
+            mock_read.return_value = ("not json", "", False, False)
 
             result = runner.run(manifest, {"msg": "hi"}, timeout_s=30.0)
             assert not result.ok
@@ -123,12 +133,12 @@ class TestExternalToolRunner:
             }
         )
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            # Output has "msg" but schema requires "result"
-            mock_proc.communicate.return_value = (json.dumps({"msg": "hello"}), "")
             mock_proc.returncode = 0
             mock_popen.return_value = mock_proc
+            mock_read.return_value = (json.dumps({"msg": "hello"}), "", False, False)
 
             result = runner.run(manifest, {"msg": "hi"}, timeout_s=30.0)
             assert not result.ok
@@ -138,15 +148,15 @@ class TestExternalToolRunner:
         runner = ExternalToolRunner()
         manifest = _make_manifest()
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            # Build large string at runtime to avoid constant fold
-            mock_proc.communicate.return_value = ("y" * 200_000, "")
             mock_proc.returncode = 0
             mock_popen.return_value = mock_proc
+            mock_read.return_value = ("y" * 200_000, "", False, True)  # limit_exceeded=True
 
             result = runner.run(manifest, {"msg": "hi"}, timeout_s=30.0, max_output_bytes=10_000)
-            assert not result.ok  # not JSON after truncation
+            assert not result.ok
             assert result.output_truncated
 
     def test_container_uses_network_none(self):
@@ -154,11 +164,12 @@ class TestExternalToolRunner:
         runner = ExternalToolRunner()
         manifest = _make_manifest()
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            mock_proc.communicate.return_value = (json.dumps({"msg": "ok"}), "")
             mock_proc.returncode = 0
             mock_popen.return_value = mock_proc
+            mock_read.return_value = (json.dumps({"msg": "ok"}), "", False, False)
 
             runner.run(manifest, {"msg": "ok"}, timeout_s=30.0)
             cmd = mock_popen.call_args[0][0]
@@ -174,11 +185,12 @@ class TestExternalToolRunner:
                      "image_digest": "sha256:abc123def456"}
         )
         with mock.patch("subprocess.Popen") as mock_popen, \
+             mock.patch("seekflow.tools.external_runner._bounded_communicate") as mock_read, \
              mock.patch("seekflow.tools.external_runner._kill_container"):
             mock_proc = mock.MagicMock()
-            mock_proc.communicate.return_value = (json.dumps({"msg": "ok"}), "")
             mock_proc.returncode = 0
             mock_popen.return_value = mock_proc
+            mock_read.return_value = (json.dumps({"msg": "ok"}), "", False, False)
 
             runner.run(manifest, {"msg": "ok"}, timeout_s=30.0)
             cmd_str = " ".join(mock_popen.call_args[0][0])

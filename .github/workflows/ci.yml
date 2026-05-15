@@ -17,7 +17,3 @@ jobs:
       - run: pytest -q
       - name: Check xfail policy (strict-core)
         run: python scripts/check_xfail_policy.py --strict-core
-        # FIXME: Remove continue-on-error once 14 core-path xfails are resolved.
-        # These originate from v0.3.0–v0.3.5 user-facing behavior changes
-        # that require business-context analysis before removal.
-        continue-on-error: true

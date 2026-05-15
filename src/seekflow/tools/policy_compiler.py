@@ -35,9 +35,10 @@ def compile_policy(manifest: ToolManifest) -> ToolPolicy:
         trusted_output = False
         allow_in_process_fallback = False
     else:
-        # Non-local tools NEVER run in-process or in a subprocess.
-        # They must go through ExternalToolRunner (container/wasm/firecracker).
-        runner = "container"
+        # Non-local tools NEVER run in-process, in a subprocess, or in the
+        # trusted codegen ContainerRunner. They must go through
+        # ExternalToolRunner with full container isolation.
+        runner = "external_container"
         trusted = False
         container_codegen = False
         trusted_output = False

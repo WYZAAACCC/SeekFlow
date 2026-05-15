@@ -29,6 +29,9 @@ from seekflow.tools.validation import close_object_schema
 
 logger = logging.getLogger("seekflow.mcp.gateway")
 
+# Global gateway registry for MCPGatewayRunner lookup
+_gateway_registry: dict[str, "MCPGateway"] = {}
+
 
 @dataclass
 class GatewayAuditRecord:
@@ -133,20 +136,26 @@ class MCPGateway:
         self._freeze_tools(tools)
         self._connected = True
 
+        # Register this gateway for MCPGatewayRunner lookup
+        _gateway_registry[cfg.name] = self
+
         # Compile policy for each tool and register
         registered: list[str] = []
         for ft in self._frozen_tools.values():
             full_name = f"{cfg.name}__{ft.name}"
-
-            wrapper = self._make_wrapper(ft.name)
             policy = self._compile_tool_policy(ft)
 
             td = ToolDefinition(
                 name=full_name,
                 description=ft.description,
                 parameters=ft.schema,
-                func=wrapper,
-                source=cfg.name,
+                func=None,          # Lv3: MCP tools have no Python callable
+                source="mcp",       # triggers planner → mcp_gateway
+                metadata={
+                    "_mcp_gateway_id": cfg.name,
+                    "_mcp_tool_name": ft.name,
+                    "_mcp_schema_hash": ft.schema_hash,
+                },
                 policy=policy,
             )
             registry.register(td)

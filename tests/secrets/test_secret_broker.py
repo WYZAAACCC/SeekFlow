@@ -87,18 +87,34 @@ class TestSecretBroker:
 
 
 class TestEnvProvider:
-    """SecretBroker env provider (allowlist-based)."""
+    """SecretBroker env provider (explicit allowlist only)."""
 
-    def test_resolves_from_env(self):
+    def test_env_provider_requires_allowlist(self):
         import os
         os.environ["SEEKFLOW_TEST_SECRET"] = "from-env"
         try:
             broker = SecretBroker()
+            # Register env provider with explicit allowlist
+            from seekflow.secrets.broker import _EnvProvider
+            broker.register_provider("env", _EnvProvider({"SEEKFLOW_TEST_SECRET"}))
             refs = [SecretRef(name="SEEKFLOW_TEST_SECRET")]
             result = broker.resolve_for_tool("test-tool", refs)
             assert result == {"SEEKFLOW_TEST_SECRET": "from-env"}
         finally:
             del os.environ["SEEKFLOW_TEST_SECRET"]
+
+    def test_env_provider_denies_unlisted_key(self):
+        import os
+        os.environ["UNLISTED_SECRET"] = "should-not-leak"
+        try:
+            broker = SecretBroker()
+            from seekflow.secrets.broker import _EnvProvider
+            broker.register_provider("env", _EnvProvider({"ALLOWED_ONLY"}))
+            refs = [SecretRef(name="UNLISTED_SECRET", required=False)]
+            result = broker.resolve_for_tool("test-tool", refs)
+            assert result == {}  # not in allowlist
+        finally:
+            del os.environ["UNLISTED_SECRET"]
 
     def test_env_missing_returns_none(self):
         broker = SecretBroker()
