@@ -50,7 +50,7 @@ def plan_execution(
 
     Rules (first match wins):
     1. Explicit runner override on ToolPolicy (not "auto") — may only increase isolation
-    2. code_exec / destructive → container (ProcessRunner fallback)
+    2. code_exec / destructive → container only; if ContainerSandbox unavailable, executor denies
     3. network / write / filesystem.write → process
     4. trusted=True + risk="read" + parallel_safe=True → in_process
     5. Everything else → process (default untrusted isolation)
@@ -93,7 +93,7 @@ def plan_execution(
     trusted = policy.trusted if policy else bool(tool_def.metadata.get("trusted", False) if tool_def.metadata else False)
     parallel_safe = policy.parallel_safe if policy else False
 
-    # 2. code_exec / destructive → container (with process fallback)
+    # 2. code_exec / destructive → container only (fail-closed, no fallback)
     if risk in ("code_exec", "destructive") or "code.exec" in capabilities:
         return ExecutionPlan(
             runner="container",

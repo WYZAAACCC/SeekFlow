@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ── Type aliases ─────────────────────────────────────────────────
 ToolChoice = Literal["auto", "none", "required"] | dict[str, Any]
@@ -38,6 +38,30 @@ class ToolPolicy(BaseModel):
     allow_in_process_fallback: bool = False
     container_codegen_trusted: bool = False
     trusted_output: bool = False
+
+    @model_validator(mode="after")
+    def validate_security_invariants(self):
+        """Reject ToolPolicy configurations that violate security invariants."""
+        if self.trusted_output and not self.trusted:
+            raise ValueError("trusted_output=True requires trusted=True")
+
+        if self.allow_in_process_fallback and not (
+            self.trusted and self.risk == "read"
+        ):
+            raise ValueError(
+                "allow_in_process_fallback only allowed for trusted read tools"
+            )
+
+        if self.container_codegen_trusted and not self.trusted:
+            raise ValueError(
+                "container_codegen_trusted=True requires trusted=True"
+            )
+
+        # risk=code_exec/destructive with runner=in_process/process is allowed
+        # at policy-construction time — the planner will upgrade the runner to
+        # container at execution-planning time (see _required_runner).
+
+        return self
 
 
 class ToolDefinition(BaseModel):

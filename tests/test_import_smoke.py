@@ -13,7 +13,7 @@ def test_public_imports():
     from seekflow.policy import PolicyEngine
     from seekflow.execution.context import ToolExecutionContext
     from seekflow.execution.approval import ApprovalRequest
-    assert seekflow.__version__ == "0.2.5"
+    assert seekflow.__version__ == "0.3.7"
 
 
 def test_package_contains_required_submodules():
