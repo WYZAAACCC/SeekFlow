@@ -33,6 +33,7 @@ class ToolAuditRecord:
     redactions: int = 0
     run_id: str = ""
     step: int = 0
+    runner_name: str = ""
 from seekflow.repair.json_repair import repair_json_arguments
 from seekflow.tool_cache import ToolCallCache, make_cache_key
 from seekflow.tools.registry import ToolRegistry
@@ -44,6 +45,21 @@ if TYPE_CHECKING:
 
 
 DANGEROUS_REPAIR_CONFIDENCE_THRESHOLD = 0.95
+
+_PICKLE_ERROR_SIGNATURES = (
+    "Can't get local object",
+    "Can't pickle",
+    "cannot pickle",
+    "PicklingError",
+    "AttributeError",
+)
+
+
+def _is_pickle_error(error: str | None) -> bool:
+    """Return True if *error* is a pickle/serialization failure."""
+    if not error:
+        return False
+    return any(sig in error for sig in _PICKLE_ERROR_SIGNATURES)
 
 
 class ToolExecutor:
@@ -239,7 +255,7 @@ class ToolExecutor:
                     repair_notes=repair_notes + ["schema_validation_failed"],
                 )
 
-        # Execute
+        # Execute via runner (NEVER call tool_def.func directly)
         try:
             if tool_def.func is None:
                 elapsed = int((time.time() - start) * 1000)
@@ -260,34 +276,67 @@ class ToolExecutor:
             if (tool_def.metadata or {}).get("timeout") is not None:
                 effective_timeout = tool_def.metadata["timeout"]
 
+            # Plan: select runner based on risk/capabilities/trust
+            from seekflow.tools.planner import plan_execution
+            plan = plan_execution(tool_def, effective_timeout)
+            runner = self._runner_for(plan)
+
+            run_result = None
             for attempt in range(max_retries + 1):
                 try:
-                    if effective_timeout and effective_timeout > 0:
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                            future = pool.submit(tool_def.func, **arguments)
-                            raw_result = future.result(timeout=effective_timeout)
-                    else:
-                        raw_result = tool_def.func(**arguments)
+                    run_result = runner.run(tool_def.func, arguments, plan.timeout_s)
                     last_error = None
-                    break
-                except concurrent.futures.TimeoutError:
-                    last_error = TimeoutError(
-                        f"Tool '{tool_call.name}' timed out after {effective_timeout}s"
-                    )
                     break
                 except Exception as e:
                     last_error = e
+                    # Fallback: pickle/serialization error on process runner
+                    # → retry with InProcessRunner for read-level tools.
+                    if _is_pickle_error(str(e)):
+                        risk = tool_def.policy.risk if tool_def.policy else "read"
+                        if risk == "read" and plan.runner != "in_process":
+                            from seekflow.tools.runners import InProcessRunner
+                            fallback = InProcessRunner()
+                            try:
+                                run_result = fallback.run(tool_def.func, arguments, plan.timeout_s)
+                                last_error = None
+                                break
+                            except Exception as fe:
+                                last_error = fe
                     if attempt < max_retries:
                         time.sleep(retry_delay * (attempt + 1))
 
-            if last_error is not None:
+            if last_error is not None or run_result is None:
                 elapsed = int((time.time() - start) * 1000)
+                err_msg = f"Tool failed after {max_retries+1} attempts: {last_error}" if last_error else "Tool runner returned no result"
                 return ToolExecutionResult(
                     tool_call_id=tool_call.id, name=tool_call.name,
                     arguments=arguments if isinstance(arguments, dict) else {},
-                    ok=False, error=f"Tool failed after {max_retries+1} attempts: {last_error}",
+                    ok=False, error=err_msg,
                     elapsed_ms=elapsed,
                 )
+
+            # Handle runner-level failure
+            if not run_result.ok:
+                elapsed = int((time.time() - start) * 1000)
+                error_msg = run_result.error or "Tool execution failed"
+                if run_result.killed:
+                    error_msg = f"Tool killed: {error_msg}"
+                self._record_audit(
+                    tool_def, tool_call.id or "", arguments,
+                    result=None, latency_ms=elapsed, ok=False,
+                    error=error_msg,
+                    policy_decision=policy_decision, policy_reason=policy_reason,
+                    risk=tool_def.policy.risk if tool_def.policy else "read",
+                    runner_name=run_result.runner_name,
+                )
+                return ToolExecutionResult(
+                    tool_call_id=tool_call.id, name=tool_call.name,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                    ok=False, error=error_msg,
+                    elapsed_ms=elapsed,
+                )
+
+            raw_result = run_result.result
 
             # Wrap untrusted tool output + redact secrets before model sees it
             trusted = (tool_def.metadata or {}).get("trusted", False)
@@ -332,6 +381,7 @@ class ToolExecutor:
                 policy_decision=policy_decision, policy_reason=policy_reason,
                 repair_attempted=repaired, repair_confidence=repair_confidence,
                 risk=(tool_def.policy.risk if tool_def.policy else "read"),
+                runner_name=run_result.runner_name,
             )
             return exec_result
         except Exception as e:
@@ -422,12 +472,28 @@ class ToolExecutor:
 
         return [r for r in ordered if r is not None]
 
+    def _runner_for(self, plan):
+        """Resolve an ExecutionPlan to a runner instance.
+
+        "container" plans fall back to ProcessRunner when no real container
+        sandbox is configured.
+        """
+        from seekflow.tools.runners import InProcessRunner, ProcessRunner
+
+        if plan.runner == "in_process":
+            return InProcessRunner()
+        if plan.runner == "container":
+            if self.sandbox is not None and getattr(self.sandbox, "name", "") == "container":
+                return ProcessRunner()  # TODO: wire ContainerSandbox when ready
+            return ProcessRunner()  # fallback
+        return ProcessRunner()
+
     def _record_audit(self, tool_def, call_id: str, args: dict,
                       result: str | None = None, *, latency_ms: int = 0,
                       ok: bool = False, error: str | None = None,
                       policy_decision: str = "allowed", policy_reason: str = "",
                       repair_attempted: bool = False, repair_confidence: float = 1.0,
-                      risk: str = "read") -> None:
+                      risk: str = "read", runner_name: str = "") -> None:
         """Append an audit record for this tool execution."""
         try:
             args_canonical = json.dumps(args, sort_keys=True, ensure_ascii=False,
@@ -453,6 +519,7 @@ class ToolExecutor:
             risk_level=risk,
             repair_attempted=repair_attempted,
             repair_confidence=repair_confidence,
+            runner_name=runner_name,
         ))
 
     def _maybe_truncate(self, result, keep_fields: list[str] | None = None):

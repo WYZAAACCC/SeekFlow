@@ -11,6 +11,7 @@ ToolChoice = Literal["auto", "none", "required"] | dict[str, Any]
 """Valid tool_choice values for DeepSeek API."""
 
 RiskLevel = Literal["read", "write", "network", "code_exec", "destructive"]
+RunnerKind = Literal["auto", "in_process", "process", "container"]
 
 
 class ToolPolicy(BaseModel):
@@ -31,6 +32,8 @@ class ToolPolicy(BaseModel):
     workspace_root: Path | None = None
     path_params: frozenset[str] = Field(default_factory=frozenset)
     url_params: frozenset[str] = Field(default_factory=frozenset)
+    runner: RunnerKind = "auto"
+    trusted: bool = False
 
 
 class ToolDefinition(BaseModel):
