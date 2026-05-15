@@ -1,4 +1,4 @@
-# SeekFlow v0.3.6 — Level 2 Semi-production Candidate
+# SeekFlow v0.3.7 — Level 2 Semi-production
 
 **DeepSeek-native &nbsp;|&nbsp; Policy-enforced &nbsp;|&nbsp; Runner-isolated &nbsp;|&nbsp; Fail-closed**
 
@@ -10,7 +10,7 @@ SeekFlow is a DeepSeek-native secure tool runtime with **policy-enforced executi
 
 > **Status**: main branch is **Level 2 semi-production**. PyPI stable is `0.1.0`. See [docs/security/levels.md](docs/security/levels.md) for security level definitions.
 
-**v0.3.6** introduces **ToolRunner isolation** (InProcessRunner / ProcessRunner / ContainerRunner), **hard timeout kill** (terminate → kill), **JsonSchema close-object validation**, **resource limit enforcement**, and **container fail-closed** — completing the Level 2 security baseline.
+**v0.3.7** completes the Level 2 semi-production security baseline: **runner minimum isolation**, **ContainerRunner codegen-trusted gate**, **ProcessRunner output bounding** for all types, **cache policy restrictions**, **trusted_output in ToolPolicy**, **no-policy deny-by-default**, and **ContainerSandbox zombie prevention** via explicit docker kill/rm.
 
 **Why SeekFlow over LangChain or CrewAI for DeepSeek?**
 
@@ -100,7 +100,7 @@ result = agent.run("Analyze Q3 financials", max_cost=budget.max_cny)
 
 ---
 
-## Security Architecture (v0.3.6)
+## Security Architecture (v0.3.7)
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -192,7 +192,7 @@ prediction = compiler.predict_cache_hit(compiled, messages)
 
 ### Production Reliability
 
-| Component | v0.3.6 Status |
+| Component | v0.3.7 Status |
 |-----------|---------------|
 | Tool Runners | InProcessRunner / ProcessRunner (hard kill) / ContainerRunner (Docker) |
 | Schema Validation | Draft202012Validator + close_object_schema (hallucination defense) |

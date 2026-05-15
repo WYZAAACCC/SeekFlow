@@ -20,7 +20,7 @@ Quick start:
     print(result.final)
 """
 
-__version__ = "0.2.5"
+__version__ = "0.3.7"
 
 # ── Core API ──
 from seekflow.tools.decorator import tool

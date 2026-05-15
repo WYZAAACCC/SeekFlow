@@ -12,7 +12,7 @@
 
 ---
 
-## Level 2 — Current Capabilities (v0.3.6)
+## Level 2 — Current Capabilities (v0.3.7)
 
 ### What Level 2 supports
 
