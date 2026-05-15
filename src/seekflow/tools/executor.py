@@ -267,20 +267,17 @@ class ToolExecutor:
                     elapsed_ms=elapsed,
                 )
 
-            # Wrap untrusted tool output — marks external data as untrusted
-            # so the model treats it as data, not instructions.
-            # Trusted internal tools (e.g. calculate) are NOT wrapped.
+            # Wrap untrusted tool output + redact secrets before model sees it
             trusted = (tool_def.metadata or {}).get("trusted", False)
             if not trusted:
-                from seekflow.security import wrap_untrusted
+                from seekflow.security import wrap_untrusted, redact_secrets
                 if isinstance(raw_result, str):
-                    content = raw_result
+                    content = redact_secrets(raw_result)
                 else:
-                    content = json.dumps(raw_result, ensure_ascii=False, default=str)
+                    content = redact_secrets(
+                        json.dumps(raw_result, ensure_ascii=False, default=str)
+                    )
                 raw_result = wrap_untrusted(tool_call.name, content).format_for_model()
-            elif isinstance(raw_result, str):
-                # Keep str as-is for trusted tools
-                pass
 
             # Truncate if string result is too long
             keep_fields = tool_def.metadata.get("keep_fields") if tool_def.metadata else None
