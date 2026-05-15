@@ -365,10 +365,24 @@ class ToolExecutor:
             run_result = None
             for attempt in range(max_retries + 1):
                 try:
-                    run_result = runner.run(
-                        tool_def.func, arguments, plan.timeout_s,
-                        max_output_bytes=policy.max_output_bytes if policy else 100_000,
-                    )
+                    if plan.runner == "external_container":
+                        # External tools: pass manifest from metadata, not Python func
+                        manifest_data = (tool_def.metadata or {}).get("_manifest_data")
+                        if manifest_data is None:
+                            raise RunnerUnavailableError(
+                                "External tool requires _manifest_data in metadata"
+                            )
+                        from seekflow.tools.manifest import ToolManifest
+                        manifest = ToolManifest.model_validate(manifest_data)
+                        run_result = runner.run(
+                            manifest, arguments, plan.timeout_s,
+                            max_output_bytes=policy.max_output_bytes if policy else 100_000,
+                        )
+                    else:
+                        run_result = runner.run(
+                            tool_def.func, arguments, plan.timeout_s,
+                            max_output_bytes=policy.max_output_bytes if policy else 100_000,
+                        )
                     last_error = None
                     break
                 except Exception as e:
@@ -636,6 +650,11 @@ class ToolExecutor:
                 )
             from seekflow.tools.container_runner import ContainerRunner
             return ContainerRunner(self.sandbox)
+
+        if plan.runner == "external_container":
+            # Lv3: external tools run in isolated containers via their manifest
+            from seekflow.tools.external_runner import ExternalToolRunner
+            return ExternalToolRunner()
 
         raise RunnerUnavailableError(f"Unknown runner: {plan.runner}")
 

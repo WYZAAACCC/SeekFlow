@@ -13,13 +13,21 @@ if TYPE_CHECKING:
 
 # Runner isolation levels: higher = stronger isolation.
 # An explicit runner override may only *increase* isolation, never decrease it.
-RUNNER_ORDER: dict[str, int] = {"in_process": 0, "process": 1, "container": 2}
+RUNNER_ORDER: dict[str, int] = {"in_process": 0, "process": 1, "container": 2, "external_container": 3}
 
 
-def _required_runner(policy: "ToolPolicy | None") -> str:
-    """Minimum isolation level required by this tool's risk/capabilities."""
+def _required_runner(policy: "ToolPolicy | None", tool_def: "ToolDefinition | None" = None) -> str:
+    """Minimum isolation level required by this tool's risk/capabilities.
+
+    Lv3: non-local tools (source != "local") always require external_container.
+    """
+    source = tool_def.source if tool_def else "local"
     caps = policy.capabilities if policy else set()
     risk = policy.risk if policy else "destructive"
+
+    # Lv3: third-party tools must run in external containers
+    if source != "local":
+        return "external_container"
 
     if risk in {"code_exec", "destructive"} or "code.exec" in caps:
         return "container"
@@ -64,9 +72,20 @@ def plan_execution(
     if tool_def.metadata and tool_def.metadata.get("timeout") is not None:
         effective_timeout = min(effective_timeout, float(tool_def.metadata["timeout"]))
 
+    # 0. Lv3: non-local tools always run in external containers — hard gate
+    if tool_def.source != "local":
+        return ExecutionPlan(
+            runner="external_container",
+            timeout_s=effective_timeout,
+            requires_hard_timeout=True,
+            allow_parallel=False,
+            cache_allowed=False,
+            reason=f"source={tool_def.source} requires external container isolation",
+        )
+
     # 1. Explicit runner override — may only increase isolation, never weaken it
     if policy is not None and policy.runner != "auto":
-        required = _required_runner(policy)
+        required = _required_runner(policy, tool_def)
         requested = policy.runner
         if RUNNER_ORDER.get(requested, 0) < RUNNER_ORDER.get(required, 0):
             # Requested runner is weaker than required → upgrade to required

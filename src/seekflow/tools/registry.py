@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from seekflow.errors import ToolSchemaError
 from seekflow.types import ToolDefinition
+
+if TYPE_CHECKING:
+    from seekflow.tools.manifest import ToolManifest
 
 
 class ToolRegistry:
@@ -27,6 +32,74 @@ class ToolRegistry:
             raise ToolSchemaError(f"Tool '{td.name}' is already registered")
         self._tools[td.name] = td
         return td
+
+    def register_from_manifest(
+        self,
+        manifest: "ToolManifest",
+        *,
+        strict: bool = True,
+    ) -> ToolDefinition:
+        """Register a tool from a ToolManifest.
+
+        Pipeline: verify → compile → lint → register.
+
+        For source="local": the manifest must have func set via entrypoint.
+        For source!="local": func is None — execution goes through
+        ExternalToolRunner (Phase C).
+        """
+        from seekflow.tools.manifest_verify import verify_manifest, compute_manifest_digest
+        from seekflow.tools.policy_compiler import compile_policy
+        from seekflow.tools.policy_linter import lint_policy, has_errors
+
+        # 1. Verify integrity
+        verify_manifest(manifest, strict=strict)
+
+        # 2. Compile into ToolPolicy
+        policy = compile_policy(manifest)
+
+        # 3. Lint the compiled policy
+        issues = lint_policy(policy, source=manifest.source)
+        if has_errors(issues):
+            error_msgs = "; ".join(
+                f"[{i.code}] {i.message}" for i in issues if i.severity == "error"
+            )
+            raise ToolSchemaError(
+                f"Tool '{manifest.name}' failed policy lint: {error_msgs}"
+            )
+
+        # 4. Build ToolDefinition
+        td = ToolDefinition(
+            name=manifest.name,
+            description=manifest.description,
+            parameters=manifest.input_schema,
+            func=None,  # external tools have no Python callable
+            source=manifest.source,
+            metadata={
+                "manifest_version": manifest.version,
+                "manifest_digest": compute_manifest_digest(manifest),
+                "manifest_source": manifest.source,
+                "_manifest_data": manifest.model_dump(mode="json"),
+                "lint_warnings": [
+                    f"[{i.code}] {i.message}"
+                    for i in issues if i.severity == "warning"
+                ],
+            },
+            policy=policy,
+        )
+
+        return self.register(td)
+
+    def register_from_manifest_file(
+        self,
+        path: str | Path,
+        *,
+        strict: bool = True,
+    ) -> ToolDefinition:
+        """Load a manifest from a file and register it."""
+        from seekflow.tools.manifest_loader import load_manifest
+
+        manifest = load_manifest(path)
+        return self.register_from_manifest(manifest, strict=strict)
 
     def get(self, name: str) -> ToolDefinition:
         """Get a tool by name."""
