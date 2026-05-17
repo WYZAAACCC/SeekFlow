@@ -533,6 +533,11 @@ _RAW_TOOLS = [
 
 SHARED_TOOLS = [instrument_tool(t) for t in _RAW_TOOLS]
 
+# Replace module-level names with instrumented versions so ALL import paths
+# (including framework-internal references) hit the event-logging wrappers.
+for _raw, _inst in zip(_RAW_TOOLS, SHARED_TOOLS):
+    globals()[_raw.__name__] = _inst
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SHARED: System prompts (IDENTICAL for ALL frameworks)
