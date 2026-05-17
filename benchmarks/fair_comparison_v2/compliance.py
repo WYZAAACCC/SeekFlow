@@ -163,16 +163,16 @@ def score_tool_compliance(
     # Check: output CLAIMS tool execution but tool_events show no successful call.
     # We look for explicit claim patterns (>> tool_name, 工具：tool_name, tool_name 返回)
     # rather than mere name mentions which could be from the task description.
-    _claim_patterns = [
-        rf">>\s*{re.escape(tool_name)}",
-        rf"工具[：:]\s*{re.escape(tool_name)}",
-        rf"{re.escape(tool_name)}\s*[=＝]\s*",
-        rf"{re.escape(tool_name)}\s*返回",
-    ]
     for tool_name in required:
         tool_called = counts.get(tool_name, 0) > 0
         if tool_called:
             continue
+        _claim_patterns = [
+            rf">>\s*{re.escape(tool_name)}",
+            rf"工具[：:]\s*{re.escape(tool_name)}",
+            rf"{re.escape(tool_name)}\s*[=＝]\s*",
+            rf"{re.escape(tool_name)}\s*返回",
+        ]
         claimed = any(re.search(p, output) for p in _claim_patterns)
         if claimed:
             fabrication_penalty += 1
