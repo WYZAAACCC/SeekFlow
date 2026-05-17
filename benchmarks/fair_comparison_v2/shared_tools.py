@@ -10,7 +10,6 @@ v2.1: structured tool contracts (input_echo/formula/data_quality/warnings),
 """
 from __future__ import annotations
 
-import functools
 import hashlib
 import json
 import math
@@ -19,11 +18,10 @@ import random
 import re
 import threading
 import time
-import traceback
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Helpers
@@ -59,31 +57,58 @@ def parse_system_prompt(sys_prompt: str) -> tuple[str, str, str]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _logged_call(tool_name: str, fn_body, *args, **kwargs):
+    """Execute fn_body() and record a tool event. Preserves caller's signature."""
+    ev = {
+        "tool": tool_name, "args": args, "kwargs": kwargs,
+        "started_at_perf": time.perf_counter(),
+        "success": True, "latency_seconds": 0.0,
+        "result_preview": "", "error": "",
+    }
+    _start = time.perf_counter()
+    try:
+        result = fn_body()
+        ev["result_preview"] = _safe_preview(result)
+        return result
+    except Exception as e:
+        ev["success"] = False
+        ev["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+        raise
+    finally:
+        ev["latency_seconds"] = round(time.perf_counter() - _start, 3)
+        with _TOOL_EVENTS_LOCK:
+            _TOOL_EVENTS.append(ev)
+
+
 def calculate_roi(investment: float, revenue: float) -> dict:
     """Calculate Return on Investment. investment=investment cost, revenue=total revenue"""
-    roi = ((revenue - investment) / investment) * 100
-    return {
-        "roi_percent": round(roi, 2),
-        "net_profit": round(revenue - investment, 2),
-        "profit_margin_percent": round((revenue - investment) / revenue * 100, 2) if revenue else 0,
-        "input_echo": {"investment": investment, "revenue": revenue},
-        "formula": "roi=(revenue-investment)/investment*100",
-        "data_quality": "tool_calculated",
-    }
+    def _body():
+        roi = ((revenue - investment) / investment) * 100
+        return {
+            "roi_percent": round(roi, 2),
+            "net_profit": round(revenue - investment, 2),
+            "profit_margin_percent": round((revenue - investment) / revenue * 100, 2) if revenue else 0,
+            "input_echo": {"investment": investment, "revenue": revenue},
+            "formula": "roi=(revenue-investment)/investment*100",
+            "data_quality": "tool_calculated",
+        }
+    return _logged_call("calculate_roi", _body, investment, revenue)
 
 
 def compound_growth(principal: float, rate_percent: float, years: int) -> dict:
     """Calculate compound growth. principal=starting amount, rate_percent=annual rate %, years=number of years"""
-    rate = rate_percent / 100
-    values = [round(principal * (1 + rate) ** y, 2) for y in range(years + 1)]
-    return {
-        "final_value": values[-1],
-        "total_growth_percent": round((values[-1] / principal - 1) * 100, 2),
-        "year_by_year": values,
-        "input_echo": {"principal": principal, "rate_percent": rate_percent, "years": years},
-        "formula": "principal*(1+rate)^year",
-        "data_quality": "tool_calculated",
-    }
+    def _body():
+        rate = rate_percent / 100
+        values = [round(principal * (1 + rate) ** y, 2) for y in range(years + 1)]
+        return {
+            "final_value": values[-1],
+            "total_growth_percent": round((values[-1] / principal - 1) * 100, 2),
+            "year_by_year": values,
+            "input_echo": {"principal": principal, "rate_percent": rate_percent, "years": years},
+            "formula": "principal*(1+rate)^year",
+            "data_quality": "tool_calculated",
+        }
+    return _logged_call("compound_growth", _body, principal, rate_percent, years)
 
 
 def risk_score(volatility_percent: float, debt_ratio: float, market_cap_billions: float) -> dict:
@@ -91,43 +116,42 @@ def risk_score(volatility_percent: float, debt_ratio: float, market_cap_billions
 
     market_cap_billions is in BILLION USD.  Example: 850亿美元 = 85.0 billion USD.
     """
-    warnings_list = []
-
-    if market_cap_billions <= 0:
-        warnings_list.append("market_cap_billions must be positive.")
-    if market_cap_billions > 250:
-        warnings_list.append(
-            "market_cap_billions unusually large. "
-            "If the source value is 亿美元, convert 850亿美元 -> 85.0 billion USD."
-        )
-    if debt_ratio > 1:
-        warnings_list.append(
-            "debt_ratio is usually 0-1. Check whether percent was passed accidentally."
-        )
-
-    v_score = min(10, volatility_percent / 5)
-    d_score = min(10, debt_ratio * 10)
-    m_score = max(0, 5 - market_cap_billions / 50) if market_cap_billions < 250 else 0
-    composite = round((v_score * 0.4 + d_score * 0.35 + m_score * 0.25), 1)
-
-    return {
-        "risk_score": composite,
-        "rating": "LOW" if composite < 3 else "MEDIUM" if composite < 6 else "HIGH" if composite < 8 else "CRITICAL",
-        "breakdown": {
-            "volatility_component": round(v_score, 1),
-            "debt_component": round(d_score, 1),
-            "size_component": round(m_score, 1),
-        },
-        "input_echo": {
-            "volatility_percent": volatility_percent,
-            "debt_ratio": debt_ratio,
-            "market_cap_billions": market_cap_billions,
-        },
-        "unit_note": "market_cap_billions is billion USD; 850亿美元 = 85.0",
-        "formula": "0.4*volatility_component + 0.35*debt_component + 0.25*size_component",
-        "warnings": warnings_list,
-        "data_quality": "tool_calculated",
-    }
+    def _body():
+        warnings_list = []
+        if market_cap_billions <= 0:
+            warnings_list.append("market_cap_billions must be positive.")
+        if market_cap_billions > 250:
+            warnings_list.append(
+                "market_cap_billions unusually large. "
+                "If the source value is 亿美元, convert 850亿美元 -> 85.0 billion USD."
+            )
+        if debt_ratio > 1:
+            warnings_list.append(
+                "debt_ratio is usually 0-1. Check whether percent was passed accidentally."
+            )
+        v_score = min(10, volatility_percent / 5)
+        d_score = min(10, debt_ratio * 10)
+        m_score = max(0, 5 - market_cap_billions / 50) if market_cap_billions < 250 else 0
+        composite = round((v_score * 0.4 + d_score * 0.35 + m_score * 0.25), 1)
+        return {
+            "risk_score": composite,
+            "rating": "LOW" if composite < 3 else "MEDIUM" if composite < 6 else "HIGH" if composite < 8 else "CRITICAL",
+            "breakdown": {
+                "volatility_component": round(v_score, 1),
+                "debt_component": round(d_score, 1),
+                "size_component": round(m_score, 1),
+            },
+            "input_echo": {
+                "volatility_percent": volatility_percent,
+                "debt_ratio": debt_ratio,
+                "market_cap_billions": market_cap_billions,
+            },
+            "unit_note": "market_cap_billions is billion USD; 850亿美元 = 85.0",
+            "formula": "0.4*volatility_component + 0.35*debt_component + 0.25*size_component",
+            "warnings": warnings_list,
+            "data_quality": "tool_calculated",
+        }
+    return _logged_call("risk_score", _body, volatility_percent, debt_ratio, market_cap_billions)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -146,22 +170,23 @@ def supply_risk_score(
     impact_score: business impact, 1-10
     exposure_percent: share of supply/revenue/cost exposed, 0-100
     """
-    p = max(0, min(100, probability_percent)) / 100
-    i = max(1, min(10, impact_score)) / 10
-    e = max(0, min(100, exposure_percent)) / 100
-
-    score = round((p * 0.4 + i * 0.35 + e * 0.25) * 10, 1)
-    return {
-        "risk_score": score,
-        "rating": "LOW" if score < 3 else "MEDIUM" if score < 6 else "HIGH" if score < 8 else "CRITICAL",
-        "input_echo": {
-            "probability_percent": probability_percent,
-            "impact_score": impact_score,
-            "exposure_percent": exposure_percent,
-        },
-        "formula": "risk_score=(probability*0.4 + impact*0.35 + exposure*0.25)*10",
-        "data_quality": "scenario_inputs_or_explicit_proxy",
-    }
+    def _body():
+        p = max(0, min(100, probability_percent)) / 100
+        i = max(1, min(10, impact_score)) / 10
+        e = max(0, min(100, exposure_percent)) / 100
+        score = round((p * 0.4 + i * 0.35 + e * 0.25) * 10, 1)
+        return {
+            "risk_score": score,
+            "rating": "LOW" if score < 3 else "MEDIUM" if score < 6 else "HIGH" if score < 8 else "CRITICAL",
+            "input_echo": {
+                "probability_percent": probability_percent,
+                "impact_score": impact_score,
+                "exposure_percent": exposure_percent,
+            },
+            "formula": "risk_score=(probability*0.4 + impact*0.35 + exposure*0.25)*10",
+            "data_quality": "scenario_inputs_or_explicit_proxy",
+        }
+    return _logged_call("supply_risk_score", _body, probability_percent, impact_score, exposure_percent)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -351,15 +376,14 @@ def _live_web_search(query: str, max_results: int) -> str:
 
 
 def web_search(query: str, max_results: int = 4) -> str:
-    """Search the web. Backend selected via BENCH_SEARCH_BACKEND env var.
-
-    Returns JSON string with status/query/results/instruction/data_quality.
-    """
-    max_results = max(1, min(int(max_results), 6))
-    backend = _SEARCH_BACKEND.lower()
-    if backend == "live":
-        return _live_web_search(query, max_results)
-    return _fixture_search(query, max_results)
+    """Search the web. Backend selected via BENCH_SEARCH_BACKEND env var."""
+    def _body():
+        mr = max(1, min(int(max_results), 6))
+        backend = _SEARCH_BACKEND.lower()
+        if backend == "live":
+            return _live_web_search(query, mr)
+        return _fixture_search(query, mr)
+    return _logged_call("web_search", _body, query, max_results)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -369,7 +393,7 @@ def web_search(query: str, max_results: int = 4) -> str:
 
 def statistical_summary(values: str) -> dict:
     """Compute statistical summary of comma-separated numbers. Example: statistical_summary('10, 20, 30, 40, 50')"""
-    try:
+    def _body():
         nums = [float(x.strip()) for x in values.split(",") if x.strip()]
         if not nums:
             return {"error": "No valid numbers provided", "data_quality": "invalid_input"}
@@ -386,8 +410,7 @@ def statistical_summary(values: str) -> dict:
             "formula": "population_std",
             "data_quality": "tool_calculated",
         }
-    except Exception as e:
-        return {"error": str(e), "data_quality": "invalid_input"}
+    return _logged_call("statistical_summary", _body, values)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -416,19 +439,21 @@ def read_file(path: str, max_chars: int = 5000) -> str:
 
 def convert_currency(amount: float, from_currency: str, to_currency: str) -> dict:
     """Convert between currencies using approximate exchange rates. Supported: USD, CNY, EUR, JPY, GBP, KRW, INR"""
-    rates = {"USD": 1.0, "CNY": 7.25, "EUR": 0.92, "JPY": 156.0, "GBP": 0.79, "KRW": 1360.0, "INR": 83.5}
-    if from_currency not in rates or to_currency not in rates:
-        return {"error": f"Unsupported currency. Supported: {list(rates.keys())}", "data_quality": "invalid_input"}
-    usd = amount / rates[from_currency]
-    result = usd * rates[to_currency]
-    return {
-        "amount": amount, "from": from_currency, "to": to_currency,
-        "result": round(result, 2),
-        "rate": round(rates[to_currency] / rates[from_currency], 4),
-        "input_echo": {"amount": amount, "from_currency": from_currency, "to_currency": to_currency},
-        "formula": "amount / from_rate * to_rate",
-        "data_quality": "tool_calculated",
-    }
+    def _body():
+        rates = {"USD": 1.0, "CNY": 7.25, "EUR": 0.92, "JPY": 156.0, "GBP": 0.79, "KRW": 1360.0, "INR": 83.5}
+        if from_currency not in rates or to_currency not in rates:
+            return {"error": f"Unsupported currency. Supported: {list(rates.keys())}", "data_quality": "invalid_input"}
+        usd = amount / rates[from_currency]
+        result = usd * rates[to_currency]
+        return {
+            "amount": amount, "from": from_currency, "to": to_currency,
+            "result": round(result, 2),
+            "rate": round(rates[to_currency] / rates[from_currency], 4),
+            "input_echo": {"amount": amount, "from_currency": from_currency, "to_currency": to_currency},
+            "formula": "amount / from_rate * to_rate",
+            "data_quality": "tool_calculated",
+        }
+    return _logged_call("convert_currency", _body, amount, from_currency, to_currency)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -438,17 +463,19 @@ def convert_currency(amount: float, from_currency: str, to_currency: str) -> dic
 
 def extract_keywords(text: str, top_k: int = 10) -> dict:
     """Extract key terms and their frequency from text."""
-    words = re.findall(r'\b[a-zA-Z一-鿿]{2,}\b', text.lower())
-    freq: dict[str, int] = {}
-    for w in words:
-        freq[w] = freq.get(w, 0) + 1
-    sorted_words = sorted(freq.items(), key=lambda x: x[1], reverse=True)
-    return {
-        "total_words": len(words), "unique_words": len(freq),
-        "top_keywords": [{"word": w, "count": c} for w, c in sorted_words[:top_k]],
-        "input_echo": {"text_length": len(text), "top_k": top_k},
-        "data_quality": "tool_calculated",
-    }
+    def _body():
+        words = re.findall(r'\b[a-zA-Z一-鿿]{2,}\b', text.lower())
+        freq: dict[str, int] = {}
+        for w in words:
+            freq[w] = freq.get(w, 0) + 1
+        sorted_words = sorted(freq.items(), key=lambda x: x[1], reverse=True)
+        return {
+            "total_words": len(words), "unique_words": len(freq),
+            "top_keywords": [{"word": w, "count": c} for w, c in sorted_words[:top_k]],
+            "input_echo": {"text_length": len(text), "top_k": top_k},
+            "data_quality": "tool_calculated",
+        }
+    return _logged_call("extract_keywords", _body, text, top_k)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -479,53 +506,11 @@ def _safe_preview(obj: Any, max_chars: int = 800) -> str:
     return text[:max_chars]
 
 
-def instrument_tool(fn: Callable) -> Callable:
-    """Wrap a tool function to log every call (args, result, latency, errors).
-
-    Does NOT use functools.wraps because that sets __wrapped__, which
-    inspect.unwrap() follows — some frameworks (SeekFlow) use unwrap to
-    get the "real" function, bypassing our event logging.
-    """
-
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        started = time.perf_counter()
-        event: dict[str, Any] = {
-            "tool": fn.__name__,
-            "args": args,
-            "kwargs": kwargs,
-            "started_at_perf": started,
-            "success": False,
-            "latency_seconds": None,
-            "result_preview": "",
-            "error": "",
-        }
-        try:
-            result = fn(*args, **kwargs)
-            event["success"] = True
-            event["result_preview"] = _safe_preview(result)
-            return result
-        except Exception as e:
-            event["error"] = f"{type(e).__name__}: {str(e)}"
-            event["traceback"] = traceback.format_exc()[-1000:]
-            raise
-        finally:
-            event["latency_seconds"] = round(time.perf_counter() - started, 3)
-            with _TOOL_EVENTS_LOCK:
-                _TOOL_EVENTS.append(event)
-
-    wrapper.__name__ = fn.__name__
-    wrapper.__qualname__ = fn.__qualname__
-    wrapper.__doc__ = fn.__doc__
-    wrapper.__module__ = fn.__module__
-    # Do NOT set __wrapped__ — prevents inspect.unwrap() from bypassing us
-    return wrapper
-
-
 # ═══════════════════════════════════════════════════════════════════════════
-# SHARED: All tools as a flat list (raw → instrumented)
+# SHARED: All tools — each function logs its own calls via _logged_call
 # ═══════════════════════════════════════════════════════════════════════════
 
-_RAW_TOOLS = [
+SHARED_TOOLS = [
     calculate_roi,
     compound_growth,
     risk_score,
@@ -536,13 +521,6 @@ _RAW_TOOLS = [
     convert_currency,
     extract_keywords,
 ]
-
-SHARED_TOOLS = [instrument_tool(t) for t in _RAW_TOOLS]
-
-# Replace module-level names with instrumented versions so ALL import paths
-# (including framework-internal references) hit the event-logging wrappers.
-for _raw, _inst in zip(_RAW_TOOLS, SHARED_TOOLS):
-    globals()[_raw.__name__] = _inst
 
 
 # ═══════════════════════════════════════════════════════════════════════════
