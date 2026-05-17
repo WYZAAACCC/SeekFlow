@@ -30,7 +30,14 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 OUTPUT_DIR = Path(__file__).parent / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-SCENARIOS = ["financial_analyst", "supply_chain_analyst"]
+SCENARIOS = [
+    "financial_analyst",
+    "supply_chain_analyst",
+    "portfolio_rebalance",
+    "strategic_conflict",
+    "intelligence_synthesis",
+    "compliance_gray_zone",
+]
 ROUNDS = 3
 OUTPUT_TRUNCATION = 6000       # must match judge.MAX_OUTPUT_CHARS
 AGENT_TIMEOUT = 600             # seconds per agent run (v4-pro thinking mode is slow)
@@ -140,7 +147,7 @@ def run_all(api_key: str) -> list[dict]:
                     scenario, result.tool_events, output_full,
                 )
                 final_score = compute_final_score(
-                    quality_scores.get("overall", 5.0), compliance,
+                    quality_scores.get("overall", 5.0), compliance, scenario,
                 )
                 print(f" compliance={compliance['tool_compliance_score']} final={final_score}")
 

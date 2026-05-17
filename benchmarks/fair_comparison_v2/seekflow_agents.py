@@ -72,8 +72,9 @@ def run_seekflow_fast(api_key: str, scenario: str) -> AgentRunResult:
         model=MODEL,
         thinking=False,
         temperature=0.0,
-        max_steps=12,
+        max_steps=6,
         mode="fast",
+        dangerous_tools=True,
     )
     for t in SHARED_TOOLS:
         agent.add_tool(t)

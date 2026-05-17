@@ -18,29 +18,44 @@ from typing import Any
 
 REQUIRED_TOOLS: dict[str, dict[str, int]] = {
     "financial_analyst": {
-        "web_search": 3,
-        "calculate_roi": 3,
-        "compound_growth": 3,
-        "risk_score": 3,
-        "statistical_summary": 1,
-        "convert_currency": 6,
+        "web_search": 3, "calculate_roi": 3, "compound_growth": 3,
+        "risk_score": 3, "statistical_summary": 1, "convert_currency": 6,
     },
     "supply_chain_analyst": {
+        "web_search": 3, "statistical_summary": 1, "compound_growth": 1,
+        "convert_currency": 1, "extract_keywords": 1, "supply_risk_score": 3,
+    },
+    "portfolio_rebalance": {
+        "convert_currency": 24, "compound_growth": 4,
+        "risk_score": 4, "statistical_summary": 1,
+    },
+    "strategic_conflict": {
+        "web_search": 2, "calculate_roi": 2, "risk_score": 2, "compound_growth": 2,
+    },
+    "intelligence_synthesis": {
+        "web_search": 3, "extract_keywords": 1,
+    },
+    "compliance_gray_zone": {
         "web_search": 3,
-        "statistical_summary": 1,
-        "compound_growth": 1,
-        "convert_currency": 1,
-        "extract_keywords": 1,
-        "supply_risk_score": 3,
     },
 }
 
-# Expected risk_score arguments per scenario (for parameter correctness check)
+# Expected risk_score arguments per scenario
 _EXPECTED_RISK_ARGS: dict[str, list[dict[str, float]]] = {
     "financial_analyst": [
         {"volatility_percent": 32, "debt_ratio": 0.15, "market_cap_billions": 85.0},
         {"volatility_percent": 18, "debt_ratio": 0.42, "market_cap_billions": 12.0},
         {"volatility_percent": 45, "debt_ratio": 0.28, "market_cap_billions": 3.5},
+    ],
+    "portfolio_rebalance": [
+        {"volatility_percent": 18, "debt_ratio": 0.05, "market_cap_billions": 120.0},
+        {"volatility_percent": 8, "debt_ratio": 0.85, "market_cap_billions": 45.0},
+        {"volatility_percent": 22, "debt_ratio": 0.45, "market_cap_billions": 35.0},
+        {"volatility_percent": 28, "debt_ratio": 0.30, "market_cap_billions": 15.0},
+    ],
+    "strategic_conflict": [
+        {"volatility_percent": 35, "debt_ratio": 0.20, "market_cap_billions": 8.0},
+        {"volatility_percent": 55, "debt_ratio": 0.55, "market_cap_billions": 8.0},
     ],
 }
 
@@ -128,7 +143,7 @@ def score_tool_compliance(
     param_total = 0
     param_details: list[str] = []
 
-    if scenario == "financial_analyst":
+    if scenario in ("financial_analyst", "portfolio_rebalance", "strategic_conflict"):
         risk_events = [e for e in tool_events if e["tool"] == "risk_score" and e["success"]]
         expected_args = _EXPECTED_RISK_ARGS.get(scenario, [])
         param_total = len(expected_args)
@@ -231,9 +246,16 @@ def score_tool_compliance(
     }
 
 
-def compute_final_score(llm_overall: float, compliance: dict[str, Any]) -> float:
+def compute_final_score(llm_overall: float, compliance: dict[str, Any],
+                        scenario: str = "") -> float:
     """Blend LLM report-quality score with programmatic compliance score.
 
-    Weight: 70% report quality, 30% tool compliance.
+    Uses scenario-specific weight from SCENARIO_META:
+      - mechanical scenarios (financial/supply/portfolio): 30% compliance
+      - reasoning scenarios (conflict/intelligence/compliance): 10-15% compliance
     """
-    return round(0.70 * llm_overall + 0.30 * compliance["tool_compliance_score"], 1)
+    from benchmarks.fair_comparison_v2.shared_tools import SCENARIO_META
+    meta = SCENARIO_META.get(scenario, {})
+    cmp_weight = meta.get("compliance_weight", 0.30)
+    qual_weight = 1.0 - cmp_weight
+    return round(qual_weight * llm_overall + cmp_weight * compliance["tool_compliance_score"], 1)
