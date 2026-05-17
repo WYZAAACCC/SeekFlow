@@ -38,6 +38,15 @@ REQUIRED_TOOLS: dict[str, dict[str, int]] = {
     "compliance_gray_zone": {
         "web_search": 3,
     },
+    "impossible_trilemma": {
+        "convert_currency": 1, "calculate_roi": 3, "web_search": 2,
+    },
+    "causal_forensics": {
+        "web_search": 2, "statistical_summary": 1, "calculate_roi": 1,
+    },
+    "negotiation_deadlock": {
+        "calculate_roi": 3, "compound_growth": 1, "convert_currency": 1, "web_search": 2,
+    },
 }
 
 # Expected risk_score arguments per scenario

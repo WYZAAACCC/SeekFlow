@@ -31,12 +31,14 @@ OUTPUT_DIR = Path(__file__).parent / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SCENARIOS = [
+    # Mechanical (Fast主场 — 速度/成本优势)
     "financial_analyst",
     "supply_chain_analyst",
     "portfolio_rebalance",
-    "strategic_conflict",
-    "intelligence_synthesis",
-    "compliance_gray_zone",
+    # Extreme reasoning (Stable主场 — thinking必要性)
+    "impossible_trilemma",
+    "causal_forensics",
+    "negotiation_deadlock",
 ]
 ROUNDS = 3
 OUTPUT_TRUNCATION = 6000       # must match judge.MAX_OUTPUT_CHARS
