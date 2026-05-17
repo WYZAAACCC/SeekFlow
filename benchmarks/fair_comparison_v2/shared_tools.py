@@ -58,7 +58,7 @@ def parse_system_prompt(sys_prompt: str) -> tuple[str, str, str]:
 
 
 def _logged_call(tool_name: str, fn_body, *args, **kwargs):
-    """Execute fn_body() and record a tool event. Preserves caller's signature."""
+    """Execute fn_body() and record a tool event. Cross-process safe (file-based)."""
     ev = {
         "tool": tool_name, "args": args, "kwargs": kwargs,
         "started_at_perf": time.perf_counter(),
@@ -76,8 +76,7 @@ def _logged_call(tool_name: str, fn_body, *args, **kwargs):
         raise
     finally:
         ev["latency_seconds"] = round(time.perf_counter() - _start, 3)
-        with _TOOL_EVENTS_LOCK:
-            _TOOL_EVENTS.append(ev)
+        _append_event(ev)
 
 
 def calculate_roi(investment: float, revenue: float) -> dict:
@@ -479,23 +478,69 @@ def extract_keywords(text: str, top_k: int = 10) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Tool event instrumentation — framework-agnostic call logging
+# Tool event instrumentation — cross-process safe via temp file
 # ═══════════════════════════════════════════════════════════════════════════
 
-_TOOL_EVENTS_LOCK = threading.Lock()
-_TOOL_EVENTS: list[dict[str, Any]] = []
+import atexit
+import tempfile
+
+_EVENTS_DIR = Path(tempfile.gettempdir()) / "seekflow_bench_events"
+_EVENTS_DIR.mkdir(parents=True, exist_ok=True)
+_EVENTS_FILE: Path | None = None
+_EVENTS_LOCK = threading.Lock()
 
 
 def reset_tool_events() -> None:
-    """Clear accumulated tool events. Call at start of each agent run."""
-    with _TOOL_EVENTS_LOCK:
-        _TOOL_EVENTS.clear()
+    """Start a new tool-event session. Passes path to child processes via env var."""
+    global _EVENTS_FILE
+    with _EVENTS_LOCK:
+        path = _EVENTS_DIR / f"events_{os.getpid()}_{time.time_ns()}.jsonl"
+        _EVENTS_FILE = path
+        os.environ["_SEEKFLOW_BENCH_EVENTS_FILE"] = str(path)
+
+
+def _get_events_path() -> Path | None:
+    """Resolve the events file path — works in parent and child processes."""
+    global _EVENTS_FILE
+    if _EVENTS_FILE is not None:
+        return _EVENTS_FILE
+    env_path = os.environ.get("_SEEKFLOW_BENCH_EVENTS_FILE")
+    if env_path:
+        _EVENTS_FILE = Path(env_path)
+        return _EVENTS_FILE
+    return None
+
+
+def _append_event(ev: dict) -> None:
+    """Append one event line. Safe to call from any process."""
+    target = _get_events_path()
+    if target is None:
+        return
+    try:
+        with open(target, "a", encoding="utf-8") as f:
+            f.write(json.dumps(ev, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
 
 
 def get_tool_events() -> list[dict[str, Any]]:
-    """Return a copy of all accumulated tool events."""
-    with _TOOL_EVENTS_LOCK:
-        return list(_TOOL_EVENTS)
+    """Read back all events from the current session file."""
+    target = _get_events_path()
+    if target is None or not target.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+    except Exception:
+        pass
+    return events
 
 
 def _safe_preview(obj: Any, max_chars: int = 800) -> str:
