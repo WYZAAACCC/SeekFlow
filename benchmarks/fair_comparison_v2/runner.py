@@ -121,12 +121,28 @@ def run_all(api_key: str) -> list[dict]:
                 else:
                     print(f"OK ({result.latency_seconds:.1f}s, {result.total_tokens}T, Y{result.cost_cny:.6f})")
 
-                # Judge output
-                print(f"         Judging...", end="", flush=True)
+                # ── Judge output ──
+                output_full = result.final_output or ""
+                output_for_judge = output_full[:OUTPUT_TRUNCATION]
+
+                print(f"         LLM Judge...", end="", flush=True)
                 judge_start = time.perf_counter()
-                scores = judge_output(api_key, TASKS[scenario], result.final_output)
+                quality_scores = judge_output(api_key, TASKS[scenario], output_for_judge)
                 judge_elapsed = time.perf_counter() - judge_start
-                print(f" done ({judge_elapsed:.1f}s) score={scores.get('overall', '?')}")
+                print(f" done ({judge_elapsed:.1f}s) quality={quality_scores.get('overall', '?')}")
+
+                # ── Compliance Judge ──
+                print(f"         Compliance Judge...", end="", flush=True)
+                from benchmarks.fair_comparison_v2.compliance import (
+                    score_tool_compliance, compute_final_score,
+                )
+                compliance = score_tool_compliance(
+                    scenario, result.tool_events, output_full,
+                )
+                final_score = compute_final_score(
+                    quality_scores.get("overall", 5.0), compliance,
+                )
+                print(f" compliance={compliance['tool_compliance_score']} final={final_score}")
 
                 record = {
                     "round": rnd,
@@ -142,9 +158,16 @@ def run_all(api_key: str) -> list[dict]:
                     "cache_hit_rate": result.cache_hit_rate,
                     "cost_cny": result.cost_cny,
                     "tool_calls_count": result.tool_calls_count,
+                    "tool_events": result.tool_events,
                     "model_used": result.model_used,
-                    "scores": scores,
-                    "output": result.final_output[:OUTPUT_TRUNCATION],
+                    "scores": quality_scores,
+                    "compliance": compliance,
+                    "final_score": final_score,
+                    "output_full": output_full,
+                    "output_for_judge": output_for_judge,
+                    "output_chars": len(output_full),
+                    "judge_output_chars": len(output_for_judge),
+                    "was_truncated_for_judge": len(output_full) > OUTPUT_TRUNCATION,
                 }
                 all_results.append(record)
 
@@ -198,6 +221,7 @@ def print_report(results: list[dict]):
     print(f"  FAIR COMPARISON BENCHMARK v2 — COMPREHENSIVE REPORT")
     print(f"  Model: {model_tag} (agents) | Judge: deepseek-v4-pro | Temp: 0.0")
     print(f"  Runs: {len(successful)} successful / {len(results)} total | Rounds: {ROUNDS}")
+    print(f"  Scoring: 70% LLM report quality + 30% tool compliance = final")
     print(f"{'='*100}")
 
     # ── Per-Scenario Detail ──
@@ -211,20 +235,23 @@ def print_report(results: list[dict]):
         print(f"{'─'*100}")
 
         # Header
-        print(f"  {'Framework':<14} {'Mode':<8} {'Round':>5} {'Latency':>8} {'Tokens':>8} {'Cache':>7} {'Cost':>12} {'Score':>7} {'C':>3} {'A':>3} {'D':>3} {'S':>3} {'Ac':>3} {'P':>3} {'TC':>4}")
-        print(f"  {'-'*97}")
+        print(f"  {'Framework':<14} {'Mode':<8} {'Round':>5} {'Latency':>8} {'Tokens':>8} {'Cache':>7} {'Cost':>12} {'Qual':>5} {'Cmp':>4} {'Final':>6} {'C':>3} {'A':>3} {'D':>3} {'S':>3} {'Ac':>3} {'P':>3} {'TC':>4} {'TR':>3}")
+        print(f"  {'-'*115}")
 
         for r in sorted(scenario_results, key=lambda x: (x["framework"], x["mode"], x["round"])):
-            s = r["scores"]
+            s = r.get("scores", {})
+            comp = r.get("compliance", {})
+            final = r.get("final_score", s.get("overall", 0))
             cache_pct = f"{r['cache_hit_rate']*100:.0f}%" if r.get("cache_hit_rate") else "0%"
-            print(f"  {r['framework']:<14} {r['mode']:<8} {r['round']:>5} {r['latency_seconds']:>7.1f}s {r['total_tokens']:>8} {cache_pct:>7} {r['cost_cny']:>11.6f} {s.get('overall',0):>6.1f} {s.get('completeness',0):>3} {s.get('accuracy',0):>3} {s.get('depth',0):>3} {s.get('structure',0):>3} {s.get('actionability',0):>3} {s.get('professionalism',0):>3} {r.get('tool_calls_count',0):>4}")
+            truncated = "YES" if r.get("was_truncated_for_judge") else ""
+            print(f"  {r['framework']:<14} {r['mode']:<8} {r['round']:>5} {r['latency_seconds']:>7.1f}s {r['total_tokens']:>8} {cache_pct:>7} {r['cost_cny']:>11.6f} {s.get('overall',0):>5.1f} {comp.get('tool_compliance_score',0):>4.1f} {final:>6.1f} {s.get('completeness',0):>3} {s.get('accuracy',0):>3} {s.get('depth',0):>3} {s.get('structure',0):>3} {s.get('actionability',0):>3} {s.get('professionalism',0):>3} {r.get('tool_calls_count',0):>4} {truncated:>3}")
 
     # ── Cross-Scenario Averages ──
     print(f"\n{'─'*100}")
     print("  CROSS-SCENARIO AVERAGES (3 rounds x 2 scenarios)")
     print(f"{'─'*100}")
-    print(f"  {'Framework':<14} {'Mode':<8} {'Avg Lat':>9} {'Avg Tok':>8} {'Avg Cache':>9} {'Avg Cost':>12} {'Avg Score':>9} {'C':>4} {'A':>4} {'D':>4} {'S':>4} {'Ac':>4} {'P':>4}")
-    print(f"  {'-'*97}")
+    print(f"  {'Framework':<14} {'Mode':<8} {'Avg Lat':>9} {'Avg Tok':>8} {'Avg Cache':>9} {'Avg Cost':>12} {'Avg Qual':>9} {'Avg Cmp':>8} {'Avg Final':>10} {'C':>4} {'A':>4} {'D':>4} {'S':>4} {'Ac':>4} {'P':>4}")
+    print(f"  {'-'*135}")
 
     from collections import defaultdict
     agg = defaultdict(list)
@@ -232,20 +259,22 @@ def print_report(results: list[dict]):
         key = (r["framework"], r["mode"])
         agg[key].append(r)
 
-    for (fw, mode), recs in sorted(agg.items(), key=lambda x: sum(r["scores"].get("overall", 0) for r in x[1]) / len(x[1]), reverse=True):
+    for (fw, mode), recs in sorted(agg.items(), key=lambda x: sum(r.get("final_score", r["scores"].get("overall", 0)) for r in x[1]) / len(x[1]), reverse=True):
         n = len(recs)
         avg_lat = sum(r["latency_seconds"] for r in recs) / n
         avg_tok = sum(r["total_tokens"] for r in recs) / n
         avg_cache = sum(r["cache_hit_rate"] for r in recs) / n * 100
         avg_cost = sum(r["cost_cny"] for r in recs) / n
-        avg_score = sum(r["scores"].get("overall", 0) for r in recs) / n
+        avg_qual = sum(r["scores"].get("overall", 0) for r in recs) / n
+        avg_comp = sum(r.get("compliance", {}).get("tool_compliance_score", 0) for r in recs) / n
+        avg_final = sum(r.get("final_score", 0) for r in recs) / n
         avg_c = sum(r["scores"].get("completeness", 0) for r in recs) / n
         avg_a = sum(r["scores"].get("accuracy", 0) for r in recs) / n
         avg_d = sum(r["scores"].get("depth", 0) for r in recs) / n
         avg_s = sum(r["scores"].get("structure", 0) for r in recs) / n
         avg_ac = sum(r["scores"].get("actionability", 0) for r in recs) / n
         avg_p = sum(r["scores"].get("professionalism", 0) for r in recs) / n
-        print(f"  {fw:<14} {mode:<8} {avg_lat:>8.1f}s {avg_tok:>8.0f} {avg_cache:>8.1f}% {avg_cost:>11.6f} {avg_score:>8.1f} {avg_c:>4.1f} {avg_a:>4.1f} {avg_d:>4.1f} {avg_s:>4.1f} {avg_ac:>4.1f} {avg_p:>4.1f}")
+        print(f"  {fw:<14} {mode:<8} {avg_lat:>8.1f}s {avg_tok:>8.0f} {avg_cache:>8.1f}% {avg_cost:>11.6f} {avg_qual:>8.1f} {avg_comp:>8.1f} {avg_final:>10.1f} {avg_c:>4.1f} {avg_a:>4.1f} {avg_d:>4.1f} {avg_s:>4.1f} {avg_ac:>4.1f} {avg_p:>4.1f}")
 
     # ── Round Consistency ──
     print(f"\n{'─'*100}")
@@ -254,7 +283,7 @@ def print_report(results: list[dict]):
     round_agg = defaultdict(lambda: defaultdict(list))
     for r in successful:
         key = (r["framework"], r["mode"])
-        round_agg[key][r["round"]].append(r["scores"].get("overall", 0))
+        round_agg[key][r["round"]].append(r.get("final_score", r["scores"].get("overall", 0)))
 
     for (fw, mode) in sorted(round_agg.keys()):
         scores_per_round = []

@@ -1,7 +1,9 @@
 """CrewAI agent — identical tools, prompts, task as SeekFlow.
 
-Uses crewai with deepseek-v4-flash via crewai.LLM.
-Model: deepseek-v4-flash (same as all other frameworks).
+Uses crewai with deepseek-v4-pro via crewai.LLM.
+Model: deepseek-v4-pro (same as all other frameworks).
+
+v2.1: tool_events from shared_tools instrumentation, thinking control.
 """
 from __future__ import annotations
 
@@ -9,6 +11,7 @@ import time
 
 from benchmarks.fair_comparison_v2.shared_tools import (
     SHARED_TOOLS, SYSTEM_PROMPTS, TASKS,
+    parse_system_prompt, reset_tool_events, get_tool_events,
 )
 from benchmarks.fair_comparison_v2.seekflow_agents import AgentRunResult
 
@@ -43,19 +46,22 @@ def run_crewai(api_key: str, scenario: str) -> AgentRunResult:
     from crewai import Agent as CrewAIAgent, Task as CrewAITask, Crew, Process
     from crewai import LLM
 
+    reset_tool_events()
+
     ca_tools = [_wrap_for_crewai(t) for t in SHARED_TOOLS]
 
     llm = LLM(
         model=f"deepseek/{MODEL}",
         api_key=api_key,
         temperature=0.0,
+        extra_body={"thinking": {"type": "disabled"}},
     )
 
-    sys_prompt = SYSTEM_PROMPTS[scenario]
+    role, goal, backstory = parse_system_prompt(SYSTEM_PROMPTS[scenario])
     agent = CrewAIAgent(
-        role=sys_prompt.split("\n")[0].strip("你是一名"),
-        goal=sys_prompt.split("\n")[1].strip("1. "),
-        backstory=sys_prompt.split("\n")[0],
+        role=role,
+        goal=goal,
+        backstory=backstory,
         tools=ca_tools,
         llm=llm,
         verbose=False,
@@ -101,6 +107,8 @@ def run_crewai(api_key: str, scenario: str) -> AgentRunResult:
             + completion_tokens * COST_OUTPUT
         )
 
+        tool_events = get_tool_events()
+
         cache_hit_rate = cached_tokens / prompt_tokens if prompt_tokens > 0 else 0.0
 
         return AgentRunResult(
@@ -113,7 +121,8 @@ def run_crewai(api_key: str, scenario: str) -> AgentRunResult:
             cached_tokens=cached_tokens,
             cache_hit_rate=round(cache_hit_rate, 4),
             cost_cny=round(cost_cny, 6),
-            tool_calls_count=0,  # CrewAI doesn't expose per-tool count
+            tool_calls_count=len(tool_events),
+            tool_events=tool_events,
             model_used=MODEL,
             success=True,
         )
@@ -124,6 +133,7 @@ def run_crewai(api_key: str, scenario: str) -> AgentRunResult:
             final_output="", latency_seconds=round(elapsed, 2),
             prompt_tokens=0, completion_tokens=0, total_tokens=0,
             cached_tokens=0, cache_hit_rate=0.0, cost_cny=0,
-            tool_calls_count=0, model_used=MODEL,
+            tool_calls_count=0, tool_events=[],
+            model_used=MODEL,
             success=False, error=str(e),
         )

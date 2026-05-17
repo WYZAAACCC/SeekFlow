@@ -1,15 +1,17 @@
 """LangChain agent — identical tools, prompts, task as SeekFlow.
 
 Uses langchain-openai with ChatOpenAI + create_agent (LangGraph agent).
-Model: deepseek-v4-flash (same as SeekFlow).
+Model: deepseek-v4-pro (same as all other frameworks).
+
+v2.1: tool_events from shared_tools instrumentation, extra_body at top level.
 """
 from __future__ import annotations
 
-import os
 import time
 
 from benchmarks.fair_comparison_v2.shared_tools import (
     SHARED_TOOLS, SYSTEM_PROMPTS, TASKS,
+    parse_system_prompt, reset_tool_events, get_tool_events,
 )
 from benchmarks.fair_comparison_v2.seekflow_agents import AgentRunResult
 
@@ -27,7 +29,6 @@ def _wrap_for_langchain(fn):
     import inspect
 
     sig = inspect.signature(fn)
-    # Build a simple description from docstring
     desc = (fn.__doc__ or fn.__name__).split("\n")[0].strip()
 
     return StructuredTool.from_function(
@@ -42,6 +43,8 @@ def run_langchain(api_key: str, scenario: str) -> AgentRunResult:
     from langchain_openai import ChatOpenAI
     from langchain.agents import create_agent as langgraph_create_agent
 
+    reset_tool_events()
+
     lc_tools = [_wrap_for_langchain(t) for t in SHARED_TOOLS]
 
     llm = ChatOpenAI(
@@ -50,7 +53,7 @@ def run_langchain(api_key: str, scenario: str) -> AgentRunResult:
         base_url="https://api.deepseek.com/v1",
         temperature=0.0,
         request_timeout=120,
-        model_kwargs={"extra_body": {"thinking": {"type": "disabled"}}},
+        extra_body={"thinking": {"type": "disabled"}},
     )
 
     agent = langgraph_create_agent(
@@ -110,8 +113,7 @@ def run_langchain(api_key: str, scenario: str) -> AgentRunResult:
             + completion_tokens * COST_OUTPUT
         )
 
-        # Count tool calls
-        tool_calls_count = sum(1 for m in messages if hasattr(m, "tool_calls") and m.tool_calls)
+        tool_events = get_tool_events()
 
         cache_hit_rate = cached_tokens / prompt_tokens if prompt_tokens > 0 else 0.0
 
@@ -125,7 +127,8 @@ def run_langchain(api_key: str, scenario: str) -> AgentRunResult:
             cached_tokens=cached_tokens,
             cache_hit_rate=round(cache_hit_rate, 4),
             cost_cny=round(cost_cny, 6),
-            tool_calls_count=tool_calls_count,
+            tool_calls_count=len(tool_events),
+            tool_events=tool_events,
             model_used=MODEL,
             success=True,
         )
@@ -136,6 +139,7 @@ def run_langchain(api_key: str, scenario: str) -> AgentRunResult:
             final_output="", latency_seconds=round(elapsed, 2),
             prompt_tokens=0, completion_tokens=0, total_tokens=0,
             cached_tokens=0, cache_hit_rate=0.0, cost_cny=0,
-            tool_calls_count=0, model_used=MODEL,
+            tool_calls_count=0, tool_events=[],
+            model_used=MODEL,
             success=False, error=str(e),
         )

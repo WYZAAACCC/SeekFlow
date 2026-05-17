@@ -1,17 +1,21 @@
 """SeekFlow agent implementations — Fast mode and Stable mode.
 
-Uses the current seekflow (v0.3.7) API with deepseek-v4-flash model.
+Uses the current seekflow (v0.3.7) API with deepseek-v4-pro model.
 Fast: thinking disabled, mode="fast", minimal overhead
 Stable: thinking enabled, mode="stable", cache optimization + context compression
+
+v2.1: parse_system_prompt helper, tool_events from shared_tools instrumentation.
 """
 from __future__ import annotations
 
-import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from benchmarks.fair_comparison_v2.shared_tools import SHARED_TOOLS, SYSTEM_PROMPTS, TASKS
+from benchmarks.fair_comparison_v2.shared_tools import (
+    SHARED_TOOLS, SYSTEM_PROMPTS, TASKS,
+    parse_system_prompt, reset_tool_events, get_tool_events,
+)
 
 MODEL = "deepseek-v4-pro"
 
@@ -31,8 +35,9 @@ class AgentRunResult:
     cache_hit_rate: float
     cost_cny: float
     tool_calls_count: int
-    model_used: str
-    success: bool
+    tool_events: list[dict] = field(default_factory=list)
+    model_used: str = ""
+    success: bool = True
     error: str = ""
 
 
@@ -56,11 +61,13 @@ def run_seekflow_fast(api_key: str, scenario: str) -> AgentRunResult:
     """
     from seekflow.agent.agent import DeepSeekAgent
 
-    sys_prompt = SYSTEM_PROMPTS[scenario]
+    reset_tool_events()
+
+    role, goal, backstory = parse_system_prompt(SYSTEM_PROMPTS[scenario])
     agent = DeepSeekAgent(
-        role=sys_prompt.split("\n")[0].strip("你是一名"),
-        goal=sys_prompt.split("\n")[1].strip("1. "),
-        backstory=sys_prompt.split("\n")[0],
+        role=role,
+        goal=goal,
+        backstory=backstory,
         api_key=api_key,
         model=MODEL,
         thinking=False,
@@ -76,6 +83,7 @@ def run_seekflow_fast(api_key: str, scenario: str) -> AgentRunResult:
         result = agent.run(TASKS[scenario])
         elapsed = time.perf_counter() - start
         tokens, total, cached, hit_rate = _extract_usage(result)
+        tool_events = get_tool_events()
 
         return AgentRunResult(
             framework="SeekFlow", mode="fast", scenario=scenario,
@@ -87,7 +95,8 @@ def run_seekflow_fast(api_key: str, scenario: str) -> AgentRunResult:
             cached_tokens=cached,
             cache_hit_rate=round(hit_rate, 4),
             cost_cny=round(result.cost, 6),
-            tool_calls_count=len(result.tool_calls),
+            tool_calls_count=len(tool_events),
+            tool_events=tool_events,
             model_used=result.model or MODEL,
             success=True,
         )
@@ -98,7 +107,8 @@ def run_seekflow_fast(api_key: str, scenario: str) -> AgentRunResult:
             final_output="", latency_seconds=round(elapsed, 2),
             prompt_tokens=0, completion_tokens=0, total_tokens=0,
             cached_tokens=0, cache_hit_rate=0.0, cost_cny=0,
-            tool_calls_count=0, model_used=MODEL,
+            tool_calls_count=0, tool_events=[],
+            model_used=MODEL,
             success=False, error=str(e),
         )
 
@@ -111,11 +121,13 @@ def run_seekflow_stable(api_key: str, scenario: str) -> AgentRunResult:
     """
     from seekflow.agent.agent import DeepSeekAgent
 
-    sys_prompt = SYSTEM_PROMPTS[scenario]
+    reset_tool_events()
+
+    role, goal, backstory = parse_system_prompt(SYSTEM_PROMPTS[scenario])
     agent = DeepSeekAgent(
-        role=sys_prompt.split("\n")[0].strip("你是一名"),
-        goal=sys_prompt.split("\n")[1].strip("1. "),
-        backstory=sys_prompt.split("\n")[0],
+        role=role,
+        goal=goal,
+        backstory=backstory,
         api_key=api_key,
         model=MODEL,
         thinking=True,
@@ -132,6 +144,7 @@ def run_seekflow_stable(api_key: str, scenario: str) -> AgentRunResult:
         result = agent.run(TASKS[scenario])
         elapsed = time.perf_counter() - start
         tokens, total, cached, hit_rate = _extract_usage(result)
+        tool_events = get_tool_events()
 
         return AgentRunResult(
             framework="SeekFlow", mode="stable", scenario=scenario,
@@ -143,7 +156,8 @@ def run_seekflow_stable(api_key: str, scenario: str) -> AgentRunResult:
             cached_tokens=cached,
             cache_hit_rate=round(hit_rate, 4),
             cost_cny=round(result.cost, 6),
-            tool_calls_count=len(result.tool_calls),
+            tool_calls_count=len(tool_events),
+            tool_events=tool_events,
             model_used=result.model or MODEL,
             success=True,
         )
@@ -154,6 +168,7 @@ def run_seekflow_stable(api_key: str, scenario: str) -> AgentRunResult:
             final_output="", latency_seconds=round(elapsed, 2),
             prompt_tokens=0, completion_tokens=0, total_tokens=0,
             cached_tokens=0, cache_hit_rate=0.0, cost_cny=0,
-            tool_calls_count=0, model_used=MODEL,
+            tool_calls_count=0, tool_events=[],
+            model_used=MODEL,
             success=False, error=str(e),
         )
