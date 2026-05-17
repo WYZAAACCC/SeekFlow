@@ -480,9 +480,13 @@ def _safe_preview(obj: Any, max_chars: int = 800) -> str:
 
 
 def instrument_tool(fn: Callable) -> Callable:
-    """Wrap a tool function to log every call (args, result, latency, errors)."""
+    """Wrap a tool function to log every call (args, result, latency, errors).
 
-    @functools.wraps(fn)
+    Does NOT use functools.wraps because that sets __wrapped__, which
+    inspect.unwrap() follows — some frameworks (SeekFlow) use unwrap to
+    get the "real" function, bypassing our event logging.
+    """
+
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         started = time.perf_counter()
         event: dict[str, Any] = {
@@ -510,8 +514,10 @@ def instrument_tool(fn: Callable) -> Callable:
                 _TOOL_EVENTS.append(event)
 
     wrapper.__name__ = fn.__name__
+    wrapper.__qualname__ = fn.__qualname__
     wrapper.__doc__ = fn.__doc__
     wrapper.__module__ = fn.__module__
+    # Do NOT set __wrapped__ — prevents inspect.unwrap() from bypassing us
     return wrapper
 
 
