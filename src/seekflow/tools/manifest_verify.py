@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import TYPE_CHECKING
 
 from seekflow.tools.manifest import ToolManifest
+
+if TYPE_CHECKING:
+    from seekflow.tools.trust_store import TrustStore
 
 
 class ManifestVerificationError(ValueError):
@@ -69,39 +73,47 @@ def verify_signature(
     manifest: ToolManifest,
     *,
     strict: bool = False,
-    trust_store: Any | None = None,
+    trust_store: "TrustStore | None" = None,
 ) -> None:
     """Verify the manifest's Ed25519 signature.
 
-    - If no signature and source is 'local': OK (trusted local tool)
-    - If no signature and source is external + strict=True: REJECT
-    - If signature present + trust_store: verify Ed25519 signature
-    - If signature present but no trust_store: format check only (Phase B compat)
+    In strict mode, external-source manifests MUST have a valid signature.
+    Local-source manifests are exempt. When a signature is present and a
+    trust_store is provided, real Ed25519 cryptographic verification is
+    performed.
+
+    Raises ManifestVerificationError on any failure.
     """
-    if manifest.signature is None:
-        if strict and manifest.source != "local":
+    if manifest.source != "local" and strict:
+        if not manifest.signature:
             raise ManifestVerificationError(
                 f"Tool '{manifest.name}': strict mode requires a signature "
                 f"for source={manifest.source}"
             )
+        if not manifest.signing_key_id:
+            raise ManifestVerificationError(
+                f"Tool '{manifest.name}': signature present but signing_key_id is missing"
+            )
+        if trust_store is None:
+            raise ManifestVerificationError(
+                f"Tool '{manifest.name}': strict mode requires trust_store "
+                f"for source={manifest.source}"
+            )
+
+    if not manifest.signature:
         return
 
-    if not manifest.signing_key_id and strict:
-        raise ManifestVerificationError(
-            f"Tool '{manifest.name}': signature present but signing_key_id is missing"
-        )
-
-    # If trust_store is available, do real cryptographic verification
+    # Real verification when signature is present
     if trust_store is not None and manifest.signing_key_id:
-        from seekflow.tools.trust_store import verify_ed25519_signature
+        from seekflow.tools.trust_store import verify_ed25519_signature, TrustStoreError
         try:
             verify_ed25519_signature(manifest, trust_store)
         except ImportError:
-            if strict:
-                raise ManifestVerificationError(
-                    f"Tool '{manifest.name}': cryptography package required for "
-                    "signature verification. Install with: pip install cryptography>=42"
-                )
+            raise ManifestVerificationError(
+                "cryptography>=42 required for signature verification"
+            )
+        except TrustStoreError as e:
+            raise ManifestVerificationError(str(e)) from e
 
 
 def verify_manifest(
@@ -109,7 +121,7 @@ def verify_manifest(
     *,
     package_bytes: bytes | None = None,
     strict: bool = False,
-    trust_store: Any | None = None,
+    trust_store: "TrustStore | None" = None,
 ) -> None:
     """Run all verification checks on a manifest.
 

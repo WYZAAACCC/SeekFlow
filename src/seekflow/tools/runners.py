@@ -22,6 +22,14 @@ class ToolRunResult:
     elapsed_ms: int = 0
     exit_code: int | None = None
     output_truncated: bool = False
+    egress_entries: list[Any] = None  # setdefault in __post_init__
+    secret_refs: list[str] = None  # setdefault in __post_init__
+
+    def __post_init__(self):
+        if self.egress_entries is None:
+            object.__setattr__(self, "egress_entries", [])
+        if self.secret_refs is None:
+            object.__setattr__(self, "secret_refs", [])
 
 
 def _run_in_subprocess(

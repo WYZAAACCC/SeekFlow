@@ -24,8 +24,8 @@ class TrustStore:
         store.verify(manifest)  # raises on failure
     """
 
-    def __init__(self):
-        self._keys: dict[str, bytes] = {}
+    def __init__(self, keys: dict[str, bytes] | None = None):
+        self._keys: dict[str, bytes] = dict(keys) if keys else {}
 
     def add_key(self, key_id: str, public_key_bytes: bytes) -> None:
         """Register a public key for a given key_id."""

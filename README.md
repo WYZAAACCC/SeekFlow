@@ -243,22 +243,30 @@ sandbox = ContainerSandbox(image="python:3.11-slim")
 - [Issues](docs/issues/) — 30 tracer-bullet issues with acceptance criteria
 - [Tests](tests/) — 620+ tests covering security, retry, policy, tools, agent
 
-## Security Status (v0.3.x)
+## Security Status (v0.3.7)
 
-SeekFlow v0.3.x supports **Level 2 semi-production** under these conditions:
+SeekFlow v0.3.7 is a **Level 3 candidate**:
 
-- All tools must have ToolPolicy.
-- `code_exec` and `destructive` require ContainerRunner / ContainerSandbox.
-- Policy.runner cannot decrease the required isolation level (minimum isolation enforced).
-- ContainerRunner only accepts tools with `ToolPolicy(trusted=True, container_codegen_trusted=True)`.
-- ProcessRunner provides **timeout isolation**, not a full security sandbox.
-- All ProcessRunner outputs are size-bounded in the child process.
-- Tool outputs are untrusted by default (`trusted_output=False`).
-- Cache is restricted to read tools or idempotent network with explicit opt-in.
-- No-policy tools are denied by default (`allow_unsafe_no_policy_execution` opt-in).
-- Network tools require allowed_domains.
-- Filesystem tools require workspace_root.
-- Untrusted third-party tools and arbitrary MCP servers are not supported.
+**Supported (Lv2, production-ready):**
+- Trusted local tools under ToolPolicy
+- Policy-enforced execution with runner isolation
+- ProcessRunner timeout kill + ContainerRunner container isolation
+- Cache restricted to read/idempotent-network only
+- No-policy tools denied by default
+
+**Experimental (Lv3 candidate):**
+- Manifest-based external tool registration
+- ExternalToolRunner (containerized third-party tools with JSON protocol)
+- MCPGateway (zero-trust MCP with tool freeze + mutation detection)
+- EgressGateway + EgressSidecar (network boundary for external tools)
+- SecretBroker (explicit secret injection, no ambient env)
+- DurableAuditStore (JSONL + SQLite with hash chain)
+
+**Not yet:**
+- Egress sidecar not yet production-hardened for high-throughput
+- Manifest signature verification requires cryptography package
+- GitHub provenance / SBOM / signed releases pending
+- Full Level 3 production-ready certification pending the above
 
 ## License
 

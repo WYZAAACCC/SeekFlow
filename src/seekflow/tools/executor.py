@@ -9,6 +9,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from seekflow.audit.store import AuditStoreError
 from seekflow.repair.coercion import coerce_arguments
 
 
@@ -102,6 +103,9 @@ class ToolExecutor:
         allow_unsafe_no_policy_execution: bool = False,
         secret_broker: Any | None = None,
         audit_store: Any | None = None,
+        egress_sidecar: Any | None = None,
+        mcp_gateway_registry: Any | None = None,
+        audit_required: bool = False,
     ):
         self.registry = registry
         self.repair = repair
@@ -116,6 +120,9 @@ class ToolExecutor:
         self.allow_unsafe_no_policy_execution = allow_unsafe_no_policy_execution
         self.secret_broker = secret_broker
         self.audit_store = audit_store
+        self.egress_sidecar = egress_sidecar
+        self.mcp_gateway_registry = mcp_gateway_registry
+        self.audit_required = audit_required
         self.audit_trail: list[ToolAuditRecord] = []
 
     def execute(self, tool_call: ToolCall, timeout: float | None = 30.0) -> ToolExecutionResult:
@@ -384,21 +391,28 @@ class ToolExecutor:
 
                         # Resolve secrets via SecretBroker if configured
                         secret_env: dict[str, str] = {}
+                        secret_ref_names: list[str] = []
+                        run_id = getattr(self.context, "run_id", "") if self.context else ""
                         if self.secret_broker and manifest.env.secrets:
                             refs = [
                                 SecretRef(name=s, scope="tool")
                                 for s in manifest.env.secrets
                             ]
-                            run_id = getattr(self.context, "run_id", "") if self.context else ""
                             secret_env = self.secret_broker.resolve_for_tool(
                                 manifest.name, refs, run_id=run_id,
                             )
+                            # Collect secret ref names for audit (never the values)
+                            secret_ref_names = [s for s in manifest.env.secrets]
 
                         run_result = runner.run(
                             manifest, arguments, plan.timeout_s,
                             max_output_bytes=policy.max_output_bytes if policy else 100_000,
                             env_profile=secret_env,
+                            run_id=run_id,
                         )
+                        # Inject secret_refs into run_result for audit data flow
+                        if secret_ref_names:
+                            run_result.secret_refs = list(run_result.secret_refs) + secret_ref_names
                     elif plan.runner == "mcp_gateway":
                         # MCP gateway tools: pass tool_def (func=None is expected)
                         run_result = runner.run(
@@ -470,6 +484,8 @@ class ToolExecutor:
                     policy_decision=policy_decision, policy_reason=policy_reason,
                     risk=tool_def.policy.risk if tool_def.policy else "read",
                     runner_name=run_result.runner_name,
+                    egress_entries=getattr(run_result, "egress_entries", None) if run_result else None,
+                    secret_refs=getattr(run_result, "secret_refs", None) if run_result else None,
                 )
                 return ToolExecutionResult(
                     tool_call_id=tool_call.id, name=tool_call.name,
@@ -543,6 +559,8 @@ class ToolExecutor:
                 repair_attempted=repaired, repair_confidence=repair_confidence,
                 risk=(tool_def.policy.risk if tool_def.policy else "read"),
                 runner_name=run_result.runner_name,
+                egress_entries=getattr(run_result, "egress_entries", None) if run_result else None,
+                secret_refs=getattr(run_result, "secret_refs", None) if run_result else None,
             )
             return exec_result
         except Exception as e:
@@ -681,12 +699,12 @@ class ToolExecutor:
         if plan.runner == "external_container":
             # Lv3: external tools run in isolated containers via their manifest
             from seekflow.tools.external_runner import ExternalToolRunner
-            return ExternalToolRunner()
+            return ExternalToolRunner(egress_sidecar=getattr(self, "egress_sidecar", None))
 
         if plan.runner == "mcp_gateway":
             # Lv3: MCP tools run through MCPGatewayRunner — no local callable
             from seekflow.mcp.runner import MCPGatewayRunner
-            return MCPGatewayRunner()
+            return MCPGatewayRunner(self.mcp_gateway_registry)
 
         raise RunnerUnavailableError(f"Unknown runner: {plan.runner}")
 
@@ -695,7 +713,8 @@ class ToolExecutor:
                       ok: bool = False, error: str | None = None,
                       policy_decision: str = "allowed", policy_reason: str = "",
                       repair_attempted: bool = False, repair_confidence: float = 1.0,
-                      risk: str = "read", runner_name: str = "") -> None:
+                      risk: str = "read", runner_name: str = "",
+                      egress_entries=None, secret_refs=None) -> None:
         """Append an audit record for this tool execution."""
         try:
             args_canonical = json.dumps(args, sort_keys=True, ensure_ascii=False,
@@ -729,18 +748,21 @@ class ToolExecutor:
             self._write_durable_audit(
                 tool_def, call_id, args, args_hash, result_hash,
                 latency_ms, ok, error, runner_name, risk,
+                egress_entries=egress_entries, secret_refs=secret_refs,
             )
 
     def _write_durable_audit(self, tool_def, call_id: str, args: dict,
                               args_hash: str, result_hash: str | None,
                               latency_ms: int, ok: bool, error: str | None,
-                              runner_name: str, risk: str) -> None:
+                              runner_name: str, risk: str,
+                              egress_entries=None, secret_refs=None) -> None:
         """Write a durable AuditEvent to the configured audit store."""
+        import logging
         import uuid
         from datetime import datetime, timezone
 
         try:
-            from seekflow.audit.model import AuditEvent
+            from seekflow.audit.model import AuditEvent, EgressAudit
 
             meta = tool_def.metadata or {}
             policy = tool_def.policy
@@ -754,6 +776,28 @@ class ToolExecutor:
                 policy_digest = hashlib.sha256(
                     policy_canonical.encode("utf-8")
                 ).hexdigest()[:16]
+
+            # Convert egress entries to EgressAudit models
+            egress_audits: list[EgressAudit] = []
+            if egress_entries:
+                for entry in egress_entries:
+                    if isinstance(entry, EgressAudit):
+                        egress_audits.append(entry)
+                    elif isinstance(entry, dict):
+                        egress_audits.append(EgressAudit(**entry))
+                    elif hasattr(entry, "domain"):
+                        egress_audits.append(EgressAudit(
+                            url=getattr(entry, "url", ""),
+                            domain=getattr(entry, "domain", ""),
+                            method=getattr(entry, "method", "GET"),
+                            status_code=getattr(entry, "status_code", 0),
+                            request_hash=getattr(entry, "request_hash", ""),
+                            response_hash=getattr(entry, "response_hash", ""),
+                            bytes_sent=getattr(entry, "bytes_sent", 0),
+                            bytes_received=getattr(entry, "bytes_received", 0),
+                            allowed=getattr(entry, "allowed", True),
+                            block_reason=getattr(entry, "block_reason", None),
+                        ))
 
             event = AuditEvent(
                 event_id=str(uuid.uuid4()),
@@ -773,13 +817,19 @@ class ToolExecutor:
                     meta.get("_manifest_data", {}).get("sandbox", {}).get("image_digest")
                     if isinstance(meta.get("_manifest_data"), dict) else None
                 ),
+                egress=egress_audits,
+                secret_refs=list(secret_refs) if secret_refs else [],
                 ok=ok,
                 error=error,
                 elapsed_ms=latency_ms,
             )
             self.audit_store.append(event)
-        except Exception:
-            pass  # durable audit must not block execution
+        except Exception as e:
+            if self.audit_required:
+                raise AuditStoreError(f"Durable audit write failed: {e}") from e
+            logging.getLogger("seekflow.executor").warning(
+                "Durable audit write failed (non-required mode): %s", e
+            )
 
     def _maybe_truncate(self, result, keep_fields: list[str] | None = None):
         """Truncate string result if too long, using configured strategy."""

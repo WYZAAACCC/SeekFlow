@@ -100,6 +100,9 @@ class ToolManifest(BaseModel):
 
     # Integrity
     package_digest: str  # sha256 of the tool package
+    package_path: str | None = None
+    package_url: str | None = None
+    oci_image: str | None = None
     schema_digest: str | None = None
     signature: str | None = None
     signing_key_id: str | None = None

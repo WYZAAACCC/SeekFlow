@@ -7,10 +7,13 @@ runner interface to the gateway's execute() method.
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from seekflow.tools.runners import ToolRunResult
 from seekflow.types import ToolCall, ToolDefinition
+
+if TYPE_CHECKING:
+    from seekflow.mcp.gateway import MCPGatewayRegistry
 
 
 class MCPGatewayRunner:
@@ -19,9 +22,14 @@ class MCPGatewayRunner:
     MCP tools have func=None in their ToolDefinition. The actual execution
     happens through the MCPGateway — a long-lived server session, not a
     per-call container.
+
+    The gateway registry is injected at construction time — no global state.
     """
 
     name = "mcp_gateway"
+
+    def __init__(self, gateway_registry: "MCPGatewayRegistry | None"):
+        self.gateway_registry = gateway_registry
 
     def run(
         self,
@@ -37,6 +45,7 @@ class MCPGatewayRunner:
         The gateway reference is stored in tool_def.metadata:
         - _mcp_gateway_id: server config name
         - _mcp_tool_name: tool name within the server
+        - _mcp_output_schema: optional output JSON Schema for validation
         """
         import time as _time
 
@@ -50,10 +59,14 @@ class MCPGatewayRunner:
                 runner_name=self.name,
             )
 
-        # Gateway lookup is deferred to avoid circular imports.
-        # In production, the gateway registry is managed by the runtime.
-        from seekflow.mcp.gateway import _gateway_registry
-        gateway = _gateway_registry.get(gateway_id)
+        # Gateway lookup via injected registry (preferred) with fallback to global
+        gateway = None
+        if self.gateway_registry is not None:
+            gateway = self.gateway_registry.get(gateway_id)
+        else:
+            from seekflow.mcp.gateway import _gateway_registry
+            gateway = _gateway_registry.get(gateway_id)
+
         if gateway is None:
             return ToolRunResult(
                 ok=False,
@@ -89,12 +102,36 @@ class MCPGatewayRunner:
                 elapsed_ms=elapsed,
             )
 
+        bounded_result = result.result if result.result is not None else ""
+
+        # ── Output schema validation (P0-E) ──────────────────────────
+        output_schema = (tool_def.metadata or {}).get("_mcp_output_schema")
+        if output_schema:
+            from seekflow.tools.validation import validate_tool_arguments
+            # Build dict for validation if result is a string
+            if isinstance(bounded_result, str):
+                try:
+                    import json
+                    parsed = json.loads(bounded_result)
+                except Exception:
+                    parsed = bounded_result
+            else:
+                parsed = bounded_result
+
+            if isinstance(parsed, dict):
+                issues = validate_tool_arguments(output_schema, parsed)
+                if issues:
+                    joined = "; ".join(f"{i.path}: {i.message}" for i in issues[:3])
+                    return ToolRunResult(
+                        ok=False,
+                        error=f"MCP output schema validation failed: {joined}",
+                        runner_name=self.name,
+                        elapsed_ms=elapsed,
+                    )
+
         # Bound the output
         from seekflow.tools.limits import serialize_bounded
-        bounded, truncated = serialize_bounded(
-            result.result if result.result is not None else "",
-            max_output_bytes,
-        )
+        bounded, truncated = serialize_bounded(bounded_result, max_output_bytes)
 
         return ToolRunResult(
             ok=True,

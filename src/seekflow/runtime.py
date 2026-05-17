@@ -221,6 +221,9 @@ class ToolRuntime:
 
         client = self._client if self._client else self._make_client(recorder)
         self._active_cache = ToolCallCache(max_size=self._cache_size, ttl=self._cache_ttl) if self._cache_size > 0 else None
+        unsafe_ok = bool(
+            getattr(self._policy_context, "dangerous_tools_enabled", False)
+        )
         executor = ToolExecutor(
             self._registry,
             repair=self._repair,
@@ -231,6 +234,7 @@ class ToolRuntime:
             context=self._policy_context,
             approval_handler=self._approval_handler,
             sandbox=self._sandbox,
+            allow_unsafe_no_policy_execution=unsafe_ok,
         )
 
         # Generate tools schema
@@ -295,18 +299,17 @@ class ToolRuntime:
             })
 
             # Force final text synthesis on penultimate step.
-            # DeepSeek V4 thinking mode does NOT support tool_choice.
-            # Use a user message prompt instead.
+            # Use a user message for BOTH thinking and non-thinking modes.
+            # tool_choice="none" is unsafe: it disables the function-calling API
+            # but the model may still emit inline XML tool calls in content,
+            # causing DSML leakage into user-visible output.
             steps_remaining = self._max_steps - step - 1
             extra_kwargs = dict(kwargs)
             if steps_remaining <= 1:
-                if thinking.enabled:
-                    working_messages.append({
-                        "role": "user",
-                        "content": "请直接给出最终答案，不要再调用工具。",
-                    })
-                else:
-                    extra_kwargs["tool_choice"] = "none"
+                working_messages.append({
+                    "role": "user",
+                    "content": "请直接给出最终答案，不要再调用工具。",
+                })
 
             # Build params through DeepSeekAdapter — single protocol entry point
             normalized = DeepSeekAdapter.build_chat_params(
@@ -392,6 +395,26 @@ class ToolRuntime:
             # No tool calls → done (with empty-content recovery)
             if not response.tool_calls:
                 content = response.content or ""
+
+                # DSML leakage guard: when thinking is disabled, the model
+                # occasionally emits inline XML tool call markup in content
+                # instead of using the proper function-calling protocol.
+                # Detect and retry with a correction prompt.
+                _dsml_patterns = ("<DSML", "<tool_calls>", "<function_call>")
+                if content.strip() and any(p in content for p in _dsml_patterns):
+                    if step < self._max_steps - 1:
+                        recorder.record("dsml_leak_recovery", {"step": step})
+                        working_messages.append({
+                            "role": "user",
+                            "content": (
+                                "Your last response contained internal tool call markup "
+                                "instead of proper output. Please use the function calling "
+                                "API to invoke tools, then provide a clean final answer "
+                                "without any XML or DSML markup."
+                            ),
+                        })
+                        continue
+
                 if not content.strip() and step < self._max_steps - 1:
                     # DeepSeek quirk: empty content. Retry once.
                     working_messages.append({
@@ -453,14 +476,42 @@ class ToolRuntime:
                 })
 
             if response.tool_calls:
-                batch_results = executor.execute_batch(response.tool_calls)
+                # ── Tool dedup: skip identical (name, args) calls already executed ──
+                _tool_dedup = getattr(self, '_tool_dedup_cache', None)
+                if _tool_dedup is None:
+                    _tool_dedup = {}
+                    self._tool_dedup_cache = _tool_dedup
+
+                _exec_calls = []
+                _exec_indices = []
+                batch_results_map = {}
+
                 for i, tc in enumerate(response.tool_calls):
-                    exec_result = batch_results[i]
+                    _cache_key = f"{tc.name}:{json.dumps(tc.arguments, sort_keys=True, ensure_ascii=False)}"
+                    if _cache_key in _tool_dedup:
+                        batch_results_map[i] = _tool_dedup[_cache_key]
+                    else:
+                        _exec_calls.append(tc)
+                        _exec_indices.append(i)
+
+                if _exec_calls:
+                    _fresh_results = executor.execute_batch(_exec_calls)
+                    for j, idx in enumerate(_exec_indices):
+                        batch_results_map[idx] = _fresh_results[j]
+                        _cache_key = f"{_exec_calls[j].name}:{json.dumps(_exec_calls[j].arguments, sort_keys=True, ensure_ascii=False)}"
+                        _tool_dedup[_cache_key] = _fresh_results[j]
+
+                for i, tc in enumerate(response.tool_calls):
+                    exec_result = batch_results_map[i]
                     tool_results.append(exec_result)
-                    result_content = (
-                        json.dumps(exec_result.result, ensure_ascii=False, separators=(",", ":"))
-                        if exec_result.ok else f"Error: {exec_result.error}"
-                    )
+                    if exec_result.ok:
+                        result_content = json.dumps(
+                            exec_result.result, ensure_ascii=False, separators=(",", ":")
+                        )
+                        if len(result_content) > 2000:
+                            result_content = result_content[:2000] + "..."
+                    else:
+                        result_content = f"Error: {exec_result.error}"[:200]
                     working_messages.append({
                         "role": "tool", "tool_call_id": tc.id, "content": result_content,
                     })

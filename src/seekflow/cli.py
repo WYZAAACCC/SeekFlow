@@ -74,8 +74,9 @@ def tool_verify(
 @tool_app.command("install")
 def tool_install(
     path: str = typer.Argument(..., help="Path to manifest (.yaml/.json)."),
-    strict: bool = typer.Option(False, "--strict", help="Require signature for external tools."),
+    strict: bool = typer.Option(False, "--strict", help="Require signature + package verification for external tools."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate only, don't persist."),
+    trust_store_path: str = typer.Option(None, "--trust-store", help="Path to trust store JSON file (key_id → base64 public key)."),
 ):
     """Install a tool from a manifest — verify, compile, lint, and register."""
     from seekflow.tools.manifest_loader import load_manifest
@@ -92,9 +93,36 @@ def tool_install(
         typer.echo(f"Error loading manifest: {e}", err=True)
         raise typer.Exit(code=1)
 
-    # 2. Verify
+    # 2. Build trust_store if configured
+    trust_store = None
+    if trust_store_path:
+        from seekflow.tools.trust_store import TrustStore
+        store = TrustStore()
+        import json as _json
+        keys_data = _json.loads(Path(trust_store_path).read_text(encoding="utf-8"))
+        for key_id, b64_key in keys_data.items():
+            import base64
+            store.add_key(key_id, base64.b64decode(b64_key))
+        trust_store = store
+
+    # 2b. Resolve package_bytes for strict external verification
+    package_bytes = None
+    if strict and manifest.source != "local":
+        if manifest.package_path:
+            package_bytes = Path(manifest.package_path).read_bytes()
+        elif manifest.package_url:
+            import urllib.request
+            with urllib.request.urlopen(manifest.package_url) as resp:
+                package_bytes = resp.read()
+        elif manifest.oci_image and manifest.sandbox.image_digest:
+            if "@sha256:" not in manifest.oci_image:
+                typer.echo("OCI image must use name@sha256:... digest pinning", err=True)
+                raise typer.Exit(code=1)
+            # package_bytes stays None for OCI (verified at container runtime)
+
+    # 3. Verify
     try:
-        verify_manifest(manifest, strict=strict)
+        verify_manifest(manifest, package_bytes=package_bytes, strict=strict, trust_store=trust_store)
     except Exception as e:
         typer.echo(f"Verification failed: {e}", err=True)
         raise typer.Exit(code=1)

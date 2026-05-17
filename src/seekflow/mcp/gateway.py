@@ -29,8 +29,31 @@ from seekflow.tools.validation import close_object_schema
 
 logger = logging.getLogger("seekflow.mcp.gateway")
 
-# Global gateway registry for MCPGatewayRunner lookup
+# Global gateway registry for MCPGatewayRunner lookup (deprecated, use MCPGatewayRegistry)
 _gateway_registry: dict[str, "MCPGateway"] = {}
+
+
+class MCPGatewayRegistry:
+    """Explicit registry for MCP gateway instances.
+
+    Replaces the global _gateway_registry dict with a dependency-injectable
+    registry. Each ToolExecutor should receive its own registry instance.
+    """
+
+    def __init__(self):
+        self._gateways: dict[str, "MCPGateway"] = {}
+
+    def register(self, gateway: "MCPGateway") -> None:
+        self._gateways[gateway.server_name] = gateway
+
+    def get(self, name: str) -> "MCPGateway | None":
+        return self._gateways.get(name)
+
+    def remove(self, name: str) -> None:
+        self._gateways.pop(name, None)
+
+    def list_all(self) -> list[str]:
+        return list(self._gateways.keys())
 
 
 @dataclass
@@ -55,13 +78,14 @@ class FrozenTool:
     description: str
     schema: dict[str, Any]
     schema_hash: str
+    output_schema: dict[str, Any] | None = None
 
     @classmethod
-    def from_discovery(cls, name: str, description: str, schema: dict) -> "FrozenTool":
+    def from_discovery(cls, name: str, description: str, schema: dict, output_schema: dict | None = None) -> "FrozenTool":
         closed = close_object_schema(schema) if schema else {}
         schema_canonical = json.dumps(closed, sort_keys=True, ensure_ascii=False)
         schema_hash = hashlib.sha256(schema_canonical.encode()).hexdigest()[:16]
-        return cls(name=name, description=description, schema=closed, schema_hash=schema_hash)
+        return cls(name=name, description=description, schema=closed, schema_hash=schema_hash, output_schema=output_schema)
 
 
 class MCPGatewayError(RuntimeError):
@@ -95,9 +119,13 @@ class MCPGateway:
 
     # ── Connection & Freeze ───────────────────────────────────────
 
-    def connect_and_freeze(self, registry) -> list[str]:
+    def connect_and_freeze(self, registry, *,
+                           gateway_registry: "MCPGatewayRegistry | None" = None) -> list[str]:
         """Connect to the MCP server, discover tools, freeze schemas,
         compile policies, lint, and register in the given ToolRegistry.
+
+        If gateway_registry is provided, this gateway is registered there
+        instead of the global _gateway_registry dict.
 
         Returns list of registered tool names (server.tool_name).
         """
@@ -137,7 +165,10 @@ class MCPGateway:
         self._connected = True
 
         # Register this gateway for MCPGatewayRunner lookup
-        _gateway_registry[cfg.name] = self
+        if gateway_registry:
+            gateway_registry.register(self)
+        else:
+            _gateway_registry[cfg.name] = self  # backward compat
 
         # Compile policy for each tool and register
         registered: list[str] = []
@@ -155,6 +186,7 @@ class MCPGateway:
                     "_mcp_gateway_id": cfg.name,
                     "_mcp_tool_name": ft.name,
                     "_mcp_schema_hash": ft.schema_hash,
+                    "_mcp_output_schema": ft.output_schema,  # 🆕
                 },
                 policy=policy,
             )
@@ -163,11 +195,16 @@ class MCPGateway:
 
         return registered
 
-    def _freeze_tools(self, tools: list[tuple[str, str, dict]]) -> None:
+    def _freeze_tools(self, tools: list[tuple[str, str, dict, dict | None]]) -> None:
         """Freeze the tool list and compute a list hash for mutation detection."""
         frozen = {}
-        for name, desc, schema in tools:
-            ft = FrozenTool.from_discovery(name, desc, schema or {})
+        for item in tools:
+            if len(item) == 4:
+                name, desc, schema, output_schema = item
+            else:
+                name, desc, schema = item[:3]
+                output_schema = None
+            ft = FrozenTool.from_discovery(name, desc, schema or {}, output_schema)
             frozen[name] = ft
 
         # Compute list hash for mutation detection
@@ -387,7 +424,7 @@ class MCPGateway:
         await session.initialize()
         result = await session.list_tools()
         self._sessions["sdk"] = (read, write, session)
-        return [(t.name, t.description or "", t.inputSchema or {}) for t in result.tools]
+        return [(t.name, t.description or "", t.inputSchema or {}, getattr(t, "outputSchema", None)) for t in result.tools]
 
     async def _call_tool_via_sdk(self, tool_name: str, args: dict) -> Any:
         _, _, session = self._sessions["sdk"]
@@ -451,7 +488,7 @@ class MCPGateway:
             proc.kill()
 
         tools = response.get("result", {}).get("tools", [])
-        return [(t["name"], t.get("description", ""), t.get("inputSchema", {})) for t in tools]
+        return [(t["name"], t.get("description", ""), t.get("inputSchema", {}), t.get("outputSchema")) for t in tools]
 
     def _call_tool_via_manual(self, tool_name: str, args: dict) -> Any:
         import os as _os

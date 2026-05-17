@@ -154,7 +154,7 @@ class DeepSeekAgent:
         self._allowed_capabilities: set[str] = {"read"}
         self._allowed_domains: set[str] = set()
         self._workspace_root: str | None = None
-        self._max_risk: str = "read"
+        self._max_risk: str = "destructive" if dangerous_tools else "read"
         self._sandbox: Any = None
 
         # Apply model-specific defaults if not explicitly overridden
@@ -681,8 +681,8 @@ class DeepSeekAgent:
         except Exception:
             pricing = PRICING.get(model, PRICING["__default__"])
             cost = (
-                max(prompt_tokens - cm.hit_tokens, 0) * pricing["input"] / 1_000_000
-                + cm.hit_tokens * pricing["cached_input"] / 1_000_000
+                max(prompt_tokens - cm.prompt_cache_hit_tokens, 0) * pricing["input"] / 1_000_000
+                + cm.prompt_cache_hit_tokens * pricing["cached_input"] / 1_000_000
                 + completion_tokens * pricing["output"] / 1_000_000
             )
         context_used = prompt_tokens + completion_tokens
@@ -706,8 +706,8 @@ class DeepSeekAgent:
                 context_total=self._max_context_tokens,
                 context_breakdown=self._compute_breakdown(messages, result),
                 cost_tag=self._cost_tag,
-                cache_hit=cm.hit_tokens > 0,
-                cache_tokens=cm.hit_tokens,
+                cache_hit=cm.prompt_cache_hit_tokens > 0,
+                cache_tokens=cm.prompt_cache_hit_tokens,
                 cache_hit_rate=round(cache_hit_rate, 4),
                 retry_attempts=getattr(result, 'retry_count', 0),
                 retry_cost=0.0,
@@ -765,7 +765,10 @@ class DeepSeekAgent:
                 max_steps=self._max_steps,
                 max_context_tokens=self._max_context_tokens,
                 mcp_servers=[s for s in self._mcp_servers],
-                policy_engine=PolicyEngine(),
+                policy_engine=PolicyEngine(
+                    allow_no_policy=self._dangerous_tools,
+                    mode="compat" if self._dangerous_tools else "strict",
+                ),
                 policy_context=ctx,
                 approval_handler=self._approval_handler,
                 sandbox=self._sandbox,

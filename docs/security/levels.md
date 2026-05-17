@@ -7,7 +7,7 @@
 | **Level 0** | Supported | Local trusted scripts | Fully trusted code in trusted environment |
 | **Level 1** | Supported | Internal trusted users + trusted tools | Trusted users, registered tools |
 | **Level 2** | Supported (current) | Non-fully-trusted prompts + trusted registered tools + limited file/network | Untrusted prompts, trusted tools, policy-enforced |
-| **Level 3** | Not supported | Untrusted third-party tools / untrusted MCP / plugin market | Untrusted tools from external sources |
+| **Level 3** | Candidate (v0.3.7) | Untrusted third-party tools / untrusted MCP / plugin market | Untrusted tools from external sources |
 | **Level 4** | Not supported | Multi-tenant SaaS / strong tenant isolation / compliance audit | Mutual distrust between tenants |
 
 ---
@@ -44,14 +44,30 @@
 
 ---
 
-## Level 3 — Future (not yet supported)
+## Level 3 — Candidate (v0.3.7)
 
-Level 3 would require:
+Level 3 candidate supports experimental untrusted third-party tools through
+manifest-based contracts, containerized execution, and zero-trust networking.
+Not yet full production-ready for untrusted multi-tenant workloads.
 
-- **Tool signing and verification**: Cryptographic signatures on tool code.
-- **Capability-based MCP sandboxing**: Per-server capability limits with enforcement.
-- **Plugin isolation**: Each plugin in its own sandbox (container or WASM).
-- **Dynamic policy**: Policies evaluated at load time, not just registration time.
+### What Level 3 candidate provides
+
+- **ToolManifest v1**: Declarative tool identity, capability, and sandbox contract with schema versioning.
+- **ExternalToolRunner**: Containerized third-party tool execution with JSON protocol, bounded output, and timeout-kill.
+- **MCPGateway**: Zero-trust MCP with tool freeze at connection time, mutation detection, and per-server capability ceiling.
+- **EgressGateway + EgressSidecar**: Network boundary for external tools — tools run with `--network none` and proxy through a policy-enforcing sidecar.
+- **SecretBroker**: Explicit secret injection by reference — no ambient environment variable inheritance.
+- **DurableAuditStore**: Append-only JSONL + SQLite audit trail with hash-chained tamper evidence.
+- **TrustStore + Ed25519**: Manifest signature verification with cryptographic key registry.
+- **Planner source gate**: Non-local source tools automatically routed to external_container or mcp_gateway runners.
+- **Manifest digest verification**: `package_digest` enforced against actual package bytes at install time.
+
+### What Level 3 candidate does NOT yet provide
+
+- **Production-hardened egress**: Egress sidecar is functional but not yet optimized for high-throughput production workloads.
+- **Full supply-chain verification**: Signature verification requires `cryptography>=42` optional dependency.
+- **GitHub provenance / SBOM**: Signed releases and attestations are pending.
+- **Multi-tenant isolation**: Per-tenant policy and resource accounting (Level 4 scope).
 
 ---
 

@@ -44,10 +44,10 @@ class _NormalizedPolicyContext:
 
 
 _DEFAULT_UNTRUSTED_POLICY = ToolPolicy(
-    capabilities=set(),
-    risk="destructive",
-    parallel_safe=False,
-    requires_approval=True,
+    capabilities={"read"},
+    risk="read",
+    parallel_safe=True,
+    requires_approval=False,
 )
 
 

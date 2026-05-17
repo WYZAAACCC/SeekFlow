@@ -15,33 +15,14 @@ import subprocess
 import tempfile
 import time as _time
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
-from seekflow.tools.manifest import ToolManifest, SandboxManifest
+from seekflow.tools.manifest import ToolManifest
 from seekflow.tools.runners import ToolRunResult
 
-
-@dataclass(frozen=True)
-class EgressProfile:
-    """Network egress policy for external tool execution (Phase E placeholder)."""
-    allowed_domains: set[str] = frozenset()
-    allowed_ports: set[int] = frozenset({443})
-    block_private_ips: bool = True
-
-
-@dataclass(frozen=True)
-class FSProfile:
-    """Filesystem profile for external tool execution."""
-    read_only: bool = True
-    workspace_mount: str | None = None
-
-
-@dataclass(frozen=True)
-class EnvProfile:
-    """Environment profile for external tool execution."""
-    allowlist: dict[str, str] = frozenset()
+if TYPE_CHECKING:
+    from seekflow.network.sidecar import EgressSidecar, EgressSidecarHandle
 
 
 class ExternalToolRunner:
@@ -54,6 +35,9 @@ class ExternalToolRunner:
 
     name = "external_container"
 
+    def __init__(self, egress_sidecar: "EgressSidecar | None" = None):
+        self.egress_sidecar = egress_sidecar
+
     def run(
         self,
         manifest: ToolManifest,
@@ -61,9 +45,8 @@ class ExternalToolRunner:
         timeout_s: float,
         *,
         max_output_bytes: int = 100_000,
-        egress_profile: EgressProfile | None = None,
-        fs_profile: FSProfile | None = None,
         env_profile: dict[str, str] | None = None,
+        run_id: str = "",
     ) -> ToolRunResult:
         """Execute an external tool in an isolated container.
 
@@ -72,9 +55,8 @@ class ExternalToolRunner:
             arguments: Tool arguments (serialized to JSON for stdin).
             timeout_s: Hard timeout in seconds.
             max_output_bytes: Maximum stdout bytes before truncation.
-            egress_profile: Network policy (Phase E).
-            fs_profile: Filesystem mounts.
-            env_profile: Environment allowlist.
+            env_profile: Environment allowlist (secrets from SecretBroker).
+            run_id: Execution run ID for audit linkage.
 
         Returns:
             ToolRunResult with ok, result (parsed JSON), error, elapsed_ms.
@@ -83,6 +65,7 @@ class ExternalToolRunner:
         sandbox = manifest.sandbox
         container_name = f"seekflow-ext-{uuid.uuid4().hex[:12]}"
         tmp_input = None
+        sidecar_handle = None
 
         try:
             # ── Write input JSON ───────────────────────────────────
@@ -115,10 +98,36 @@ class ExternalToolRunner:
                 image_ref = sandbox.image or "python:3.11-slim"
 
             # Lv3: external tools default to --network none unless egress sidecar configured
-            network_mode = "none"
+            env_vars: dict[str, str] = {}
+
             if manifest.network.allowed_domains:
-                # Network access requires egress sidecar (Phase 5)
-                # For now, block — sidecar must be explicitly started
+                if self.egress_sidecar is None:
+                    return ToolRunResult(
+                        ok=False,
+                        error="Network tool requires EgressSidecar to be configured",
+                        runner_name=self.name,
+                    )
+                from seekflow.network.egress import EgressPolicy
+                policy = EgressPolicy(
+                    allowed_domains=manifest.network.allowed_domains,
+                    allowed_schemes=manifest.network.allowed_schemes,
+                    allowed_ports=manifest.network.allowed_ports,
+                    allowed_methods=manifest.network.allowed_methods,
+                    max_request_bytes=manifest.network.max_request_bytes,
+                    max_response_bytes=manifest.network.max_response_bytes,
+                    max_redirects=manifest.network.max_redirects,
+                    block_private_ips=manifest.network.block_private_ips,
+                    require_tls=manifest.network.require_tls,
+                )
+                sidecar_handle = self.egress_sidecar.start(
+                    policy=policy,
+                    tool_name=manifest.name,
+                    run_id=run_id if run_id else "",
+                )
+                network_mode = "none"  # 工具容器自身仍无网络
+                env_vars["HTTP_PROXY"] = sidecar_handle.proxy_url
+                env_vars["HTTPS_PROXY"] = sidecar_handle.proxy_url
+            else:
                 network_mode = "none"
 
             cmd = [
@@ -143,6 +152,10 @@ class ExternalToolRunner:
                 for key, value in env_profile.items():
                     cmd.extend(["-e", f"{key}={value}"])
 
+            # Inject proxy env vars from egress sidecar
+            for key, value in env_vars.items():
+                cmd.extend(["-e", f"{key}={value}"])
+
             # Entrypoint: the tool's entrypoint command
             entrypoint_cmd = manifest.entrypoint.get("command", "python")
             entrypoint_args = manifest.entrypoint.get("args", ["/tool/main.py"])
@@ -157,22 +170,32 @@ class ExternalToolRunner:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
+                text=False,  # bytes mode — count bytes, not codepoints
             )
 
             try:
-                stdout_str, stderr_str, timed_out, limit_exceeded = _bounded_communicate(
+                stdout_bytes, stderr_bytes, timed_out, limit_exceeded = _bounded_communicate(
                     proc, timeout_s + 10, max_output_bytes + 4096, 64_000,
                 )
+                if isinstance(stdout_bytes, bytes):
+                    stdout_str = stdout_bytes.decode("utf-8", errors="replace")
+                else:
+                    stdout_str = stdout_bytes or ""
+                if isinstance(stderr_bytes, bytes):
+                    stderr_str = stderr_bytes.decode("utf-8", errors="replace")
+                else:
+                    stderr_str = stderr_bytes or ""
             except Exception:
                 _kill_container(container_name)
                 proc.kill()
                 elapsed = int((_time.monotonic() - start) * 1000)
+                egress_entries = list(sidecar_handle.audit_entries) if sidecar_handle else []
                 return ToolRunResult(
                     ok=False,
                     error=f"External tool I/O error",
                     runner_name=self.name,
                     elapsed_ms=elapsed,
+                    egress_entries=egress_entries,
                 )
 
             if timed_out:
@@ -183,6 +206,7 @@ class ExternalToolRunner:
                 except subprocess.TimeoutExpired:
                     pass
                 elapsed = int((_time.monotonic() - start) * 1000)
+                egress_entries = list(sidecar_handle.audit_entries) if sidecar_handle else []
                 return ToolRunResult(
                     ok=False,
                     error=f"External tool timed out after {timeout_s}s",
@@ -190,6 +214,7 @@ class ExternalToolRunner:
                     runner_name=self.name,
                     elapsed_ms=elapsed,
                     exit_code=proc.returncode,
+                    egress_entries=egress_entries,
                 )
 
             if limit_exceeded:
@@ -200,6 +225,7 @@ class ExternalToolRunner:
                 except subprocess.TimeoutExpired:
                     pass
                 elapsed = int((_time.monotonic() - start) * 1000)
+                egress_entries = list(sidecar_handle.audit_entries) if sidecar_handle else []
                 return ToolRunResult(
                     ok=False,
                     error=f"External tool stdout exceeded max_output_bytes ({max_output_bytes})",
@@ -208,6 +234,7 @@ class ExternalToolRunner:
                     elapsed_ms=elapsed,
                     exit_code=proc.returncode,
                     output_truncated=True,
+                    egress_entries=egress_entries,
                 )
 
             elapsed = int((_time.monotonic() - start) * 1000)
@@ -215,6 +242,7 @@ class ExternalToolRunner:
             # ── Check exit code ────────────────────────────────────
             if proc.returncode != 0:
                 _kill_container(container_name)
+                egress_entries = list(sidecar_handle.audit_entries) if sidecar_handle else []
                 return ToolRunResult(
                     ok=False,
                     error=f"External tool exited with code {proc.returncode}: "
@@ -222,6 +250,7 @@ class ExternalToolRunner:
                     runner_name=self.name,
                     elapsed_ms=elapsed,
                     exit_code=proc.returncode,
+                    egress_entries=egress_entries,
                 )
 
             # ── Parse stdout as JSON ───────────────────────────────
@@ -229,12 +258,14 @@ class ExternalToolRunner:
             stdout_str = (stdout_str or "").strip()
             if not stdout_str:
                 _kill_container(container_name)
+                egress_entries = list(sidecar_handle.audit_entries) if sidecar_handle else []
                 return ToolRunResult(
                     ok=False,
                     error="External tool produced no output",
                     runner_name=self.name,
                     elapsed_ms=elapsed,
                     exit_code=proc.returncode,
+                    egress_entries=egress_entries,
                 )
 
             # Bound output before parse
@@ -245,6 +276,7 @@ class ExternalToolRunner:
                 result = json.loads(bounded_stdout)
             except json.JSONDecodeError as e:
                 _kill_container(container_name)
+                egress_entries = list(sidecar_handle.audit_entries) if sidecar_handle else []
                 return ToolRunResult(
                     ok=False,
                     error=f"External tool output is not valid JSON: {e}",
@@ -252,6 +284,7 @@ class ExternalToolRunner:
                     elapsed_ms=elapsed,
                     exit_code=proc.returncode,
                     output_truncated=truncated,
+                    egress_entries=egress_entries,
                 )
 
             # ── Validate output schema if present ──────────────────
@@ -261,16 +294,23 @@ class ExternalToolRunner:
                 if issues:
                     _kill_container(container_name)
                     joined = "; ".join(f"{i.path}: {i.message}" for i in issues[:3])
+                    egress_entries = list(sidecar_handle.audit_entries) if sidecar_handle else []
                     return ToolRunResult(
                         ok=False,
                         error=f"Output schema validation failed: {joined}",
                         runner_name=self.name,
                         elapsed_ms=elapsed,
                         exit_code=proc.returncode,
+                        egress_entries=egress_entries,
                     )
 
             # ── Cleanup and return ──────────────────────────────────
             _kill_container(container_name)
+
+            # Collect egress audit entries from sidecar
+            egress_entries = []
+            if sidecar_handle is not None:
+                egress_entries = list(sidecar_handle.audit_entries)
 
             return ToolRunResult(
                 ok=True,
@@ -279,6 +319,7 @@ class ExternalToolRunner:
                 elapsed_ms=elapsed,
                 exit_code=proc.returncode,
                 output_truncated=truncated,
+                egress_entries=egress_entries,
             )
 
         except FileNotFoundError:
@@ -286,6 +327,7 @@ class ExternalToolRunner:
                 ok=False,
                 error="Docker not found — cannot run external tool",
                 runner_name=self.name,
+                egress_entries=list(sidecar_handle.audit_entries) if sidecar_handle else [],
             )
         except Exception as e:
             _kill_container(container_name)
@@ -294,10 +336,16 @@ class ExternalToolRunner:
                 error=f"External tool execution failed: {e}",
                 runner_name=self.name,
                 elapsed_ms=int((_time.monotonic() - start) * 1000),
+                egress_entries=list(sidecar_handle.audit_entries) if sidecar_handle else [],
             )
         finally:
             # Always cleanup container and temp file
             _kill_container(container_name)
+            if sidecar_handle is not None and self.egress_sidecar is not None:
+                try:
+                    self.egress_sidecar.stop(sidecar_handle)
+                except Exception:
+                    pass
             if tmp_input is not None:
                 try:
                     Path(tmp_input.name).unlink(missing_ok=True)
@@ -308,20 +356,20 @@ class ExternalToolRunner:
 def _bounded_communicate(
     proc: "subprocess.Popen",
     timeout_s: float,
-    max_stdout: int,
-    max_stderr: int,
-) -> tuple[str, str, bool, bool]:
+    max_stdout: int,  # bytes limit
+    max_stderr: int,  # bytes limit
+) -> tuple[bytes, bytes, bool, bool]:
     """Read stdout/stderr from a subprocess with hard byte limits.
 
-    Returns (stdout_str, stderr_str, timed_out, limit_exceeded).
-    Uses selectors for non-blocking chunked reads.
+    Returns (stdout_bytes, stderr_bytes, timed_out, limit_exceeded).
+    Uses selectors for non-blocking chunked reads. All chunks are raw bytes.
     """
     import selectors
 
-    stdout_chunks: list[str] = []
-    stderr_chunks: list[str] = []
-    stdout_bytes = 0
-    stderr_bytes = 0
+    stdout_chunks: list[bytes] = []
+    stderr_chunks: list[bytes] = []
+    stdout_total = 0
+    stderr_total = 0
     deadline = _time.monotonic() + timeout_s
     timed_out = False
     limit_exceeded = False
@@ -343,14 +391,14 @@ def _bounded_communicate(
                     sel.unregister(key.fileobj)
                     continue
                 if key.data == "stdout":
-                    stdout_bytes += len(chunk.encode("utf-8", errors="replace"))
-                    if stdout_bytes > max_stdout:
+                    stdout_total += len(chunk)
+                    if stdout_total > max_stdout:
                         limit_exceeded = True
                         break
                     stdout_chunks.append(chunk)
                 else:
-                    stderr_bytes += len(chunk.encode("utf-8", errors="replace"))
-                    if stderr_bytes > max_stderr:
+                    stderr_total += len(chunk)
+                    if stderr_total > max_stderr:
                         limit_exceeded = True
                         break
                     stderr_chunks.append(chunk)
@@ -358,17 +406,25 @@ def _bounded_communicate(
             if limit_exceeded:
                 break
 
+        # Bounded drain: only read up to remaining quota after process exits
         if not timed_out and not limit_exceeded:
-            remaining = proc.stdout.read()
-            if remaining:
-                stdout_chunks.append(remaining)
-            remaining = proc.stderr.read()
-            if remaining:
-                stderr_chunks.append(remaining)
+            remaining_quota = max_stdout - stdout_total
+            if remaining_quota > 0:
+                chunk = proc.stdout.read(remaining_quota)
+                if chunk:
+                    stdout_chunks.append(chunk)
+                    stdout_total += len(chunk)
+
+            remaining_quota = max_stderr - stderr_total
+            if remaining_quota > 0:
+                chunk = proc.stderr.read(remaining_quota)
+                if chunk:
+                    stderr_chunks.append(chunk)
+                    stderr_total += len(chunk)
     finally:
         sel.close()
 
-    return "".join(stdout_chunks), "".join(stderr_chunks), timed_out, limit_exceeded
+    return b"".join(stdout_chunks), b"".join(stderr_chunks), timed_out, limit_exceeded
 
 
 def _kill_container(container_name: str) -> None:

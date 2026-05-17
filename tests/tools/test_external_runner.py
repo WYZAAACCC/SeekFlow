@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 
 from seekflow.tools.external_runner import (
-    ExternalToolRunner, EgressProfile, FSProfile, EnvProfile, _kill_container,
+    ExternalToolRunner, _kill_container,
 )
 from seekflow.tools.manifest import (
     ToolManifest, SandboxManifest, NetworkManifest, FilesystemManifest, EnvManifest,

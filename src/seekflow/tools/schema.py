@@ -92,6 +92,19 @@ def _pydantic_model_to_schema(model: type[BaseModel]) -> dict[str, Any]:
     return schema
 
 
+def _resolve_annotation(annotation, func):
+    """Resolve a type annotation that may be a string (PEP 563 / __future__ annotations)."""
+    if not isinstance(annotation, str):
+        return annotation
+    # Try to eval the string annotation in the function's module context
+    try:
+        resolved = eval(annotation, func.__globals__)
+        return resolved
+    except Exception:
+        pass
+    return annotation
+
+
 def function_to_parameters(func) -> dict[str, Any]:
     """Extract JSON Schema parameters from a function's signature."""
     sig = inspect.signature(func)
@@ -99,7 +112,7 @@ def function_to_parameters(func) -> dict[str, Any]:
     required = []
 
     for name, param in sig.parameters.items():
-        annotation = param.annotation
+        annotation = _resolve_annotation(param.annotation, func)
         if annotation is inspect.Parameter.empty:
             properties[name] = {"type": "string"}
         else:
