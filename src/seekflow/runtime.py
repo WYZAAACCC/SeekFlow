@@ -361,7 +361,7 @@ class ToolRuntime:
                             final="Budget exceeded during execution.",
                             messages=working_messages,
                             tool_results=tool_results,
-                            usage=dict(cumulative_usage),
+                            usage=cumulative_usage.to_dict(),
                             reasoning_contents=reasoning_contents,
                         )
 
@@ -549,7 +549,7 @@ class ToolRuntime:
             messages=working_messages,
             tool_results=tool_results,
             trace=recorder if self._trace_enabled else None,
-            usage=dict(cumulative_usage),
+            usage=cumulative_usage.to_dict(),
             cache_stats=self._active_cache.stats if self._active_cache else None,
             reasoning_contents=reasoning_contents,
         )
